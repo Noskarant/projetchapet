@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.53.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.468.0",
     "next": "15.5.21",
     "react": "19.1.7",
