@@ -181,7 +181,7 @@ export default function MobileQuickAi() {
 
   return (
     <>
-      <button className="pc-mobile-ai-fab" onClick={() => setOpen(true)} aria-label="Dicter avec l’IA"><Mic size={25} /></button>
+      {!open && <button className="pc-mobile-ai-fab" onClick={() => setOpen(true)} aria-label="Dicter avec l’IA"><Mic size={25} /></button>}
       {open && <div className="pc-mobile-ai-backdrop" onClick={() => setOpen(false)} />}
       {open && (
         <section className="pc-mobile-ai-sheet" role="dialog" aria-modal="true">
