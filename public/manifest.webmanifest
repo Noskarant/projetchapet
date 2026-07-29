@@ -1,0 +1,10 @@
+{
+  "name": "Projet Chapet",
+  "short_name": "Chapet",
+  "description": "Gestion de devis, factures, clients et activité pour les entreprises du bâtiment.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f6f9",
+  "theme_color": "#102a43",
+  "lang": "fr-FR"
+}
