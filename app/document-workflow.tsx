@@ -101,20 +101,6 @@ export default function DocumentWorkflow() {
     [documents, activeNumber],
   );
 
-  function persistCopyAddress(value: string, document: BusinessDocument | null) {
-    const normalized = value.trim();
-    if (!normalized || !document) return;
-    const isInvoice = document.number.startsWith("FAC-");
-    const next: MailSettings = {
-      ...settings,
-      accountantEmail: normalized,
-      copyInvoices: isInvoice ? true : settings.copyInvoices,
-      copyQuotes: isInvoice ? settings.copyQuotes : true,
-    };
-    setSettings(next);
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
-  }
-
   async function openDocument(document: BusinessDocument, mode: "preview" | "send") {
     setBusy(true);
     try {
@@ -141,7 +127,6 @@ export default function DocumentWorkflow() {
     if (!selected || !recipient.trim()) return notify("Indiquez l’adresse e-mail du client.");
     setBusy(true);
     try {
-      persistCopyAddress(cc, selected);
       const blob = await buildDocumentPdf(selected);
       const response = await fetch("/api/email", {
         method: "POST",
@@ -175,8 +160,8 @@ export default function DocumentWorkflow() {
     <>
       {footerTarget && activeDocument && createPortal(
         <div className="pc-inline-document-tools">
-          <button className="pc-secondary" onClick={() => void openDocument(activeDocument, "preview")} disabled={busy}><Eye size={16} /> Aperçu PDF</button>
-          <button className="pc-primary" onClick={() => void openDocument(activeDocument, "send")} disabled={busy}><Send size={16} /> Envoyer au client</button>
+          <button className="pc-primary pc-preview-primary" onClick={() => void openDocument(activeDocument, "preview")} disabled={busy}><Eye size={17} /> Aperçu PDF</button>
+          <button className="pc-secondary" onClick={() => void openDocument(activeDocument, "send")} disabled={busy}><Send size={16} /> Envoyer au client</button>
           <button className="pc-secondary" onClick={() => void downloadDocumentPdf(activeDocument)}><Download size={16} /> Télécharger</button>
         </div>,
         footerTarget,
@@ -200,13 +185,24 @@ export default function DocumentWorkflow() {
       {selected && (
         <div className="pc-document-preview-backdrop" role="dialog" aria-modal="true">
           <section className="pc-document-preview-modal">
-            <header><div><span>Document prêt</span><h2>{selected.number}</h2><p>{customerName(selected.customer)}</p></div><button onClick={() => setSelected(null)} aria-label="Fermer"><X size={20} /></button></header>
+            <header>
+              <div>
+                <span>Aperçu PDF</span>
+                <h2>{selected.number}</h2>
+                <p>{customerName(selected.customer)} · document tel qu’il sera envoyé au client</p>
+              </div>
+              <button onClick={() => setSelected(null)} aria-label="Fermer"><X size={20} /></button>
+            </header>
             <div className="pc-document-preview-body">
-              <iframe src={previewUrl} title={`Aperçu ${selected.number}`} />
+              <div className="pc-pdf-stage">
+                <div className="pc-pdf-stage-label"><Eye size={16} /> Aperçu du document</div>
+                <iframe src={previewUrl} title={`Aperçu ${selected.number}`} />
+              </div>
               <aside>
+                <div className="pc-send-panel-title"><Mail size={18} /><div><strong>Envoyer ce PDF</strong><span>Le fichier affiché à gauche sera joint à l’e-mail.</span></div></div>
                 <label>E-mail du client<input type="email" value={recipient} onChange={(event) => setRecipient(event.target.value)} /></label>
-                <label>Copie à<input type="text" value={cc} onChange={(event) => setCc(event.target.value)} onBlur={(event) => persistCopyAddress(event.target.value, selected)} placeholder="comptable@cabinet.fr" /></label>
-                <p>Cette adresse sera mémorisée pour les prochains documents du même type. Le document est envoyé en PDF.</p>
+                <label>Copie à<input type="text" value={cc} onChange={(event) => setCc(event.target.value)} placeholder="comptable@cabinet.fr" onBlur={() => { if (cc.trim()) saveMailSettings({ ...settings, accountantEmail: cc.trim() }); }} /></label>
+                <p>Le document est envoyé en PDF. Le nom du logiciel n’apparaît pas dans l’e-mail.</p>
                 <button className="pc-primary" onClick={() => void sendDocument()} disabled={busy || !recipient.trim()}>{busy ? <Loader2 size={16} className="pc-spin" /> : <Mail size={16} />} Envoyer le PDF</button>
                 <button className="pc-secondary" onClick={() => void downloadDocumentPdf(selected)}><Download size={16} /> Télécharger le PDF</button>
               </aside>
