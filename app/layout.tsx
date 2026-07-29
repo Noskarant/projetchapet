@@ -3,6 +3,7 @@ import "./globals.css";
 import "./prototype.css";
 import "./crud.css";
 import "./readability-enhancements.css";
+import "./ai-chain.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
