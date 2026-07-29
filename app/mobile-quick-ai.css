@@ -1,0 +1,33 @@
+.pc-mobile-ai-fab,.pc-mobile-ai-backdrop,.pc-mobile-ai-sheet{display:none}
+
+@media(max-width:760px){
+  .pc-ai-launcher,.pc-enhancement-launcher{display:none!important}
+  .pc-mobile-ai-fab{display:grid;position:fixed;right:18px;bottom:88px;z-index:72;width:58px;height:58px;place-items:center;border:0;border-radius:50%;color:#fff;background:linear-gradient(145deg,#1e64a5,#143d68);box-shadow:0 15px 34px rgba(16,42,67,.33)}
+  .pc-mobile-ai-backdrop{display:block;position:fixed;inset:0;z-index:128;background:rgba(6,20,35,.52);backdrop-filter:blur(4px)}
+  .pc-mobile-ai-sheet{display:block;position:fixed;left:0;right:0;bottom:0;z-index:129;max-height:92dvh;overflow:auto;padding:18px 18px calc(22px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;color:#15243a;background:#f8fafc;box-shadow:0 -18px 55px rgba(8,25,42,.28);animation:pcMobileAiUp .2s ease-out}
+  @keyframes pcMobileAiUp{from{transform:translateY(24px);opacity:.3}to{transform:none;opacity:1}}
+  .pc-mobile-ai-sheet header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
+  .pc-mobile-ai-sheet header span{color:#2867a4;font-size:10px;font-weight:900;letter-spacing:.9px}
+  .pc-mobile-ai-sheet header h2{margin:4px 0 0;font-size:25px;line-height:1.08}
+  .pc-mobile-ai-sheet header button{width:42px;height:42px;display:grid;place-items:center;border:1px solid #d9e2ec;border-radius:13px;background:#fff;color:#334c66}
+  .pc-mobile-ai-targets{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:16px}
+  .pc-mobile-ai-targets button{min-height:70px;display:grid;place-items:center;gap:5px;border:1px solid #d7e1ec;border-radius:15px;background:#fff;color:#50637a;font-weight:800}
+  .pc-mobile-ai-targets button.active{border-color:#2565a3;color:#174d80;background:#eaf3fb;box-shadow:inset 0 0 0 1px #2565a3}
+  .pc-mobile-ai-mic{width:100%;min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border:0;border-radius:24px;color:#fff;background:linear-gradient(145deg,#1b5e9c,#123a63);box-shadow:0 18px 38px rgba(16,58,98,.25)}
+  .pc-mobile-ai-mic svg{width:68px;height:68px;padding:18px;border-radius:50%;background:rgba(255,255,255,.15)}
+  .pc-mobile-ai-mic strong{font-size:21px}.pc-mobile-ai-mic small{max-width:280px;color:#d9e9f7;font-size:13px;line-height:1.45}
+  .pc-mobile-ai-listening{width:100%;min-height:270px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;border:0;border-radius:24px;color:#fff;background:linear-gradient(145deg,#173f69,#8f2d3b)}
+  .pc-mobile-ai-listening strong{font-size:23px}.pc-mobile-ai-listening small{color:#f5dce0}.pc-mobile-ai-listening>span{margin-top:10px;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;background:rgba(255,255,255,.16);font-weight:850}
+  .pc-mobile-ai-wave{height:72px;display:flex;align-items:center;gap:5px}
+  .pc-mobile-ai-wave i{width:5px;height:18px;border-radius:999px;background:#fff;animation:pcWave .8s ease-in-out infinite alternate}
+  .pc-mobile-ai-wave i:nth-child(2n){animation-delay:.12s}.pc-mobile-ai-wave i:nth-child(3n){animation-delay:.24s}.pc-mobile-ai-wave i:nth-child(5n){animation-delay:.38s}
+  @keyframes pcWave{from{height:12px;opacity:.55}to{height:62px;opacity:1}}
+  .pc-mobile-ai-working{min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border:1px solid #dce6f0;border-radius:22px;background:#fff}
+  .pc-mobile-ai-working strong{font-size:20px}.pc-mobile-ai-working small{color:#6a7b8e}
+  .pc-mobile-ai-review{display:grid;gap:12px}
+  .pc-mobile-ai-review details{padding:12px 14px;border:1px solid #dce4ed;border-radius:13px;background:#fff}.pc-mobile-ai-review summary{font-weight:800}.pc-mobile-ai-review p{margin:10px 0 0;color:#5f7185;line-height:1.5}
+  .pc-mobile-ai-summary{display:grid;gap:9px}.pc-mobile-ai-summary span{display:grid;gap:4px;padding:13px 14px;border:1px solid #dce4ed;border-radius:14px;background:#fff;color:#344b63}.pc-mobile-ai-summary b{color:#172b43;font-size:13px}
+  .pc-mobile-ai-apply{min-height:54px;display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:15px;color:#fff;background:#2366a5;font-size:16px;font-weight:900}
+  .pc-mobile-ai-retry{min-height:46px;border:1px solid #d5e0eb;border-radius:14px;background:#fff;color:#41566c;font-weight:800}
+  .pc-mobile-ai-error{margin:12px 0 0;padding:12px;border:1px solid #efcbd0;border-radius:12px;color:#9f293a;background:#fff1f3;font-size:13px;font-weight:700}
+}
