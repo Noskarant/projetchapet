@@ -1,0 +1,228 @@
+@media (max-width: 820px) {
+  html {
+    font-size: 18px;
+    -webkit-text-size-adjust: 115%;
+    text-size-adjust: 115%;
+  }
+
+  body {
+    font-size: 18px !important;
+  }
+
+  .pc-content {
+    padding: 24px 20px 128px !important;
+  }
+
+  .pc-topbar {
+    min-height: 78px !important;
+    padding: 14px 18px !important;
+  }
+
+  .pc-mobile-title strong {
+    font-size: 23px !important;
+    line-height: 1.15 !important;
+  }
+
+  .pc-icon-button,
+  .pc-new-button {
+    min-width: 52px !important;
+    min-height: 52px !important;
+    border-radius: 14px !important;
+  }
+
+  .pc-heading {
+    gap: 18px !important;
+    margin-bottom: 24px !important;
+  }
+
+  .pc-heading > div > span,
+  .pc-heading > div > p {
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+
+  .pc-heading h1 {
+    font-size: 42px !important;
+    line-height: 1.05 !important;
+    letter-spacing: -1.2px !important;
+  }
+
+  .pc-heading .pc-primary,
+  .pc-heading .pc-secondary {
+    min-height: 58px !important;
+    padding: 0 20px !important;
+    font-size: 18px !important;
+    line-height: 1.15 !important;
+  }
+
+  .pc-search-row,
+  .pc-search-box,
+  .pc-list-search {
+    min-height: 60px !important;
+  }
+
+  .pc-search-row input,
+  .pc-search-box input,
+  .pc-list-search input,
+  input,
+  select,
+  textarea {
+    font-size: 18px !important;
+  }
+
+  .pc-filter-row,
+  .pc-status-filters {
+    gap: 10px !important;
+    overflow-x: auto !important;
+    padding-bottom: 6px !important;
+    scrollbar-width: none;
+  }
+
+  .pc-filter-row button,
+  .pc-status-filters button {
+    min-height: 48px !important;
+    padding: 0 17px !important;
+    font-size: 16px !important;
+    flex: 0 0 auto !important;
+  }
+
+  .pc-card,
+  .pc-panel,
+  .pc-list-card,
+  .pc-document-card,
+  .pc-stat-card {
+    border-radius: 20px !important;
+  }
+
+  .pc-document-card,
+  .pc-list-card {
+    padding: 24px !important;
+    min-height: 190px !important;
+  }
+
+  .pc-document-card strong,
+  .pc-list-card strong,
+  .pc-document-card h3,
+  .pc-list-card h3 {
+    font-size: 23px !important;
+    line-height: 1.25 !important;
+  }
+
+  .pc-document-card small,
+  .pc-list-card small,
+  .pc-document-card p,
+  .pc-list-card p {
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+
+  .pc-document-card .amount,
+  .pc-list-card .amount {
+    font-size: 26px !important;
+  }
+
+  .pc-status,
+  .pc-pill {
+    min-height: 38px !important;
+    padding: 0 14px !important;
+    font-size: 15px !important;
+  }
+
+  .pc-kpi-grid {
+    gap: 18px !important;
+  }
+
+  .pc-kpi-card {
+    min-height: 220px !important;
+    padding: 28px 26px !important;
+    border-radius: 24px !important;
+  }
+
+  .pc-kpi-card span,
+  .pc-kpi-card p {
+    font-size: 17px !important;
+  }
+
+  .pc-kpi-card strong {
+    font-size: 50px !important;
+    line-height: 1 !important;
+  }
+
+  .pc-mobile-nav {
+    min-height: 88px !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .pc-mobile-nav button span {
+    font-size: 14px !important;
+  }
+
+  .pc-mobile-nav button svg {
+    width: 27px !important;
+    height: 27px !important;
+  }
+
+  .pc-mobile-mic,
+  .pc-mobile-quick-ai {
+    width: 70px !important;
+    height: 70px !important;
+    right: 20px !important;
+    bottom: calc(104px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .pc-crud-modal {
+    font-size: 18px !important;
+  }
+
+  .pc-crud-modal > header {
+    padding: 22px 20px !important;
+  }
+
+  .pc-crud-modal > header h2 {
+    font-size: 31px !important;
+  }
+
+  .pc-document-summary {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  .pc-document-summary > div {
+    padding: 20px !important;
+    min-height: 118px !important;
+  }
+
+  .pc-document-summary span {
+    font-size: 16px !important;
+  }
+
+  .pc-document-summary strong {
+    font-size: 24px !important;
+  }
+
+  .pc-document-lines {
+    font-size: 17px !important;
+  }
+
+  .pc-document-lines .head,
+  .pc-document-lines > div {
+    padding: 18px 16px !important;
+  }
+
+  .pc-document-lines strong {
+    font-size: 18px !important;
+  }
+
+  .pc-document-bottom,
+  .pc-totals {
+    font-size: 18px !important;
+  }
+
+  .pc-totals .total strong {
+    font-size: 27px !important;
+  }
+
+  .pc-pdf-opening {
+    display: none !important;
+  }
+}
