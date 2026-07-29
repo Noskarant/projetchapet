@@ -8,6 +8,7 @@ import "./workflow-polish.css";
 import "./document-preview.css";
 import "./dashboard-enhancements.css";
 import "./mobile-quick-ai.css";
+import "./mobile-visibility-force.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
