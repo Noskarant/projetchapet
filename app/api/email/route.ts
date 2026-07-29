@@ -4,10 +4,17 @@ export const runtime = "nodejs";
 
 type Attachment = { filename: string; content: string };
 
+function cleanEmails(value: unknown) {
+  const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[;,]/) : [];
+  return list.map((item) => String(item).trim()).filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json() as {
       to?: string;
+      cc?: string[] | string;
+      bcc?: string[] | string;
       subject?: string;
       html?: string;
       attachments?: Attachment[];
@@ -27,6 +34,8 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         from,
         to: [to],
+        cc: cleanEmails(body.cc),
+        bcc: cleanEmails(body.bcc),
         subject: body.subject || "Votre document",
         html: body.html || "<p>Veuillez trouver votre document en pièce jointe.</p>",
         attachments: (body.attachments ?? []).map((attachment) => ({
