@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./prototype.css";
 import "./crud.css";
+import "./readability-enhancements.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
