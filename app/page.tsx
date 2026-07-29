@@ -1,6 +1,7 @@
 import FunctionalPrototype from "./functional-prototype";
 import ProductEnhancements from "./product-enhancements";
 import AiChain from "./ai-chain";
+import DocumentWorkflow from "./document-workflow";
 
 export default function Page() {
   return (
@@ -8,6 +9,7 @@ export default function Page() {
       <FunctionalPrototype />
       <ProductEnhancements />
       <AiChain />
+      <DocumentWorkflow />
     </>
   );
 }
