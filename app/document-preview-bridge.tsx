@@ -121,12 +121,6 @@ export default function DocumentPreviewBridge() {
 
   return (
     <>
-      {loadingNumber && !preview && (
-        <div className="pc-pdf-opening" aria-live="polite">
-          <Loader2 size={18} className="pc-spin" /> Préparation de l’aperçu…
-        </div>
-      )}
-
       {preview && (
         <div className="pc-pdf-preview-overlay" role="dialog" aria-modal="true">
           <section className="pc-pdf-preview-shell">
