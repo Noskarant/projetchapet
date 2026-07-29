@@ -48,19 +48,13 @@ function normalizeCustomer(data: Record<string, unknown>) {
   const lastName = cleanText(data.last_name, 100);
   const warnings = uniqueWarnings(data.warnings);
 
-  if (kind === "business" && !companyName) {
-    warnings.push("La raison sociale n’a pas été clairement dictée.");
-  }
-  if (kind === "individual" && !lastName) {
-    warnings.push("Le nom du particulier n’a pas été clairement dicté.");
-  }
+  if (kind === "business" && !companyName) warnings.push("La raison sociale n’a pas été clairement dictée.");
+  if (kind === "individual" && !lastName) warnings.push("Le nom du particulier n’a pas été clairement dicté.");
 
   return {
     kind,
     company_name: companyName,
-    civility: ["M.", "Mme", "M. et Mme"].includes(cleanText(data.civility))
-      ? cleanText(data.civility)
-      : "M.",
+    civility: ["M.", "Mme", "M. et Mme"].includes(cleanText(data.civility)) ? cleanText(data.civility) : "M.",
     last_name: lastName,
     first_name: cleanText(data.first_name, 100),
     siret: cleanText(data.siret, 20).replace(/\D/g, ""),
@@ -86,13 +80,8 @@ function normalizeLine(value: unknown, index: number) {
 
   let unitPrice = spokenPrice;
   if (priceType === "ttc") {
-    if (taxRate > 0) {
-      unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
-    } else {
-      warnings.push(
-        `Ligne ${index + 1} : prix TTC détecté mais taux de TVA absent, conversion HT impossible.`,
-      );
-    }
+    if (taxRate > 0) unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
+    else warnings.push(`Ligne ${index + 1} : prix TTC détecté mais taux de TVA absent, conversion HT impossible.`);
   }
 
   const label = cleanText(line.label, 240);
@@ -100,9 +89,7 @@ function normalizeLine(value: unknown, index: number) {
   if (!label) warnings.push(`Ligne ${index + 1} : désignation manquante.`);
   if (quantity === 0) warnings.push(`Ligne ${index + 1} : quantité absente ou nulle.`);
   if (spokenPrice === 0) warnings.push(`Ligne ${index + 1} : prix unitaire absent ou nul.`);
-  if (taxRate === 0 && cleanNumber(line.tax_rate) !== 0) {
-    warnings.push(`Ligne ${index + 1} : taux de TVA non reconnu, remis à 0 %.`);
-  }
+  if (taxRate === 0 && cleanNumber(line.tax_rate) !== 0) warnings.push(`Ligne ${index + 1} : taux de TVA non reconnu, remis à 0 %.`);
 
   return {
     item: {
@@ -122,14 +109,8 @@ function normalizeLine(value: unknown, index: number) {
 function normalizeDocument(data: Record<string, unknown>) {
   const rawItems = Array.isArray(data.items) ? data.items.slice(0, 50) : [];
   const normalized = rawItems.map(normalizeLine);
-  const warnings = [
-    ...uniqueWarnings(data.warnings),
-    ...normalized.flatMap((entry) => entry.warnings),
-  ];
-
-  if (normalized.length === 0) {
-    warnings.push("Aucune prestation exploitable n’a été détectée.");
-  }
+  const warnings = [...uniqueWarnings(data.warnings), ...normalized.flatMap((entry) => entry.warnings)];
+  if (normalized.length === 0) warnings.push("Aucune prestation exploitable n’a été détectée.");
 
   return {
     customer_hint: cleanText(data.customer_hint, 180),
@@ -142,37 +123,19 @@ function normalizeDocument(data: Record<string, unknown>) {
 }
 
 function fallbackCustomer(text: string) {
-  const emailMatches = [...text.matchAll(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g)].map(
-    (match) => match[0],
-  );
-  const phoneMatches = [
-    ...text.matchAll(/(?:\+33|0)[1-9](?:[ .-]?\d{2}){4}/g),
-  ].map((match) => match[0]);
-  const siret =
-    text.match(/\b\d{3}[ .]?\d{3}[ .]?\d{3}[ .]?\d{5}\b/)?.[0]?.replace(/\D/g, "") ??
-    "";
+  const emailMatches = [...text.matchAll(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g)].map((match) => match[0]);
+  const phoneMatches = [...text.matchAll(/(?:\+33|0)[1-9](?:[ .-]?\d{2}){4}/g)].map((match) => match[0]);
+  const siret = text.match(/\b\d{3}[ .]?\d{3}[ .]?\d{3}[ .]?\d{5}\b/)?.[0]?.replace(/\D/g, "") ?? "";
   const postalCode = text.match(/\b\d{5}\b/)?.[0] ?? "";
-  const isBusiness =
-    /soci[eé]t[eé]|entreprise|sarl|sas|sasu|eurl|siret|raison sociale/i.test(text);
-  const company =
-    text.match(
-      /(?:soci[eé]t[eé]|entreprise|raison sociale)\s+([^,.;]+?)(?=\s+(?:siret|t[eé]l[eé]phone|adresse|email|e-mail)\b|[,.;]|$)/i,
-    )?.[1]?.trim() ?? "";
-  const name =
-    text.match(/(?:nom)\s+([^,.;]+?)(?=\s+(?:pr[eé]nom|t[eé]l[eé]phone|adresse)\b|[,.;]|$)/i)?.[1]?.trim() ??
-    "";
-  const firstName =
-    text.match(/(?:pr[eé]nom)\s+([^,.;]+?)(?=\s+(?:nom|t[eé]l[eé]phone|adresse)\b|[,.;]|$)/i)?.[1]?.trim() ??
-    "";
+  const isBusiness = /soci[eé]t[eé]|entreprise|sarl|sas|sasu|eurl|siret|raison sociale/i.test(text);
+  const company = text.match(/(?:soci[eé]t[eé]|entreprise|raison sociale)\s+([^,.;]+?)(?=\s+(?:siret|t[eé]l[eé]phone|adresse|email|e-mail)\b|[,.;]|$)/i)?.[1]?.trim() ?? "";
+  const name = text.match(/(?:nom)\s+([^,.;]+?)(?=\s+(?:pr[eé]nom|t[eé]l[eé]phone|adresse)\b|[,.;]|$)/i)?.[1]?.trim() ?? "";
+  const firstName = text.match(/(?:pr[eé]nom)\s+([^,.;]+?)(?=\s+(?:nom|t[eé]l[eé]phone|adresse)\b|[,.;]|$)/i)?.[1]?.trim() ?? "";
 
   return normalizeCustomer({
     kind: isBusiness ? "business" : "individual",
     company_name: company,
-    civility: /monsieur et madame|m\. et mme/i.test(text)
-      ? "M. et Mme"
-      : /madame|mme/i.test(text)
-        ? "Mme"
-        : "M.",
+    civility: /monsieur et madame|m\. et mme/i.test(text) ? "M. et Mme" : /madame|mme/i.test(text) ? "Mme" : "M.",
     last_name: name,
     first_name: firstName,
     siret,
@@ -181,88 +144,42 @@ function fallbackCustomer(text: string) {
     email2: emailMatches[1] ?? "",
     phone1: phoneMatches[0] ?? "",
     phone2: phoneMatches[1] ?? "",
-    line1:
-      text.match(
-        /(?:adresse)\s+([^,.;]+?)(?=\s+\d{5}\b|[,.;]|$)/i,
-      )?.[1]?.trim() ?? "",
+    line1: text.match(/(?:adresse)\s+([^,.;]+?)(?=\s+\d{5}\b|[,.;]|$)/i)?.[1]?.trim() ?? "",
     postal_code: postalCode,
-    city: postalCode
-      ? text.match(new RegExp(`${postalCode}\\s+([^,.;]+)`, "i"))?.[1]?.trim() ?? ""
-      : "",
+    city: postalCode ? text.match(new RegExp(`${postalCode}\\s+([^,.;]+)`, "i"))?.[1]?.trim() ?? "" : "",
     notes: "",
-    warnings: [
-      "Analyse locale simplifiée : ajoutez DEEPSEEK_API_KEY pour une extraction plus robuste.",
-    ],
+    warnings: ["Analyse locale simplifiée : ajoutez DEEPSEEK_API_KEY pour une extraction plus robuste."],
   });
 }
 
 function fallbackDocument(text: string) {
-  const tax =
-    Number(
-      text.match(/TVA\s*(?:à|de)?\s*(5[,.]5|10|20|0)\s*%/i)?.[1]?.replace(",", ".") ??
-        0,
-    ) || 0;
-  const chunks = text
-    .split(/(?:\.\s+|;\s*|\bensuite\b|\bpuis\b)/i)
-    .map((chunk) => chunk.trim())
-    .filter((chunk) => chunk.length > 8);
-
-  const items = chunks
-    .map((chunk) => {
-      const quantityMatch = chunk.match(
-        /(\d+(?:[,.]\d+)?)\s*(m2|m²|mètres?\s+carrés?|ml|mètres?\s+linéaires?|heures?|h|unités?|u|forfaits?)/i,
-      );
-      const priceMatch = chunk.match(
-        /(?:à|pour|prix)\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)\s*(HT|TTC)?/i,
-      );
-      if (!quantityMatch && !priceMatch) return null;
-      const unitText = quantityMatch?.[2]?.toLowerCase() ?? "u";
-      const unit = /m2|m²|carr/.test(unitText)
-        ? "m²"
-        : /ml|lin/.test(unitText)
-          ? "ml"
-          : /heure|\bh\b/.test(unitText)
-            ? "h"
-            : /forfait/.test(unitText)
-              ? "forfait"
-              : "u";
-      const label = chunk
-        .replace(quantityMatch?.[0] ?? "", "")
-        .replace(priceMatch?.[0] ?? "", "")
-        .replace(/^(client|chantier|travaux|ajoute|ligne|prestation)\s+/i, "")
-        .trim()
-        .replace(/^[-,:]\s*/, "")
-        .slice(0, 220);
-      return {
-        label: label || "Prestation dictée",
-        description: "",
-        quantity: Number(quantityMatch?.[1]?.replace(",", ".") ?? 1),
-        unit,
-        unit_price: Number(priceMatch?.[1]?.replace(",", ".") ?? 0),
-        tax_rate: tax,
-        price_type:
-          priceMatch?.[2]?.toLowerCase() === "ttc"
-            ? "ttc"
-            : priceMatch?.[2]?.toLowerCase() === "ht"
-              ? "ht"
-              : "unknown",
-        confidence: 0.45,
-      };
-    })
-    .filter(Boolean);
+  const tax = Number(text.match(/TVA\s*(?:à|de)?\s*(5[,.]5|10|20|0)\s*%/i)?.[1]?.replace(",", ".") ?? 0) || 0;
+  const chunks = text.split(/(?:\.\s+|;\s*|\bensuite\b|\bpuis\b)/i).map((chunk) => chunk.trim()).filter((chunk) => chunk.length > 8);
+  const items = chunks.map((chunk) => {
+    const quantityMatch = chunk.match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|mètres?\s+carrés?|ml|mètres?\s+linéaires?|heures?|h|unités?|u|forfaits?)/i);
+    const priceMatch = chunk.match(/(?:à|pour|prix)\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)\s*(HT|TTC)?/i);
+    if (!quantityMatch && !priceMatch) return null;
+    const unitText = quantityMatch?.[2]?.toLowerCase() ?? "u";
+    const unit = /m2|m²|carr/.test(unitText) ? "m²" : /ml|lin/.test(unitText) ? "ml" : /heure|\bh\b/.test(unitText) ? "h" : /forfait/.test(unitText) ? "forfait" : "u";
+    const label = chunk.replace(quantityMatch?.[0] ?? "", "").replace(priceMatch?.[0] ?? "", "").replace(/^(client|chantier|travaux|ajoute|ligne|prestation)\s+/i, "").trim().replace(/^[-,:]\s*/, "").slice(0, 220);
+    return {
+      label: label || "Prestation dictée",
+      description: "",
+      quantity: Number(quantityMatch?.[1]?.replace(",", ".") ?? 1),
+      unit,
+      unit_price: Number(priceMatch?.[1]?.replace(",", ".") ?? 0),
+      tax_rate: tax,
+      price_type: priceMatch?.[2]?.toLowerCase() === "ttc" ? "ttc" : priceMatch?.[2]?.toLowerCase() === "ht" ? "ht" : "unknown",
+      confidence: 0.45,
+    };
+  }).filter(Boolean);
 
   return normalizeDocument({
-    customer_hint:
-      text.match(/client\s+([^,.;]+?)(?=\s+(?:chantier|travaux|ajoute|préparation)\b|[,.;]|$)/i)?.[1]?.trim() ??
-      "",
-    title:
-      text.match(/(?:objet|chantier|travaux)\s+([^,.;]+)/i)?.[1]?.trim() ??
-      "Travaux à préciser",
+    customer_hint: text.match(/client\s+([^,.;]+?)(?=\s+(?:chantier|travaux|ajoute|préparation)\b|[,.;]|$)/i)?.[1]?.trim() ?? "",
+    title: text.match(/(?:objet|chantier|travaux)\s+([^,.;]+)/i)?.[1]?.trim() ?? "Travaux à préciser",
     notes: text,
     items,
-    warnings: [
-      "Analyse locale simplifiée : ajoutez DEEPSEEK_API_KEY pour comprendre plusieurs lignes et le vocabulaire métier avec plus de fiabilité.",
-    ],
+    warnings: ["Analyse locale simplifiée : ajoutez DEEPSEEK_API_KEY pour comprendre plusieurs lignes et le vocabulaire métier avec plus de fiabilité."],
   });
 }
 
@@ -319,55 +236,36 @@ confidence est entre 0 et 1. Signale toute ambiguïté dans warnings. Réponds u
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as {
-      kind?: ParseKind;
-      transcript?: string;
-      target?: string;
-    };
+    const body = (await request.json()) as { kind?: ParseKind; transcript?: string; target?: string };
     const kind = body.kind === "customer" ? "customer" : "document";
-    const target = ["customer", "quote", "invoice", "current"].includes(String(body.target))
-      ? String(body.target)
-      : "quote";
+    const target = ["customer", "quote", "invoice", "current"].includes(String(body.target)) ? String(body.target) : "quote";
     const transcript = String(body.transcript ?? "").trim().slice(0, 14000);
 
-    if (!transcript) {
-      return NextResponse.json({ error: "La dictée est vide." }, { status: 400 });
-    }
+    if (!transcript) return NextResponse.json({ error: "La dictée est vide." }, { status: 400 });
 
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({
-        provider: "local-fallback",
-        data: kind === "customer" ? fallbackCustomer(transcript) : fallbackDocument(transcript),
-      });
+      return NextResponse.json({ provider: "local-fallback", data: kind === "customer" ? fallbackCustomer(transcript) : fallbackDocument(transcript) });
     }
 
+    const prompt = systemPrompt(kind, target);
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
-        temperature: 0,
-        max_tokens: 3200,
-        response_format: { type: "json_object" },
+        model: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
         thinking: { type: "disabled" },
+        max_tokens: 2000,
+        response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: systemPrompt(kind, target) },
-          {
-            role: "user",
-            content: `Voici la dictée à convertir. Ne tiens compte que des informations explicitement présentes :\n\n${transcript}`,
-          },
+          { role: "system", content: prompt },
+          { role: "user", content: transcript },
         ],
       }),
     });
 
     const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result?.error?.message ?? `DeepSeek API : ${response.status}`);
-    }
+    if (!response.ok) throw new Error(result?.error?.message ?? `DeepSeek API : ${response.status}`);
 
     const content = result?.choices?.[0]?.message?.content;
     if (!content) throw new Error("DeepSeek n’a retourné aucune donnée.");
@@ -376,14 +274,12 @@ export async function POST(request: Request) {
     const data = kind === "customer" ? normalizeCustomer(raw) : normalizeDocument(raw);
 
     return NextResponse.json({
-      provider: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+      provider: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
+      mode: "non-thinking",
       data,
       usage: result?.usage ?? null,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Analyse impossible." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Analyse impossible." }, { status: 500 });
   }
 }
