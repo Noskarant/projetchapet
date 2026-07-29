@@ -5,6 +5,7 @@ import "./crud.css";
 import "./readability-enhancements.css";
 import "./ai-chain.css";
 import "./workflow-polish.css";
+import "./document-preview.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
