@@ -8,7 +8,10 @@ function isQuote(document: BusinessDocument): document is Quote {
 }
 
 function money(value: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(value || 0));
+  const amount = Number(value || 0);
+  const [integerPart, decimalPart] = amount.toFixed(2).split(".");
+  const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${groupedInteger},${decimalPart} €`;
 }
 
 function date(value: string | null | undefined) {
@@ -70,6 +73,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   y += 12;
 
   pdf.setFont("helvetica", "normal");
+  pdf.setCharSpace(0);
   for (const item of document.items) {
     if (y > 252) {
       pdf.addPage();
@@ -84,7 +88,8 @@ export async function buildDocumentPdf(document: BusinessDocument) {
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(8.5);
     }
-    pdf.text(`${item.quantity} ${item.unit || ""}`, 118, y, { align: "right" });
+    pdf.setCharSpace(0);
+    pdf.text(`${item.quantity} ${item.unit || ""}`.trim(), 118, y, { align: "right" });
     pdf.text(money(item.unit_price), 145, y, { align: "right" });
     pdf.text(`${item.tax_rate} %`, 162, y, { align: "right" });
     pdf.text(money(item.total), 192, y, { align: "right" });
@@ -96,6 +101,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   y += 4;
   const totalsX = 132;
   pdf.setFont("helvetica", "normal");
+  pdf.setCharSpace(0);
   pdf.text("Sous-total HT", totalsX, y);
   pdf.text(money(document.subtotal), 192, y, { align: "right" });
   y += 7;
@@ -104,6 +110,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   y += 8;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(11);
+  pdf.setCharSpace(0);
   pdf.text("Total TTC", totalsX, y);
   pdf.text(money(document.total), 192, y, { align: "right" });
 
