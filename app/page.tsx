@@ -4,6 +4,7 @@ import AiChain from "./ai-chain";
 import AiRecordingHotfix from "./ai-recording-hotfix";
 import DocumentWorkflow from "./document-workflow";
 import DocumentPreviewBridge from "./document-preview-bridge";
+import DashboardEnhancements from "./dashboard-enhancements";
 
 export default function Page() {
   return (
@@ -14,6 +15,7 @@ export default function Page() {
       <AiRecordingHotfix />
       <DocumentWorkflow />
       <DocumentPreviewBridge />
+      <DashboardEnhancements />
     </>
   );
 }
