@@ -1,8 +1,9 @@
 .pc-mobile-ai-fab,.pc-mobile-ai-backdrop,.pc-mobile-ai-sheet{display:none}
 
 @media(max-width:760px){
-  .pc-ai-launcher,.pc-enhancement-launcher{display:none!important}
-  .pc-mobile-ai-fab{display:grid;position:fixed;right:18px;bottom:88px;z-index:72;width:58px;height:58px;place-items:center;border:0;border-radius:50%;color:#fff;background:linear-gradient(145deg,#1e64a5,#143d68);box-shadow:0 15px 34px rgba(16,42,67,.33)}
+  .pc-ai-launcher,.pc-enhancement-launcher,.pc-mobile-mic,.mobile-voice-fab{display:none!important}
+  .pc-mobile-ai-fab{display:grid;position:fixed;right:16px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:72;width:58px;height:58px;place-items:center;border:5px solid #f8fafc;border-radius:50%;color:#fff;background:linear-gradient(145deg,#1e64a5,#143d68);box-shadow:0 15px 34px rgba(16,42,67,.33)}
+  .pc-mobile-ai-fab:focus-visible{outline:3px solid rgba(37,101,163,.32);outline-offset:3px}
   .pc-mobile-ai-backdrop{display:block;position:fixed;inset:0;z-index:128;background:rgba(6,20,35,.52);backdrop-filter:blur(4px)}
   .pc-mobile-ai-sheet{display:block;position:fixed;left:0;right:0;bottom:0;z-index:129;max-height:92dvh;overflow:auto;padding:18px 18px calc(22px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;color:#15243a;background:#f8fafc;box-shadow:0 -18px 55px rgba(8,25,42,.28);animation:pcMobileAiUp .2s ease-out}
   @keyframes pcMobileAiUp{from{transform:translateY(24px);opacity:.3}to{transform:none;opacity:1}}
