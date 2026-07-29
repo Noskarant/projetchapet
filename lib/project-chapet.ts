@@ -23,13 +23,16 @@ export type Quote = {
   id: string; organization_id: string; customer_id: string; number: string; title: string; status: QuoteStatus;
   issue_date: string; expiry_date: string | null; subtotal: number; tax_total: number; total: number;
   notes: string | null; sent_at: string | null; accepted_at: string | null; created_at: string; updated_at: string;
+  signer_name?: string | null; signature_data?: string | null; signed_at?: string | null;
   customer: Customer; items: DocumentItem[];
 };
 
 export type Invoice = {
   id: string; organization_id: string; customer_id: string; quote_id: string | null; number: string; status: InvoiceStatus;
   issue_date: string; due_date: string | null; subtotal: number; tax_total: number; total: number; paid_total: number;
-  notes: string | null; sent_at: string | null; created_at: string; updated_at: string; customer: Customer; items: DocumentItem[];
+  notes: string | null; sent_at: string | null; created_at: string; updated_at: string;
+  e_invoice_status?: string; e_invoice_provider?: string | null; e_invoice_reference?: string | null; e_invoice_payload?: Record<string, unknown>;
+  customer: Customer; items: DocumentItem[];
 };
 
 export type CustomerInput = {
@@ -62,15 +65,25 @@ function normalizeItems(items: DocumentItem[]) {
   }));
 }
 
+export async function getActiveOrganizationId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return DEMO_ORGANIZATION_ID;
+  const { data, error } = await supabase.rpc("ensure_personal_organization");
+  if (error) throw error;
+  return data as string;
+}
+
 export async function fetchWorkspace() {
+  const organizationId = await getActiveOrganizationId();
   const [customersResult, quotesResult, invoicesResult] = await Promise.all([
-    supabase.from("customers").select("*").eq("organization_id", DEMO_ORGANIZATION_ID).order("created_at", { ascending: false }),
-    supabase.from("quotes").select("*, customer:customers(*), items:quote_items(*)").eq("organization_id", DEMO_ORGANIZATION_ID).order("created_at", { ascending: false }),
-    supabase.from("invoices").select("*, customer:customers(*), items:invoice_items(*)").eq("organization_id", DEMO_ORGANIZATION_ID).order("created_at", { ascending: false }),
+    supabase.from("customers").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("quotes").select("*, customer:customers(*), items:quote_items(*)").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("invoices").select("*, customer:customers(*), items:invoice_items(*)").eq("organization_id", organizationId).order("created_at", { ascending: false }),
   ]);
   const error = customersResult.error || quotesResult.error || invoicesResult.error;
   if (error) throw error;
   return {
+    organizationId,
     customers: (customersResult.data ?? []) as Customer[],
     quotes: ((quotesResult.data ?? []) as unknown as Quote[]).map((quote) => ({ ...quote, items: [...(quote.items ?? [])].sort((a, b) => a.position - b.position) })),
     invoices: ((invoicesResult.data ?? []) as unknown as Invoice[]).map((invoice) => ({ ...invoice, items: [...(invoice.items ?? [])].sort((a, b) => a.position - b.position) })),
@@ -78,20 +91,22 @@ export async function fetchWorkspace() {
 }
 
 export async function saveCustomer(input: CustomerInput, id?: string) {
+  const organizationId = await getActiveOrganizationId();
   const payload = {
-    organization_id: DEMO_ORGANIZATION_ID, kind: input.kind, company_name: input.company_name,
+    organization_id: organizationId, kind: input.kind, company_name: input.company_name,
     civility: input.civility, last_name: input.last_name, first_name: input.first_name, siret: input.siret,
     vat_number: input.vat_number, emails: input.emails.filter(Boolean), phones: input.phones.filter(Boolean),
     addresses: input.addresses.filter((address) => address.line1 || address.city), notes: input.notes,
   };
-  const query = id ? supabase.from("customers").update(payload).eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID) : supabase.from("customers").insert(payload);
+  const query = id ? supabase.from("customers").update(payload).eq("id", id).eq("organization_id", organizationId) : supabase.from("customers").insert(payload);
   const { data, error } = await query.select("*").single();
   if (error) throw error;
   return data as Customer;
 }
 
 export async function deleteCustomer(id: string) {
-  const { error } = await supabase.from("customers").delete().eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID);
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.from("customers").delete().eq("id", id).eq("organization_id", organizationId);
   if (error) throw error;
 }
 
@@ -102,9 +117,10 @@ function nextNumber(prefix: "DEV" | "FAC", numbers: string[]) {
 }
 
 export async function saveQuote(input: DocumentInput, existingNumbers: string[], id?: string) {
+  const organizationId = await getActiveOrganizationId();
   const totals = calculateTotals(input.items);
   const payload = {
-    organization_id: DEMO_ORGANIZATION_ID, customer_id: input.customer_id, number: id ? undefined : nextNumber("DEV", existingNumbers),
+    organization_id: organizationId, customer_id: input.customer_id, number: id ? undefined : nextNumber("DEV", existingNumbers),
     title: input.title?.trim() || "Travaux", status: input.status as QuoteStatus, issue_date: input.issue_date,
     expiry_date: input.expiry_date || null, subtotal: totals.subtotal, tax_total: totals.tax_total, total: totals.total,
     notes: input.notes, sent_at: input.status === "sent" ? new Date().toISOString() : null,
@@ -112,7 +128,7 @@ export async function saveQuote(input: DocumentInput, existingNumbers: string[],
   };
   let quoteId = id;
   if (id) {
-    const { error } = await supabase.from("quotes").update(payload).eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID);
+    const { error } = await supabase.from("quotes").update(payload).eq("id", id).eq("organization_id", organizationId);
     if (error) throw error;
     const { error: itemsDeleteError } = await supabase.from("quote_items").delete().eq("quote_id", id);
     if (itemsDeleteError) throw itemsDeleteError;
@@ -127,21 +143,30 @@ export async function saveQuote(input: DocumentInput, existingNumbers: string[],
 }
 
 export async function deleteQuote(id: string) {
+  const organizationId = await getActiveOrganizationId();
   const { error: itemError } = await supabase.from("quote_items").delete().eq("quote_id", id);
   if (itemError) throw itemError;
-  const { error } = await supabase.from("quotes").delete().eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID);
+  const { error } = await supabase.from("quotes").delete().eq("id", id).eq("organization_id", organizationId);
   if (error) throw error;
 }
 
 export async function updateQuoteStatus(id: string, status: QuoteStatus) {
-  const { error } = await supabase.from("quotes").update({ status, sent_at: status === "sent" ? new Date().toISOString() : null, accepted_at: status === "accepted" ? new Date().toISOString() : null }).eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID);
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.from("quotes").update({ status, sent_at: status === "sent" ? new Date().toISOString() : null, accepted_at: status === "accepted" ? new Date().toISOString() : null }).eq("id", id).eq("organization_id", organizationId);
+  if (error) throw error;
+}
+
+export async function saveQuoteSignature(id: string, signerName: string, signatureData: string) {
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.from("quotes").update({ signer_name: signerName, signature_data: signatureData, signed_at: new Date().toISOString(), status: "accepted" }).eq("id", id).eq("organization_id", organizationId);
   if (error) throw error;
 }
 
 export async function saveInvoice(input: DocumentInput, existingNumbers: string[], id?: string) {
+  const organizationId = await getActiveOrganizationId();
   const totals = calculateTotals(input.items);
   const payload = {
-    organization_id: DEMO_ORGANIZATION_ID, customer_id: input.customer_id, quote_id: input.quote_id || null,
+    organization_id: organizationId, customer_id: input.customer_id, quote_id: input.quote_id || null,
     number: id ? undefined : nextNumber("FAC", existingNumbers), status: input.status as InvoiceStatus,
     issue_date: input.issue_date, due_date: input.due_date || null, subtotal: totals.subtotal, tax_total: totals.tax_total,
     total: totals.total, paid_total: input.status === "paid" ? totals.total : 0, notes: input.notes,
@@ -149,7 +174,7 @@ export async function saveInvoice(input: DocumentInput, existingNumbers: string[
   };
   let invoiceId = id;
   if (id) {
-    const { error } = await supabase.from("invoices").update(payload).eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID);
+    const { error } = await supabase.from("invoices").update(payload).eq("id", id).eq("organization_id", organizationId);
     if (error) throw error;
     const { error: itemsDeleteError } = await supabase.from("invoice_items").delete().eq("invoice_id", id);
     if (itemsDeleteError) throw itemsDeleteError;
@@ -164,25 +189,34 @@ export async function saveInvoice(input: DocumentInput, existingNumbers: string[
 }
 
 export async function deleteInvoice(id: string) {
+  const organizationId = await getActiveOrganizationId();
   const { error: paymentError } = await supabase.from("payments").delete().eq("invoice_id", id);
   if (paymentError) throw paymentError;
   const { error: itemError } = await supabase.from("invoice_items").delete().eq("invoice_id", id);
   if (itemError) throw itemError;
-  const { error } = await supabase.from("invoices").delete().eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID);
+  const { error } = await supabase.from("invoices").delete().eq("id", id).eq("organization_id", organizationId);
   if (error) throw error;
 }
 
 export async function markInvoicePaid(invoice: Invoice) {
+  const organizationId = await getActiveOrganizationId();
   const remaining = Math.max(0, Number(invoice.total) - Number(invoice.paid_total || 0));
   if (remaining > 0) {
     const { error: paymentError } = await supabase.from("payments").insert({ invoice_id: invoice.id, amount: remaining, paid_at: new Date().toISOString(), method: "virement", reference: "Paiement saisi dans l'application" });
     if (paymentError) throw paymentError;
   }
-  const { error } = await supabase.from("invoices").update({ status: "paid", paid_total: invoice.total }).eq("id", invoice.id).eq("organization_id", DEMO_ORGANIZATION_ID);
+  const { error } = await supabase.from("invoices").update({ status: "paid", paid_total: invoice.total }).eq("id", invoice.id).eq("organization_id", organizationId);
   if (error) throw error;
 }
 
 export async function updateInvoiceStatus(id: string, status: InvoiceStatus) {
-  const { error } = await supabase.from("invoices").update({ status, sent_at: status === "sent" || status === "issued" ? new Date().toISOString() : null }).eq("id", id).eq("organization_id", DEMO_ORGANIZATION_ID);
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.from("invoices").update({ status, sent_at: status === "sent" || status === "issued" ? new Date().toISOString() : null }).eq("id", id).eq("organization_id", organizationId);
+  if (error) throw error;
+}
+
+export async function saveEInvoicePreparation(id: string, payload: Record<string, unknown>, provider = "À choisir") {
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.from("invoices").update({ e_invoice_status: "ready_for_provider", e_invoice_provider: provider, e_invoice_payload: payload }).eq("id", id).eq("organization_id", organizationId);
   if (error) throw error;
 }
