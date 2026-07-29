@@ -5,6 +5,7 @@ import AiRecordingHotfix from "./ai-recording-hotfix";
 import DocumentWorkflow from "./document-workflow";
 import DocumentPreviewBridge from "./document-preview-bridge";
 import DashboardEnhancements from "./dashboard-enhancements";
+import MobileQuickAi from "./mobile-quick-ai";
 
 export default function Page() {
   return (
@@ -16,6 +17,7 @@ export default function Page() {
       <DocumentWorkflow />
       <DocumentPreviewBridge />
       <DashboardEnhancements />
+      <MobileQuickAi />
     </>
   );
 }
