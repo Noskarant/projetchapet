@@ -101,6 +101,20 @@ export default function DocumentWorkflow() {
     [documents, activeNumber],
   );
 
+  function persistCopyAddress(value: string, document: BusinessDocument | null) {
+    const normalized = value.trim();
+    if (!normalized || !document) return;
+    const isInvoice = document.number.startsWith("FAC-");
+    const next: MailSettings = {
+      ...settings,
+      accountantEmail: normalized,
+      copyInvoices: isInvoice ? true : settings.copyInvoices,
+      copyQuotes: isInvoice ? settings.copyQuotes : true,
+    };
+    setSettings(next);
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  }
+
   async function openDocument(document: BusinessDocument, mode: "preview" | "send") {
     setBusy(true);
     try {
@@ -127,6 +141,7 @@ export default function DocumentWorkflow() {
     if (!selected || !recipient.trim()) return notify("Indiquez l’adresse e-mail du client.");
     setBusy(true);
     try {
+      persistCopyAddress(cc, selected);
       const blob = await buildDocumentPdf(selected);
       const response = await fetch("/api/email", {
         method: "POST",
@@ -190,8 +205,8 @@ export default function DocumentWorkflow() {
               <iframe src={previewUrl} title={`Aperçu ${selected.number}`} />
               <aside>
                 <label>E-mail du client<input type="email" value={recipient} onChange={(event) => setRecipient(event.target.value)} /></label>
-                <label>Copie à<input type="text" value={cc} onChange={(event) => setCc(event.target.value)} placeholder="comptable@cabinet.fr" /></label>
-                <p>Le document est envoyé en PDF. Le nom du logiciel n’apparaît pas dans l’e-mail.</p>
+                <label>Copie à<input type="text" value={cc} onChange={(event) => setCc(event.target.value)} onBlur={(event) => persistCopyAddress(event.target.value, selected)} placeholder="comptable@cabinet.fr" /></label>
+                <p>Cette adresse sera mémorisée pour les prochains documents du même type. Le document est envoyé en PDF.</p>
                 <button className="pc-primary" onClick={() => void sendDocument()} disabled={busy || !recipient.trim()}>{busy ? <Loader2 size={16} className="pc-spin" /> : <Mail size={16} />} Envoyer le PDF</button>
                 <button className="pc-secondary" onClick={() => void downloadDocumentPdf(selected)}><Download size={16} /> Télécharger le PDF</button>
               </aside>
