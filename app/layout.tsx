@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./prototype.css";
 
 export const metadata: Metadata = {
-  title: "Atelio — gestion artisan",
-  description: "Prototype de devis, factures et pilotage pour les entreprises du bâtiment.",
-  applicationName: "Atelio",
+  title: "Projet Chapet — gestion bâtiment",
+  description: "Prototype professionnel de devis, factures et pilotage pour les entreprises du bâtiment.",
+  applicationName: "Projet Chapet",
   manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#102922",
+  themeColor: "#102a43",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
