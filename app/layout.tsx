@@ -22,6 +22,15 @@ export const metadata: Metadata = {
   description: "Prototype professionnel de devis, factures et pilotage pour les entreprises du bâtiment.",
   applicationName: "Projet Chapet",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon-192.svg",
+    apple: "/icon-192.svg",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Projet Chapet",
+  },
 };
 
 export const viewport: Viewport = {
