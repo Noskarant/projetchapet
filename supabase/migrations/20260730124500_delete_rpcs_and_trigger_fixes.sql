@@ -70,6 +70,9 @@ begin
   from public.invoices
   where id = target_invoice;
 
+  if not found and tg_op = 'DELETE' then
+    return old;
+  end if;
   if parent_status is distinct from 'draft'::public.invoice_status then
     raise exception 'items of an issued invoice cannot be changed';
   end if;
@@ -118,6 +121,13 @@ begin
       target_org := new.organization_id;
       target_id := new.id;
     end if;
+  end if;
+
+  if target_org is null then
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new;
   end if;
 
   if tg_table_name = 'quotes' then
