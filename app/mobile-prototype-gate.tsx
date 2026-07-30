@@ -5,6 +5,7 @@ import MobileAccountingAction from "./mobile-accounting-action";
 import MobileAgendaAiBridge from "./mobile-agenda-ai-bridge";
 import MobileAiApplyGuard from "./mobile-ai-apply-guard";
 import MobileAiAssistantV6 from "./mobile-ai-assistant-v6";
+import MobileAiContextBridge from "./mobile-ai-context-bridge";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileCommercialDemo from "./mobile-commercial-demo";
 import MobilePriorityPolish from "./mobile-priority-polish";
@@ -47,6 +48,7 @@ export default function MobilePrototypeGate() {
 
   return (
     <>
+      <MobileAiContextBridge />
       <MobileAiApplyGuard />
       <RappidosMobileShellV2 />
       <MobilePriorityPolish />
