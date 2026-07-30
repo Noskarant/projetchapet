@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { MobileWorkspace } from "@/lib/mobile-prototype";
+import { customerDisplayName, type MobileWorkspace } from "@/lib/mobile-prototype";
 import { matchMobileCustomer } from "@/lib/mobile-customer-match";
 import { MOBILE_WORKSPACE_STORAGE_KEY } from "@/lib/mobile-workspace-storage";
 
@@ -34,7 +34,10 @@ export default function MobileAiApplyGuard() {
       }
 
       const result = matchMobileCustomer(workspace?.customers ?? [], detail.data?.customer_hint);
-      if (result.status === "matched") return;
+      if (result.status === "matched") {
+        if (detail.data) detail.data.customer_hint = customerDisplayName(result.matches[0]);
+        return;
+      }
 
       event.preventDefault();
       event.stopImmediatePropagation();
