@@ -7,6 +7,9 @@ import {
   strictDocumentToLegacy,
 } from "@/lib/strict-voice-document";
 
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 function systemPrompt(contextClients: string[]) {
   const clientContext = contextClients.length
     ? `\ncontext_clients disponibles (recopie exactement le nom canonique uniquement en cas de correspondance unique et sûre) :\n${JSON.stringify(contextClients)}`
@@ -23,7 +26,7 @@ Tu dois appliquer ces règles dans cet ordre, sans exception.
 - Si plusieurs clients sont cités puis corrigés, ne conserve que le dernier client final énoncé.
 
 2. REPRISES, CORRECTIONS ET ANNULATIONS
-- Traite la dictée chronologiquement.
+- Traite toute la dictée chronologiquement, même lorsqu’elle est longue.
 - La dernière instruction sur une ligne, une désignation, un prix, une quantité, une surface, une unité ou une TVA annule et remplace immédiatement toute valeur précédente visant la même prestation.
 - « non », « attends », « en fait », « finalement », « plutôt », « je corrige » et « remplace » introduisent une correction.
 - « non oublie », « oublie », « annule », « supprime », « retire » et « enlève » suppriment totalement la ligne ou le montant visé.
@@ -71,7 +74,7 @@ function fallbackPayload(transcript: string, contextClients: string[], reason?: 
 }
 
 export async function POST(request: Request) {
-  const limited = rateLimit(request, "ai-parse-strict", 30);
+  const limited = rateLimit(request, "ai-parse-strict", 60);
   if (limited) return limited;
 
   try {
@@ -79,12 +82,12 @@ export async function POST(request: Request) {
       transcript?: unknown;
       target?: unknown;
       context_clients?: unknown;
-    }>(request, 30_000);
+    }>(request, 140_000);
 
     if (typeof body.transcript !== "string") throw new ApiInputError("La dictée est invalide.");
     const transcript = body.transcript.trim();
     if (!transcript) throw new ApiInputError("La dictée est vide.");
-    if (transcript.length > 14_000) throw new ApiInputError("La dictée est trop longue.", 413);
+    if (transcript.length > 80_000) throw new ApiInputError("La dictée dépasse la capacité d’un seul devis.", 413);
 
     const contextClients = sanitizeContextClients(body.context_clients);
     const apiKey = process.env.DEEPSEEK_API_KEY;
@@ -101,7 +104,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           model: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
           thinking: { type: "disabled" },
-          max_tokens: 2600,
+          max_tokens: 7000,
           temperature: 0,
           response_format: { type: "json_object" },
           messages: [
