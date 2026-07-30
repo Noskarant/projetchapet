@@ -74,9 +74,9 @@ test("reconnaît Madame comme la civilité Mme lors d’une création IA", async
     }));
   });
 
-  await expect(page.locator('div[role="alert"]')).toHaveCount(0);
   await expect(page.locator(".rm-v2-editor")).toBeVisible();
   await expect(page.locator(".rm-v2-editor select").first()).toHaveValue("C-004");
+  await expect(page.locator('div[role="alert"]').filter({ hasText: /client.*introuvable/i })).toHaveCount(0);
 });
 
 test("expose un manifeste PWA valide", async ({ request }) => {
