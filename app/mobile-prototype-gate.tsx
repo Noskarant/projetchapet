@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import MobileAccountingAction from "./mobile-accounting-action";
+import MobileAgendaAiBridge from "./mobile-agenda-ai-bridge";
 import MobileAiApplyGuard from "./mobile-ai-apply-guard";
-import MobileAiAssistantV5 from "./mobile-ai-assistant-v5";
+import MobileAiAssistantV6 from "./mobile-ai-assistant-v6";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileCommercialDemo from "./mobile-commercial-demo";
 import MobilePriorityPolish from "./mobile-priority-polish";
@@ -49,7 +50,8 @@ export default function MobilePrototypeGate() {
       <MobileAiApplyGuard />
       <RappidosMobileShellV2 />
       <MobilePriorityPolish />
-      <MobileAiAssistantV5 />
+      <MobileAiAssistantV6 />
+      <MobileAgendaAiBridge />
       <MobileAutoPdfPreview />
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
