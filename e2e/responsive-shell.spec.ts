@@ -27,6 +27,35 @@ test("monte uniquement l’interface adaptée à l’écran", async ({ page }, t
   await expect(page.locator(".pc-content h1")).toHaveText("Clients");
 });
 
+test("ne sélectionne jamais le premier client par défaut avec l’IA", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone-webkit", "Parcours propre à l’interface mobile");
+  await page.goto("/");
+  await expect(page.locator(".rm-shell")).toBeVisible();
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("projetchapet:ai-apply", {
+      detail: { target: "quote", data: { customer_hint: "", title: "Test", items: [] } },
+    }));
+  });
+  await expect(page.getByRole("alert")).toContainText("Indiquez le nom du client");
+  await expect(page.locator(".rm-v2-editor")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("projetchapet:ai-apply", {
+      detail: {
+        target: "quote",
+        data: {
+          customer_hint: "SCI Bellevue",
+          title: "Hall d’entrée",
+          items: [{ label: "Préparation", quantity: 1, unit: "forfait", unit_price: 250, tax_rate: 10 }],
+        },
+      },
+    }));
+  });
+  await expect(page.locator(".rm-v2-editor")).toBeVisible();
+  await expect(page.locator(".rm-v2-editor select").first()).toHaveValue("C-002");
+});
+
 test("expose un manifeste PWA valide", async ({ request }) => {
   const response = await request.get("/manifest.webmanifest");
   expect(response.ok()).toBeTruthy();
