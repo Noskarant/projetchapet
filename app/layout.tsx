@@ -18,6 +18,7 @@ import "./mobile-priority-polish.css";
 import "./mobile-document-flow.css";
 import "./mobile-quote-preview.css";
 import "./mobile-quote-preview-scroll-fix.css";
+import "./mobile-status-colors.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
