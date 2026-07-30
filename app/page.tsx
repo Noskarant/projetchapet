@@ -1,4 +1,5 @@
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
+import MobilePriorityPolish from "./mobile-priority-polish";
 import MobileAiAssistantV4 from "./mobile-ai-assistant-v4";
 import MobileAccountingAction from "./mobile-accounting-action";
 import FunctionalPrototype from "./functional-prototype";
@@ -13,6 +14,7 @@ export default function Page() {
   return (
     <>
       <RappidosMobileShellV2 />
+      <MobilePriorityPolish />
       <MobileAiAssistantV4 />
       <MobileAccountingAction />
       <FunctionalPrototype />
