@@ -57,6 +57,7 @@ test("centralise notifications, sauvegarde et envoi du PDF", async ({ page }, te
   const backup = page.getByRole("dialog", { name: "Sauvegarde & transfert" });
   await expect(backup.getByText("Exporter une sauvegarde complète")).toBeVisible();
   await backup.getByRole("button", { name: "Fermer" }).click();
+  await page.locator(".rm-side-drawer header button").click();
 
   await page.locator(".rm-document-card").first().click();
   await page.getByRole("button", { name: "Fermer l’aperçu détaillé" }).click();
