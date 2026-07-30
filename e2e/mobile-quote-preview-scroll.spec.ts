@@ -89,10 +89,10 @@ test("fait défiler tous les postes et change réellement de vue sur iPhone", as
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await expect(preview.getByText("Prestation 9")).toBeVisible();
 
-  const pageTab = preview.getByRole("button", { name: "Page complète", exact: true });
+  const pdfTab = preview.getByRole("button", { name: "PDF", exact: true });
   const detailTab = preview.getByRole("button", { name: "Détail des postes", exact: true });
-  await pageTab.click();
-  await expect(pageTab).toHaveAttribute("aria-pressed", "true");
+  await pdfTab.click();
+  await expect(pdfTab).toHaveAttribute("aria-pressed", "true");
   await expect(preview.locator("iframe")).toBeVisible();
 
   await detailTab.click();
