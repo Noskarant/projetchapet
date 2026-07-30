@@ -56,6 +56,29 @@ test("ne sélectionne jamais le premier client par défaut avec l’IA", async (
   await expect(page.locator(".rm-v2-editor select").first()).toHaveValue("C-002");
 });
 
+test("reconnaît Madame comme la civilité Mme lors d’une création IA", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone-webkit", "Parcours propre à l’interface mobile");
+  await page.goto("/");
+  await expect(page.locator(".rm-shell")).toBeVisible();
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("projetchapet:ai-apply", {
+      detail: {
+        target: "quote",
+        data: {
+          customer_hint: "Madame Soulier",
+          title: "Reprise plafond",
+          items: [{ label: "Préparation", quantity: 1, unit: "forfait", unit_price: 310, tax_rate: 10 }],
+        },
+      },
+    }));
+  });
+
+  await expect(page.locator(".rm-v2-editor")).toBeVisible();
+  await expect(page.locator(".rm-v2-editor select").first()).toHaveValue("C-004");
+  await expect(page.locator('div[role="alert"]').filter({ hasText: /client.*introuvable/i })).toHaveCount(0);
+});
+
 test("expose un manifeste PWA valide", async ({ request }) => {
   const response = await request.get("/manifest.webmanifest");
   expect(response.ok()).toBeTruthy();
