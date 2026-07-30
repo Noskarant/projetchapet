@@ -13,15 +13,43 @@ function setText(element: Element | null, value: string) {
   if (element && element.textContent !== value) element.textContent = value;
 }
 
+function setButtonText(button: HTMLButtonElement | null, value: string) {
+  if (!button) return;
+
+  const textNode = Array.from(button.childNodes).find(
+    (node) => node.nodeType === Node.TEXT_NODE,
+  );
+  const nextValue = ` ${value}`;
+
+  if (textNode) {
+    if (textNode.textContent !== nextValue) textNode.textContent = nextValue;
+  } else {
+    button.append(document.createTextNode(nextValue));
+  }
+
+  button.setAttribute("aria-label", value);
+}
+
 function syncPreviewState() {
-  document
-    .querySelectorAll<HTMLButtonElement>(".rm-philippe-preview-tabs button")
-    .forEach((button) => {
+  document.querySelectorAll<HTMLElement>(".rm-philippe-preview").forEach((preview) => {
+    const tabButtons = Array.from(
+      preview.querySelectorAll<HTMLButtonElement>(".rm-philippe-preview-tabs button"),
+    );
+
+    tabButtons.forEach((button) => {
       button.type = "button";
       button.setAttribute("aria-pressed", String(button.classList.contains("active")));
     });
 
-  document.querySelectorAll<HTMLElement>(".rm-philippe-preview").forEach((preview) => {
+    const pdfTab = tabButtons[1] ?? null;
+    setButtonText(pdfTab, "PDF");
+    setButtonText(
+      preview.querySelector<HTMLButtonElement>(
+        ".rm-philippe-preview-actions button:first-child",
+      ),
+      pdfTab?.classList.contains("active") ? "Voir le détail" : "Voir le PDF",
+    );
+
     const lines = preview.querySelector<HTMLElement>(".rm-philippe-lines");
     if (!lines) return;
 
