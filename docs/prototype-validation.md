@@ -14,3 +14,5 @@ Contrôles automatisés :
 - build Next.js de production.
 
 Le service worker ne met jamais en cache les routes `/api/` ni les appels Supabase.
+
+Dernière relance manuelle du déploiement Git/Vercel : 30 juillet 2026.
