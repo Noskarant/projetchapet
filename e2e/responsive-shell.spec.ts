@@ -37,7 +37,7 @@ test("ne sélectionne jamais le premier client par défaut avec l’IA", async (
       detail: { target: "quote", data: { customer_hint: "", title: "Test", items: [] } },
     }));
   });
-  await expect(page.getByRole("alert")).toContainText("Indiquez le nom du client");
+  await expect(page.locator('div[role="alert"]').filter({ hasText: "Indiquez le nom du client" })).toBeVisible();
   await expect(page.locator(".rm-v2-editor")).toHaveCount(0);
 
   await page.evaluate(() => {
