@@ -5,6 +5,7 @@ import MobileAccountingAction from "./mobile-accounting-action";
 import MobileAiApplyGuard from "./mobile-ai-apply-guard";
 import MobileAiAssistantV5 from "./mobile-ai-assistant-v5";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
+import MobileCommercialDemo from "./mobile-commercial-demo";
 import MobilePriorityPolish from "./mobile-priority-polish";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
@@ -52,6 +53,7 @@ export default function MobilePrototypeGate() {
       <MobileAutoPdfPreview />
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
+      <MobileCommercialDemo />
     </>
   );
 }
