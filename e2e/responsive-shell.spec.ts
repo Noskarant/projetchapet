@@ -35,3 +35,10 @@ test("expose un manifeste PWA valide", async ({ request }) => {
   expect(manifest.display).toBe("standalone");
   expect(manifest.icons).toHaveLength(2);
 });
+
+test("retourne les en-têtes de sécurité du prototype", async ({ request }) => {
+  const response = await request.get("/");
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(response.headers()["x-frame-options"]).toBe("SAMEORIGIN");
+  expect(response.headers()["permissions-policy"]).toContain("microphone=(self)");
+});
