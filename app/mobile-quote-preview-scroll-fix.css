@@ -80,19 +80,17 @@
   }
 
   .rm-philippe-section-title > span {
-    max-width: 44%;
+    max-width: 48%;
     padding-top: 2px;
     line-height: 1.35;
     text-align: right;
   }
 
-  .rm-philippe-section-title:has(+ .rm-philippe-lines > :only-child) > span {
-    display: none;
+  .rm-philippe-section-title > span[hidden] {
+    display: none !important;
   }
 
-  .rm-philippe-lines:has(> :only-child)::after {
-    content: "Tous les postes du devis sont affichés.";
-    display: block;
+  .rm-single-post-message {
     margin: 18px 4px 2px;
     color: #718398;
     font-size: 11px;
