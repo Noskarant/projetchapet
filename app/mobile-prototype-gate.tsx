@@ -6,6 +6,7 @@ import MobileAiApplyGuard from "./mobile-ai-apply-guard";
 import MobileAiAssistantV5 from "./mobile-ai-assistant-v5";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobilePriorityPolish from "./mobile-priority-polish";
+import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
 import { seedMobileWorkspace } from "@/lib/mobile-prototype";
 import { prepareMobileWorkspaceStorage } from "@/lib/mobile-workspace-storage";
@@ -49,6 +50,7 @@ export default function MobilePrototypeGate() {
       <MobilePriorityPolish />
       <MobileAiAssistantV5 />
       <MobileAutoPdfPreview />
+      <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
     </>
   );
