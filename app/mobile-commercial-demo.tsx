@@ -25,7 +25,6 @@ import {
   buildBusinessDocumentPdf,
   documentFileName,
   isMobileQuote,
-  type MobileBusinessDocument,
 } from "@/lib/mobile-document-pdf";
 import {
   parseMobileWorkspace,
@@ -106,6 +105,7 @@ export default function MobileCommercialDemo() {
   const [emailBusy, setEmailBusy] = useState(false);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
+  const workspaceSnapshot = useRef("");
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -114,8 +114,13 @@ export default function MobileCommercialDemo() {
   }, []);
 
   const refreshWorkspace = useCallback(() => {
-    const next = readWorkspace();
-    if (next) setWorkspace(next);
+    const raw = window.localStorage.getItem(MOBILE_WORKSPACE_STORAGE_KEY) || "";
+    if (!raw || raw === workspaceSnapshot.current) return;
+    const next = parseMobileWorkspace(raw);
+    if (next) {
+      workspaceSnapshot.current = raw;
+      setWorkspace(next);
+    }
   }, []);
 
   const logActivity = useCallback((event: Parameters<typeof appendActivity>[1]) => {
@@ -188,8 +193,10 @@ export default function MobileCommercialDemo() {
     const badge = trigger?.querySelector<HTMLElement>("b");
     const count = activeFilterCount(kind);
     if (badge) {
-      badge.textContent = String(count);
-      badge.hidden = count === 0;
+      const nextText = String(count);
+      if (badge.textContent !== nextText) badge.textContent = nextText;
+      const shouldHide = count === 0;
+      if (badge.hidden !== shouldHide) badge.hidden = shouldHide;
     }
   }, [activeFilterCount, commercial.filters, workspace]);
 
@@ -242,12 +249,37 @@ export default function MobileCommercialDemo() {
     applyDomFilters();
   }, [applyDomFilters]);
 
+  const openEmailFromButton = useCallback((button: HTMLButtonElement) => {
+    const number = button.closest(".rm-detail-sheet")?.querySelector("h2")?.textContent?.trim() || "";
+    const currentWorkspace = readWorkspace();
+    const found = currentWorkspace ? findBusinessDocument(currentWorkspace, number) : null;
+    if (!found || !currentWorkspace) {
+      notify("Document introuvable.");
+      return;
+    }
+
+    const customer = findCustomer(currentWorkspace, found.document.customerId);
+    const documentLabel = isMobileQuote(found.document) ? "devis" : "facture";
+    workspaceSnapshot.current = window.localStorage.getItem(MOBILE_WORKSPACE_STORAGE_KEY) || "";
+    setWorkspace(currentWorkspace);
+    setEmail({
+      document: found.document,
+      recipient: customer?.emails.find(Boolean) || "",
+      subject: `${isMobileQuote(found.document) ? "Votre devis" : "Votre facture"} ${found.document.number}`,
+      message: `Bonjour,\n\nVeuillez trouver votre ${documentLabel} ${found.document.number} en pièce jointe.\n\nJe reste à votre disposition pour toute question.\n\nCordialement,\n${commercial.company.displayName}`,
+      withoutPrices: false,
+    });
+    setOverlay("email");
+  }, [commercial.company.displayName, notify]);
+
   useEffect(() => {
     if (!window.matchMedia("(max-width: 820px)").matches) return;
 
+    let refreshTimer: number | null = null;
     const observer = new MutationObserver(() => {
       enhanceDom();
-      window.setTimeout(refreshWorkspace, 20);
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(refreshWorkspace, 40);
     });
     observer.observe(document.body, { childList: true, subtree: true });
     enhanceDom();
@@ -325,6 +357,7 @@ export default function MobileCommercialDemo() {
             message: `${number || "Document"} passé au statut « ${status} ».`,
             documentNumber: number,
           });
+          workspaceSnapshot.current = "";
           refreshWorkspace();
         }, 80);
       }
@@ -333,35 +366,14 @@ export default function MobileCommercialDemo() {
     document.addEventListener("click", onClick, true);
     return () => {
       observer.disconnect();
+      if (refreshTimer) window.clearTimeout(refreshTimer);
       document.removeEventListener("click", onClick, true);
     };
-  }, [commercial.company, commercial.filters, enhanceDom, logActivity, refreshWorkspace]);
+  }, [commercial.company, commercial.filters, enhanceDom, logActivity, openEmailFromButton, refreshWorkspace]);
 
   useEffect(() => {
     applyDomFilters();
   }, [applyDomFilters]);
-
-  const openEmailFromButton = (button: HTMLButtonElement) => {
-    const number = button.closest(".rm-detail-sheet")?.querySelector("h2")?.textContent?.trim() || "";
-    const currentWorkspace = readWorkspace();
-    const found = currentWorkspace ? findBusinessDocument(currentWorkspace, number) : null;
-    if (!found || !currentWorkspace) {
-      notify("Document introuvable.");
-      return;
-    }
-
-    const customer = findCustomer(currentWorkspace, found.document.customerId);
-    const documentLabel = isMobileQuote(found.document) ? "devis" : "facture";
-    setWorkspace(currentWorkspace);
-    setEmail({
-      document: found.document,
-      recipient: customer?.emails.find(Boolean) || "",
-      subject: `${isMobileQuote(found.document) ? "Votre devis" : "Votre facture"} ${found.document.number}`,
-      message: `Bonjour,\n\nVeuillez trouver votre ${documentLabel} ${found.document.number} en pièce jointe.\n\nJe reste à votre disposition pour toute question.\n\nCordialement,\n${commercial.company.displayName}`,
-      withoutPrices: false,
-    });
-    setOverlay("email");
-  };
 
   const saveFilters = () => {
     setCommercial((current) => ({
@@ -415,32 +427,32 @@ export default function MobileCommercialDemo() {
     const project = commercial.projects.find((item) => item.id === projectId);
     if (!currentWorkspace || !project) return;
 
-    const document = project.quoteId
+    const documentData = project.quoteId
       ? currentWorkspace.quotes.find((quote) => quote.id === project.quoteId)
       : project.invoiceId
         ? currentWorkspace.invoices.find((invoice) => invoice.id === project.invoiceId)
         : null;
-    if (!document) {
+    if (!documentData) {
       notify("Aucun document lié à ce chantier.");
       return;
     }
 
-    const customer = findCustomer(currentWorkspace, document.customerId);
-    const quoteMeta = isMobileQuote(document)
-      ? readQuoteInternalMeta(window.localStorage, document.number)
+    const customer = findCustomer(currentWorkspace, documentData.customerId);
+    const quoteMeta = isMobileQuote(documentData)
+      ? readQuoteInternalMeta(window.localStorage, documentData.number)
       : undefined;
     const blob = await buildBusinessDocumentPdf({
-      document,
+      document: documentData,
       customer,
       company: commercial.company,
       quoteMeta,
       withoutPrices,
     });
-    downloadBlob(blob, documentFileName(document, withoutPrices));
+    downloadBlob(blob, documentFileName(documentData, withoutPrices));
     logActivity({
       kind: "document",
-      message: `${document.number} téléchargé${withoutPrices ? " sans prix pour l’équipe" : ""}.`,
-      documentNumber: document.number,
+      message: `${documentData.number} téléchargé${withoutPrices ? " sans prix pour l’équipe" : ""}.`,
+      documentNumber: documentData.number,
       projectId,
     });
   };
