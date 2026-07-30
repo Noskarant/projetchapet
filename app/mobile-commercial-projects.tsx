@@ -128,7 +128,7 @@ export default function MobileCommercialProjects({
         }),
         {
           kind: "chantier",
-          message: `${project.name} · nouveau signalement « ${issueDraft.title.trim()} ».",
+          message: `${project.name} · nouveau signalement « ${issueDraft.title.trim()} ».`,
           projectId: project.id,
         },
       ),
@@ -151,7 +151,7 @@ export default function MobileCommercialProjects({
           }),
           {
             kind: "chantier",
-            message: `${project.name} · photo ajoutée au suivi.",
+            message: `${project.name} · photo ajoutée au suivi.`,
             projectId: project.id,
           },
         ),
