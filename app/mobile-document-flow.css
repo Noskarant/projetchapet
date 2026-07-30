@@ -1,0 +1,316 @@
+@media (max-width: 820px) {
+  .rm-document-focus {
+    width: min(100%, 560px);
+    height: 100dvh;
+    margin: 0 auto;
+    display: grid;
+    grid-template-rows: auto auto minmax(180px, 1fr) auto auto;
+    overflow: hidden;
+    color: #fff;
+    background:
+      radial-gradient(circle at 84% 0%, rgba(35, 79, 215, .46), transparent 28%),
+      linear-gradient(180deg, #071326 0%, #020817 100%);
+  }
+
+  .rm-document-focus > header {
+    min-height: calc(62px + env(safe-area-inset-top));
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    align-items: end;
+    gap: 10px;
+    padding: env(safe-area-inset-top) 12px 9px;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .rm-document-focus > header > div {
+    align-self: center;
+    text-align: center;
+  }
+
+  .rm-document-focus > header small {
+    display: block;
+    color: #8ca3c8;
+    font-size: 8px;
+    font-weight: 850;
+    letter-spacing: 1.2px;
+  }
+
+  .rm-document-focus > header h2 {
+    margin: 3px 0 0;
+    font-size: 17px;
+    line-height: 1;
+  }
+
+  .rm-document-focus > header > button {
+    width: 38px;
+    height: 38px;
+    align-self: center;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: rgba(4, 20, 42, .86);
+  }
+
+  .rm-focus-menu-button {
+    font-size: 26px;
+    line-height: 1;
+    letter-spacing: 1px;
+  }
+
+  .rm-focus-summary {
+    display: grid;
+    gap: 8px;
+    padding: 2px 12px 10px;
+  }
+
+  .rm-focus-amount {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 35px;
+  }
+
+  .rm-focus-amount strong {
+    font-size: 27px;
+    line-height: 1;
+    letter-spacing: -.6px;
+  }
+
+  .rm-focus-amount span {
+    padding: 4px 9px;
+    border-radius: 999px;
+    color: #fff;
+    background: #f97316;
+    font-size: 9px;
+    font-weight: 850;
+  }
+
+  .rm-focus-dates {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .rm-focus-dates > div {
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .07);
+  }
+
+  .rm-focus-dates small,
+  .rm-focus-dates strong,
+  .rm-focus-client small,
+  .rm-focus-client strong {
+    display: block;
+  }
+
+  .rm-focus-dates small {
+    color: #9da8b8;
+    font-size: 8px;
+  }
+
+  .rm-focus-dates strong {
+    margin-top: 3px;
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rm-focus-client {
+    min-width: 0;
+    padding: 9px 11px;
+    border-radius: 11px;
+    color: #111827;
+    background: #fff;
+  }
+
+  .rm-focus-client strong {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rm-focus-client small {
+    margin-top: 3px;
+    overflow: hidden;
+    color: #6b7280;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rm-document-focus > iframe {
+    width: calc(100% - 24px);
+    height: 100%;
+    min-height: 0;
+    margin: 0 12px;
+    border: 0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
+  }
+
+  .rm-focus-primary-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px 12px 7px;
+  }
+
+  .rm-focus-primary-actions button {
+    min-height: 45px;
+    padding: 0 10px;
+    border-radius: 13px;
+    font-size: 10px;
+    font-weight: 850;
+  }
+
+  .rm-focus-primary {
+    border: 0;
+    color: #fff;
+    background: linear-gradient(100deg, #6e35ef, #d13f91 58%, #ff6350);
+  }
+
+  .rm-focus-secondary {
+    border: 1px solid rgba(255, 255, 255, .32);
+    color: #fff;
+    background: rgba(255, 255, 255, .04);
+  }
+
+  .rm-document-focus > footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    padding: 0 12px calc(8px + env(safe-area-inset-bottom));
+    border-top: 0;
+    background: transparent;
+  }
+
+  .rm-document-focus > footer button {
+    min-height: 40px;
+    border-radius: 11px;
+    font-size: 9px;
+  }
+
+  .rm-document-focus > footer button:last-child {
+    display: none;
+  }
+
+  .rm-focus-action-menu {
+    position: absolute;
+    z-index: 20;
+    inset: 0;
+    display: none;
+    align-content: end;
+    gap: 7px;
+    padding: 18px 14px calc(18px + env(safe-area-inset-bottom));
+    background: rgba(0, 4, 14, .74);
+    backdrop-filter: blur(12px);
+  }
+
+  .rm-focus-action-menu.open {
+    display: grid;
+  }
+
+  .rm-focus-action-menu > strong {
+    margin-bottom: 4px;
+    font-size: 15px;
+  }
+
+  .rm-focus-action-menu > button {
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    color: #fff;
+    background: #111b2d;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .rm-focus-action-menu > button.danger {
+    color: #ff8797;
+    border-color: rgba(223, 51, 79, .36);
+    background: rgba(80, 12, 30, .55);
+  }
+
+  .rm-v2-editor,
+  .rm-v2-email {
+    max-height: 96dvh;
+    padding-bottom: 0;
+    scroll-padding-bottom: 126px;
+  }
+
+  .rm-v2-editor > footer,
+  .rm-v2-email > footer {
+    position: sticky;
+    z-index: 18;
+    bottom: 0;
+    margin: 18px -14px 0;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(3, 10, 25, .96);
+    box-shadow: 0 -12px 30px rgba(0, 0, 0, .34);
+    backdrop-filter: blur(14px);
+  }
+
+  .rm-v2-editor > footer > div:first-child,
+  .rm-v2-email > footer > div:first-child {
+    margin-bottom: 8px;
+  }
+
+  .rm-v2-editor > footer > div:last-child,
+  .rm-v2-email > footer > div:last-child {
+    gap: 8px;
+  }
+
+  .rm-v2-editor > footer button,
+  .rm-v2-email > footer button {
+    min-height: 48px;
+  }
+
+  @media (max-height: 700px) {
+    .rm-document-focus {
+      grid-template-rows: auto auto minmax(140px, 1fr) auto auto;
+    }
+
+    .rm-focus-summary {
+      gap: 6px;
+      padding-bottom: 7px;
+    }
+
+    .rm-focus-amount strong {
+      font-size: 23px;
+    }
+
+    .rm-focus-dates > div,
+    .rm-focus-client {
+      padding-top: 7px;
+      padding-bottom: 7px;
+    }
+
+    .rm-focus-primary-actions {
+      padding-top: 7px;
+    }
+
+    .rm-focus-primary-actions button {
+      min-height: 41px;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .rm-focus-primary-actions button {
+      font-size: 9px;
+    }
+
+    .rm-v2-editor > footer strong {
+      font-size: 15px;
+    }
+  }
+}
