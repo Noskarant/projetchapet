@@ -11,6 +11,7 @@ import "./mobile-quick-ai.css";
 import "./mobile-visibility-force.css";
 import "./mobile-card-sizing.css";
 import "./rappidos-mobile-shell.css";
+import "./mobile-ai-assistant.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
