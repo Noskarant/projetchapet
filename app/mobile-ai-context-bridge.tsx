@@ -15,43 +15,72 @@ function readContextClients() {
   }
 }
 
+function isRequest(input: RequestInfo | URL): input is Request {
+  return typeof Request !== "undefined" && input instanceof Request;
+}
+
+function absoluteFetchInput(input: RequestInfo | URL): RequestInfo | URL {
+  if (isRequest(input)) return input;
+  return new URL(String(input), window.location.href).href;
+}
+
 function requestPath(input: RequestInfo | URL) {
-  const value = typeof input === "string" || input instanceof URL ? String(input) : input.url;
+  const value = isRequest(input) ? input.url : String(input);
   try {
-    return new URL(value, window.location.origin).pathname;
+    return new URL(value, window.location.href).pathname;
   } catch {
     return value;
   }
 }
 
+function isSafariPatternError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const value = `${error.name} ${error.message}`.toLocaleLowerCase("en-US");
+  return value.includes("expected pattern") || value.includes("did not match the expected pattern");
+}
+
 export default function MobileAiContextBridge() {
   useEffect(() => {
-    const originalFetch = window.fetch.bind(window);
+    const nativeFetch = window.fetch.bind(window);
+
+    const safeNativeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      try {
+        return await nativeFetch(absoluteFetchInput(input), init);
+      } catch (error) {
+        if (isSafariPatternError(error)) {
+          throw new Error("Safari n’a pas pu démarrer le service vocal. Réessayez une fois ; si nécessaire, rechargez la page.");
+        }
+        throw error;
+      }
+    };
 
     const strictFetch: typeof window.fetch = async (input, init) => {
       if (requestPath(input) !== "/api/ai/parse" || typeof init?.body !== "string") {
-        return originalFetch(input, init);
+        return safeNativeFetch(input, init);
       }
 
       try {
         const body = JSON.parse(init.body) as Record<string, unknown>;
-        if (body.kind !== "document") return originalFetch(input, init);
+        if (body.kind !== "document") return safeNativeFetch(input, init);
 
-        return originalFetch("/api/ai/parse-strict", {
+        return safeNativeFetch("/api/ai/parse-strict", {
           ...init,
           body: JSON.stringify({
             ...body,
             context_clients: readContextClients(),
           }),
         });
-      } catch {
-        return originalFetch(input, init);
+      } catch (error) {
+        if (isSafariPatternError(error)) {
+          throw new Error("Safari n’a pas pu lancer l’analyse vocale. Réessayez une fois ; si nécessaire, rechargez la page.");
+        }
+        return safeNativeFetch(input, init);
       }
     };
 
     window.fetch = strictFetch;
     return () => {
-      if (window.fetch === strictFetch) window.fetch = originalFetch;
+      if (window.fetch === strictFetch) window.fetch = nativeFetch;
     };
   }, []);
 
