@@ -37,8 +37,11 @@ function replaceDockContent() {
 }
 
 function hideTechnicalProviderName() {
+  const safeLabel = "Analyse terminée · à vérifier";
   document.querySelectorAll<HTMLElement>(".mai-success small").forEach((node) => {
-    node.textContent = "Analyse terminée · à vérifier";
+    // Ne pas réécrire un texte déjà correct : textContent déclenche sinon
+    // le MutationObserver à l'infini au passage de « Préparation » au résultat.
+    if (node.textContent !== safeLabel) node.textContent = safeLabel;
   });
 }
 
