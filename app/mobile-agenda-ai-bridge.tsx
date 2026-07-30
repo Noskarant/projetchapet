@@ -96,7 +96,7 @@ export default function MobileAgendaAiBridge() {
         agendaNavigation.click();
         await new Promise((resolve) => window.setTimeout(resolve, 100));
 
-        const createButton = await waitFor<HTMLButtonElement>(".rm-create-main");
+        const createButton = await waitFor<HTMLButtonElement>(".rm-header-plus");
         createButton.click();
         const editor = await waitFor<HTMLElement>(".rm-v2-editor");
 
