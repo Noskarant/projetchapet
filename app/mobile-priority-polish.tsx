@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 
-type AiTarget = "quote" | "invoice" | "customer";
+type AiTarget = "quote" | "invoice" | "customer" | "agenda";
 
 function activeAiTarget(): AiTarget {
   const label = document.querySelector(".rm-bottom-nav button.active")?.textContent || "";
   if (label.includes("Factures")) return "invoice";
   if (label.includes("Clients")) return "customer";
+  if (label.includes("Agenda")) return "agenda";
   return "quote";
 }
 
@@ -95,11 +96,6 @@ export default function MobilePriorityPolish() {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
-        const activeLabel = document.querySelector(".rm-bottom-nav button.active")?.textContent || "";
-        if (activeLabel.includes("Agenda")) {
-          document.querySelector<HTMLButtonElement>(".rm-header-plus")?.click();
-          return;
-        }
         window.dispatchEvent(
           new CustomEvent("projetchapet:open-ai", {
             detail: { target: activeAiTarget() },
