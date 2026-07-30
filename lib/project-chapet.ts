@@ -110,43 +110,24 @@ export async function deleteCustomer(id: string) {
   if (error) throw error;
 }
 
-function nextNumber(prefix: "DEV" | "FAC", numbers: string[]) {
-  const year = new Date().getFullYear();
-  const max = numbers.reduce((current, value) => { const match = value.match(/(\d+)$/); return Math.max(current, match ? Number(match[1]) : 0); }, 0);
-  return `${prefix}-${year}-${String(max + 1).padStart(3, "0")}`;
-}
-
 export async function saveQuote(input: DocumentInput, existingNumbers: string[], id?: string) {
-  const organizationId = await getActiveOrganizationId();
-  const totals = calculateTotals(input.items);
-  const payload = {
-    organization_id: organizationId, customer_id: input.customer_id, number: id ? undefined : nextNumber("DEV", existingNumbers),
-    title: input.title?.trim() || "Travaux", status: input.status as QuoteStatus, issue_date: input.issue_date,
-    expiry_date: input.expiry_date || null, subtotal: totals.subtotal, tax_total: totals.tax_total, total: totals.total,
-    notes: input.notes, sent_at: input.status === "sent" ? new Date().toISOString() : null,
-    accepted_at: input.status === "accepted" ? new Date().toISOString() : null,
-  };
-  let quoteId = id;
-  if (id) {
-    const { error } = await supabase.from("quotes").update(payload).eq("id", id).eq("organization_id", organizationId);
-    if (error) throw error;
-    const { error: itemsDeleteError } = await supabase.from("quote_items").delete().eq("quote_id", id);
-    if (itemsDeleteError) throw itemsDeleteError;
-  } else {
-    const { data, error } = await supabase.from("quotes").insert(payload).select("id").single();
-    if (error) throw error;
-    quoteId = data.id;
-  }
-  const items = normalizeItems(input.items).map((item) => ({ ...item, quote_id: quoteId }));
-  if (items.length > 0) { const { error } = await supabase.from("quote_items").insert(items); if (error) throw error; }
-  return quoteId as string;
+  void existingNumbers;
+  const { data, error } = await supabase.rpc("save_quote_document", {
+    p_quote_id: id ?? null,
+    p_customer_id: input.customer_id,
+    p_title: input.title?.trim() || "Travaux",
+    p_status: input.status as QuoteStatus,
+    p_issue_date: input.issue_date,
+    p_expiry_date: input.expiry_date || null,
+    p_notes: input.notes,
+    p_items: normalizeItems(input.items),
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 export async function deleteQuote(id: string) {
-  const organizationId = await getActiveOrganizationId();
-  const { error: itemError } = await supabase.from("quote_items").delete().eq("quote_id", id);
-  if (itemError) throw itemError;
-  const { error } = await supabase.from("quotes").delete().eq("id", id).eq("organization_id", organizationId);
+  const { error } = await supabase.rpc("delete_quote_document", { p_quote_id: id });
   if (error) throw error;
 }
 
@@ -163,49 +144,36 @@ export async function saveQuoteSignature(id: string, signerName: string, signatu
 }
 
 export async function saveInvoice(input: DocumentInput, existingNumbers: string[], id?: string) {
-  const organizationId = await getActiveOrganizationId();
-  const totals = calculateTotals(input.items);
-  const payload = {
-    organization_id: organizationId, customer_id: input.customer_id, quote_id: input.quote_id || null,
-    number: id ? undefined : nextNumber("FAC", existingNumbers), status: input.status as InvoiceStatus,
-    issue_date: input.issue_date, due_date: input.due_date || null, subtotal: totals.subtotal, tax_total: totals.tax_total,
-    total: totals.total, paid_total: input.status === "paid" ? totals.total : 0, notes: input.notes,
-    sent_at: input.status === "sent" || input.status === "issued" ? new Date().toISOString() : null,
-  };
-  let invoiceId = id;
-  if (id) {
-    const { error } = await supabase.from("invoices").update(payload).eq("id", id).eq("organization_id", organizationId);
-    if (error) throw error;
-    const { error: itemsDeleteError } = await supabase.from("invoice_items").delete().eq("invoice_id", id);
-    if (itemsDeleteError) throw itemsDeleteError;
-  } else {
-    const { data, error } = await supabase.from("invoices").insert(payload).select("id").single();
-    if (error) throw error;
-    invoiceId = data.id;
-  }
-  const items = normalizeItems(input.items).map((item) => ({ ...item, invoice_id: invoiceId }));
-  if (items.length > 0) { const { error } = await supabase.from("invoice_items").insert(items); if (error) throw error; }
-  return invoiceId as string;
+  void existingNumbers;
+  const { data, error } = await supabase.rpc("save_invoice_document", {
+    p_invoice_id: id ?? null,
+    p_customer_id: input.customer_id,
+    p_quote_id: input.quote_id || null,
+    p_status: input.status as InvoiceStatus,
+    p_issue_date: input.issue_date,
+    p_due_date: input.due_date || null,
+    p_notes: input.notes,
+    p_items: normalizeItems(input.items),
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 export async function deleteInvoice(id: string) {
-  const organizationId = await getActiveOrganizationId();
-  const { error: paymentError } = await supabase.from("payments").delete().eq("invoice_id", id);
-  if (paymentError) throw paymentError;
-  const { error: itemError } = await supabase.from("invoice_items").delete().eq("invoice_id", id);
-  if (itemError) throw itemError;
-  const { error } = await supabase.from("invoices").delete().eq("id", id).eq("organization_id", organizationId);
+  const { error } = await supabase.rpc("delete_invoice_draft", { p_invoice_id: id });
   if (error) throw error;
 }
 
 export async function markInvoicePaid(invoice: Invoice) {
-  const organizationId = await getActiveOrganizationId();
   const remaining = Math.max(0, Number(invoice.total) - Number(invoice.paid_total || 0));
-  if (remaining > 0) {
-    const { error: paymentError } = await supabase.from("payments").insert({ invoice_id: invoice.id, amount: remaining, paid_at: new Date().toISOString(), method: "virement", reference: "Paiement saisi dans l'application" });
-    if (paymentError) throw paymentError;
-  }
-  const { error } = await supabase.from("invoices").update({ status: "paid", paid_total: invoice.total }).eq("id", invoice.id).eq("organization_id", organizationId);
+  if (remaining <= 0) return;
+  const { error } = await supabase.rpc("record_invoice_payment", {
+    p_invoice_id: invoice.id,
+    p_amount: remaining,
+    p_paid_at: new Date().toISOString(),
+    p_method: "virement",
+    p_reference: "Paiement saisi dans l'application",
+  });
   if (error) throw error;
 }
 
