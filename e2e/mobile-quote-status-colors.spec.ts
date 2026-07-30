@@ -12,6 +12,9 @@ test("affiche une couleur métier distincte pour chaque état du devis", async (
   await page.goto("/");
 
   await page.locator(".rm-document-card").first().click();
+  const previewClose = page.getByRole("button", { name: "Fermer l’aperçu détaillé" });
+  if (await previewClose.isVisible()) await previewClose.click();
+
   const statusEditor = page.locator(".rm-status-editor");
   await expect(statusEditor).toBeVisible();
 
