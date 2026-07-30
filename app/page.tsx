@@ -1,6 +1,7 @@
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
 import MobilePriorityPolish from "./mobile-priority-polish";
-import MobileAiAssistantV4 from "./mobile-ai-assistant-v4";
+import MobileAiAssistantV5 from "./mobile-ai-assistant-v5";
+import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileAccountingAction from "./mobile-accounting-action";
 import FunctionalPrototype from "./functional-prototype";
 import ProductEnhancements from "./product-enhancements";
@@ -15,7 +16,8 @@ export default function Page() {
     <>
       <RappidosMobileShellV2 />
       <MobilePriorityPolish />
-      <MobileAiAssistantV4 />
+      <MobileAiAssistantV5 />
+      <MobileAutoPdfPreview />
       <MobileAccountingAction />
       <FunctionalPrototype />
       <ProductEnhancements />
