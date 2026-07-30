@@ -13,6 +13,7 @@ import "./mobile-card-sizing.css";
 import "./rappidos-mobile-shell.css";
 import "./mobile-ai-assistant.css";
 import "./mobile-detail-actions.css";
+import "./mobile-app-v2.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
