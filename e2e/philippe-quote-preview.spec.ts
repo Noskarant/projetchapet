@@ -15,7 +15,7 @@ test("affiche le détail scrollable, les prix unitaires et la page complète", a
   await expect(preview.locator(".rm-philippe-totals")).toContainText("Total TTC");
   await expect(preview.locator(".rm-philippe-totals")).toContainText("Remise");
 
-  await preview.getByRole("button", { name: "Page complète" }).click();
+  await preview.getByRole("button", { name: "Page complète", exact: true }).click();
   await expect(preview.locator("iframe")).toBeVisible();
 });
 
