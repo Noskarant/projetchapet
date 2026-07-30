@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("affiche le détail scrollable, les prix unitaires et la page complète", async ({ page }, testInfo) => {
+test("affiche le détail scrollable, les prix unitaires et le PDF", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
@@ -15,7 +15,7 @@ test("affiche le détail scrollable, les prix unitaires et la page complète", a
   await expect(preview.locator(".rm-philippe-totals")).toContainText("Total TTC");
   await expect(preview.locator(".rm-philippe-totals")).toContainText("Remise");
 
-  await preview.getByRole("button", { name: "Page complète", exact: true }).click();
+  await preview.getByRole("button", { name: "PDF", exact: true }).click();
   await expect(preview.locator("iframe")).toBeVisible();
 });
 
