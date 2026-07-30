@@ -9,27 +9,58 @@ function acknowledge(button: HTMLButtonElement) {
   window.setTimeout(() => button.classList.remove("rm-preview-tab-acknowledged"), 320);
 }
 
-function syncPressedState() {
+function setText(element: Element | null, value: string) {
+  if (element && element.textContent !== value) element.textContent = value;
+}
+
+function syncPreviewState() {
   document
     .querySelectorAll<HTMLButtonElement>(".rm-philippe-preview-tabs button")
     .forEach((button) => {
       button.type = "button";
       button.setAttribute("aria-pressed", String(button.classList.contains("active")));
     });
+
+  document.querySelectorAll<HTMLElement>(".rm-philippe-preview").forEach((preview) => {
+    const lines = preview.querySelector<HTMLElement>(".rm-philippe-lines");
+    if (!lines) return;
+
+    const count = lines.querySelectorAll(".rm-philippe-line-card").length;
+    const title = preview.querySelector(".rm-philippe-section-title strong");
+    const hint = preview.querySelector<HTMLElement>(".rm-philippe-section-title > span");
+    let singleMessage = preview.querySelector<HTMLElement>(".rm-single-post-message");
+
+    setText(title, count === 1 ? "1 poste" : `${count} postes`);
+
+    if (count === 1) {
+      if (hint && !hint.hidden) hint.hidden = true;
+      if (!singleMessage) {
+        singleMessage = document.createElement("p");
+        singleMessage.className = "rm-single-post-message";
+        singleMessage.textContent = "Tous les postes du devis sont affichés.";
+        lines.insertAdjacentElement("afterend", singleMessage);
+      }
+      return;
+    }
+
+    if (hint?.hidden) hint.hidden = false;
+    setText(hint, `Faites défiler pour consulter les ${count} postes`);
+    singleMessage?.remove();
+  });
 }
 
 export default function MobileQuotePreviewInteractions() {
   useEffect(() => {
     if (!window.matchMedia("(max-width: 820px)").matches) return;
 
-    const observer = new MutationObserver(syncPressedState);
+    const observer = new MutationObserver(syncPreviewState);
     observer.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ["class"],
     });
-    syncPressedState();
+    syncPreviewState();
 
     const onClick = (event: MouseEvent) => {
       const target = event.target;
@@ -49,7 +80,7 @@ export default function MobileQuotePreviewInteractions() {
 
       acknowledge(button);
       window.setTimeout(() => {
-        syncPressedState();
+        syncPreviewState();
         preview
           .querySelector<HTMLElement>(".rm-philippe-preview-scroll")
           ?.scrollTo({ top: 0, behavior: "smooth" });
