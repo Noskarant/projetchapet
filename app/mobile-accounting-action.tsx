@@ -2,6 +2,9 @@
 
 import { useEffect } from "react";
 import { blobToBase64 } from "@/lib/document-tools";
+import type { MobileInvoice, MobileWorkspace } from "@/lib/mobile-prototype";
+
+const STORAGE_KEY = "projetchapet-mobile-workspace-v3";
 
 function text(root: ParentNode, selector: string, fallback = "") {
   return root.querySelector(selector)?.textContent?.trim() || fallback;
@@ -13,6 +16,123 @@ function notify(message: string) {
   toast.textContent = message;
   document.body.appendChild(toast);
   window.setTimeout(() => toast.remove(), 2800);
+}
+
+function loadWorkspace() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) as MobileWorkspace : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistAccountantState(number: string) {
+  const workspace = loadWorkspace();
+  if (!workspace) return;
+  const invoices = workspace.invoices.map((invoice) => invoice.number === number
+    ? { ...invoice, accountantSent: true }
+    : invoice);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...workspace, invoices }));
+}
+
+function money(value: number) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(value || 0));
+}
+
+function dateFr(value: string) {
+  return value
+    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(`${value}T12:00:00`))
+    : "—";
+}
+
+async function buildAccountingPdf(invoice: MobileInvoice) {
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  let y = 18;
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  pdf.text("CHAPET SAS", 16, y);
+  pdf.setFontSize(18);
+  pdf.text(invoice.status === "Avoir" ? "AVOIR" : "FACTURE", 194, y, { align: "right" });
+  pdf.setFontSize(10);
+  pdf.text(invoice.number, 194, y + 7, { align: "right" });
+
+  y += 25;
+  pdf.setDrawColor(215, 223, 233);
+  pdf.line(16, y, 194, y);
+  y += 9;
+  pdf.setFontSize(10);
+  pdf.text("Client", 16, y);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(invoice.customerName, 16, y + 6);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Document", 122, y);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(`Émis le : ${dateFr(invoice.issueDate)}`, 122, y + 6);
+  pdf.text(`Échéance : ${dateFr(invoice.dueDate)}`, 122, y + 12);
+
+  y += 27;
+  pdf.setFillColor(239, 245, 251);
+  pdf.rect(16, y, 178, 9, "F");
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8.5);
+  pdf.text("Désignation", 18, y + 6);
+  pdf.text("Qté", 120, y + 6, { align: "right" });
+  pdf.text("PU HT", 148, y + 6, { align: "right" });
+  pdf.text("TVA", 165, y + 6, { align: "right" });
+  pdf.text("Total HT", 192, y + 6, { align: "right" });
+  y += 13;
+  pdf.setFont("helvetica", "normal");
+
+  for (const item of invoice.items) {
+    if (y > 255) {
+      pdf.addPage();
+      y = 18;
+    }
+    const lines = pdf.splitTextToSize(item.label || "Prestation", 90);
+    pdf.text(lines, 18, y);
+    pdf.text(`${item.quantity} ${item.unit}`.trim(), 120, y, { align: "right" });
+    pdf.text(money(item.unitPrice), 148, y, { align: "right" });
+    pdf.text(`${item.taxRate} %`, 165, y, { align: "right" });
+    pdf.text(money(item.quantity * item.unitPrice), 192, y, { align: "right" });
+    if (item.description) {
+      pdf.setTextColor(95, 108, 124);
+      pdf.setFontSize(7.5);
+      pdf.text(pdf.splitTextToSize(item.description, 90), 18, y + 5);
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(8.5);
+    }
+    y += Math.max(11, lines.length * 4.5 + (item.description ? 5 : 0));
+    pdf.setDrawColor(235, 239, 244);
+    pdf.line(16, y - 4, 194, y - 4);
+  }
+
+  y += 5;
+  pdf.text("Sous-total HT", 134, y);
+  pdf.text(money(invoice.subtotal), 192, y, { align: "right" });
+  y += 7;
+  pdf.text("TVA", 134, y);
+  pdf.text(money(invoice.taxTotal), 192, y, { align: "right" });
+  y += 8;
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(11);
+  pdf.text("Total TTC", 134, y);
+  pdf.text(money(invoice.total), 192, y, { align: "right" });
+
+  if (invoice.notes) {
+    y += 14;
+    pdf.setFontSize(9);
+    pdf.text("Notes", 16, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(pdf.splitTextToSize(invoice.notes, 176), 16, y + 6);
+  }
+
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(100, 110, 124);
+  pdf.text("Document généré par CHAPET SAS.", 105, 288, { align: "center" });
+  return pdf.output("blob");
 }
 
 export default function MobileAccountingAction() {
@@ -29,36 +149,19 @@ export default function MobileAccountingAction() {
       button.disabled = true;
 
       const number = text(sheet, "header h2", "Facture");
-      const client = text(sheet, ".rm-detail-client strong", "Client");
-      const amount = text(sheet, ".rm-detail-amount strong", "0,00 €");
-      const issueDate = text(sheet, ".rm-detail-dates > div:first-child strong", "—");
-      const dueDate = text(sheet, ".rm-detail-dates > div:last-child strong", "—");
+      const workspace = loadWorkspace();
+      const invoice = workspace?.invoices.find((item) => item.number === number);
 
       try {
-        const { jsPDF } = await import("jspdf");
-        const pdf = new jsPDF({ unit: "mm", format: "a4" });
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(18);
-        pdf.text("FACTURE", 194, 20, { align: "right" });
-        pdf.setFontSize(11);
-        pdf.text(number, 194, 28, { align: "right" });
-        pdf.text("CHAPET SAS", 16, 20);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(`Client : ${client}`, 16, 46);
-        pdf.text(`Émise le : ${issueDate}`, 16, 54);
-        pdf.text(`Échéance : ${dueDate}`, 16, 62);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(20);
-        pdf.text(`Total TTC : ${amount}`, 16, 82);
-        const blob = pdf.output("blob");
-
+        if (!invoice) throw new Error("Facture introuvable dans l’espace mobile.");
+        const blob = await buildAccountingPdf(invoice);
         const response = await fetch("/api/email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             to: "compta@saschapet.com",
             subject: `Facture ${number} — comptabilité`,
-            html: `<p>Bonjour,</p><p>Veuillez trouver la facture <strong>${number}</strong> de ${client} en pièce jointe.</p>`,
+            html: `<p>Bonjour,</p><p>Veuillez trouver la facture <strong>${number}</strong> de ${invoice.customerName} en pièce jointe.</p>`,
             attachments: [{ filename: `${number}.pdf`, content: await blobToBase64(blob) }],
           }),
         });
@@ -73,6 +176,7 @@ export default function MobileAccountingAction() {
           throw new Error("Envoi indisponible : le PDF a été téléchargé.");
         }
 
+        persistAccountantState(number);
         const state = sheet.querySelector<HTMLElement>(".rm-accountant-state strong");
         if (state) state.textContent = "Envoyée au comptable";
         notify(`Facture ${number} envoyée au comptable.`);
