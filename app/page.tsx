@@ -1,6 +1,6 @@
 import RappidosMobileShell from "./rappidos-mobile-shell";
 import DefaultMobileTab from "./default-mobile-tab";
-import MobileAiAssistantV2 from "./mobile-ai-assistant-v2";
+import MobileAiAssistantV3 from "./mobile-ai-assistant-v3";
 import FunctionalPrototype from "./functional-prototype";
 import ProductEnhancements from "./product-enhancements";
 import AiChain from "./ai-chain";
@@ -15,7 +15,7 @@ export default function Page() {
     <>
       <RappidosMobileShell />
       <DefaultMobileTab />
-      <MobileAiAssistantV2 />
+      <MobileAiAssistantV3 />
       <FunctionalPrototype />
       <ProductEnhancements />
       <AiChain />
