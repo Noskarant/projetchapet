@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
+import { robustArtisanDictation } from "@/lib/robust-artisan-dictation";
 import {
-  fallbackStrictVoiceDocument,
   normalizeStrictVoiceDocument,
   sanitizeContextClients,
   strictDocumentToLegacy,
@@ -40,6 +40,8 @@ Tu dois appliquer ces règles dans cet ordre, sans exception.
 - Les prix sont des prix unitaires HT. Si une valeur TTC est prononcée sans information suffisante pour la convertir, mets 0.
 - Convertis les unités exclusivement vers : m2, m, l, h, forfait ou unite.
 - Chaque prestation finale distincte apparaît une seule fois.
+- Une TVA globale s’applique à toutes les lignes sauf lorsqu’une exception explicite vise une prestation précise.
+- Pour un forfait annoncé pour plusieurs portes, conserve une quantité de 1, l’unité forfait et mentionne le nombre de portes dans la désignation.
 
 FORMAT DE SORTIE OBLIGATOIRE
 Réponds uniquement avec cet objet JSON, sans markdown, sans commentaire et sans propriété supplémentaire :
@@ -56,6 +58,16 @@ Réponds uniquement avec cet objet JSON, sans markdown, sans commentaire et sans
   ]
 }
 ${clientContext}`;
+}
+
+function fallbackPayload(transcript: string, contextClients: string[], reason?: string) {
+  const strictData = robustArtisanDictation(transcript, contextClients);
+  return NextResponse.json({
+    provider: reason ? "local-recovery-strict" : "local-fallback-strict",
+    strict_data: strictData,
+    data: strictDocumentToLegacy(strictData),
+    warning: reason || null,
+  });
 }
 
 export async function POST(request: Request) {
@@ -77,60 +89,64 @@ export async function POST(request: Request) {
     const contextClients = sanitizeContextClients(body.context_clients);
     const apiKey = process.env.DEEPSEEK_API_KEY;
 
-    if (!apiKey) {
-      const strictData = fallbackStrictVoiceDocument(transcript, contextClients);
-      return NextResponse.json({
-        provider: "local-fallback-strict",
-        strict_data: strictData,
-        data: strictDocumentToLegacy(strictData),
-      });
-    }
+    if (!apiKey) return fallbackPayload(transcript, contextClients);
 
-    const response = await fetch("https://api.deepseek.com/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
-        thinking: { type: "disabled" },
-        max_tokens: 2200,
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt(contextClients) },
-          {
-            role: "user",
-            content: JSON.stringify({
-              context_clients: contextClients,
-              transcription: transcript,
-            }),
-          },
-        ],
-      }),
-    });
-
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result?.error?.message ?? `DeepSeek API : ${response.status}`);
-    const content = result?.choices?.[0]?.message?.content;
-    if (!content) throw new Error("DeepSeek n’a retourné aucune donnée.");
-
-    let raw: unknown;
     try {
-      raw = JSON.parse(content);
-    } catch {
-      throw new Error("DeepSeek a retourné un JSON invalide.");
-    }
+      const response = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
+          thinking: { type: "disabled" },
+          max_tokens: 2600,
+          temperature: 0,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: systemPrompt(contextClients) },
+            {
+              role: "user",
+              content: JSON.stringify({
+                context_clients: contextClients,
+                transcription: transcript,
+              }),
+            },
+          ],
+        }),
+      });
 
-    const strictData = normalizeStrictVoiceDocument(raw, contextClients);
-    return NextResponse.json({
-      provider: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
-      mode: "strict-non-thinking",
-      strict_data: strictData,
-      data: strictDocumentToLegacy(strictData),
-      usage: result?.usage ?? null,
-    });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error?.message ?? `DeepSeek API : ${response.status}`);
+      const content = result?.choices?.[0]?.message?.content;
+      if (!content) throw new Error("DeepSeek n’a retourné aucune donnée.");
+
+      let raw: unknown;
+      try {
+        raw = JSON.parse(content);
+      } catch {
+        throw new Error("DeepSeek a retourné un JSON invalide.");
+      }
+
+      const strictData = normalizeStrictVoiceDocument(raw, contextClients);
+      const fallback = robustArtisanDictation(transcript, contextClients);
+      const finalData = strictData.prestations.length ? strictData : fallback;
+
+      return NextResponse.json({
+        provider: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
+        mode: "strict-non-thinking",
+        strict_data: finalData,
+        data: strictDocumentToLegacy(finalData),
+        usage: result?.usage ?? null,
+      });
+    } catch {
+      return fallbackPayload(
+        transcript,
+        contextClients,
+        "L’analyse en ligne a été remplacée automatiquement par l’analyse locale fiable.",
+      );
+    }
   } catch (error) {
     return errorResponse(error, "Analyse stricte impossible.");
   }
