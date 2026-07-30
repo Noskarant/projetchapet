@@ -1,0 +1,53 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import MobileAccountingAction from "./mobile-accounting-action";
+import MobileAiAssistantV5 from "./mobile-ai-assistant-v5";
+import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
+import MobilePriorityPolish from "./mobile-priority-polish";
+import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
+import { seedMobileWorkspace } from "@/lib/mobile-prototype";
+import { prepareMobileWorkspaceStorage } from "@/lib/mobile-workspace-storage";
+
+export default function MobilePrototypeGate() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      prepareMobileWorkspaceStorage(window.localStorage, seedMobileWorkspace());
+    } catch (error) {
+      console.warn("[Projet Chapet] Préparation du stockage mobile impossible", error);
+    } finally {
+      setReady(true);
+    }
+  }, []);
+
+  if (!ready) {
+    return (
+      <main
+        aria-label="Chargement du prototype"
+        style={{
+          minHeight: "100dvh",
+          display: "grid",
+          placeItems: "center",
+          background: "#f3f6f9",
+          color: "#102a43",
+          fontFamily: "Arial, sans-serif",
+          fontWeight: 800,
+        }}
+      >
+        Projet Chapet
+      </main>
+    );
+  }
+
+  return (
+    <>
+      <RappidosMobileShellV2 />
+      <MobilePriorityPolish />
+      <MobileAiAssistantV5 />
+      <MobileAutoPdfPreview />
+      <MobileAccountingAction />
+    </>
+  );
+}
