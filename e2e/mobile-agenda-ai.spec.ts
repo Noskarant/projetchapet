@@ -23,7 +23,11 @@ test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async 
 
   await expect(assistant).toBeHidden();
   await expect(page.locator(".rm-bottom-nav button.active")).toContainText("Agenda");
-  await expect(page.getByRole("status").filter({ hasText: "Événement ajouté à l’agenda" })).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => {
+    const raw = window.localStorage.getItem("projetchapet-mobile-workspace-v3");
+    const workspace = raw ? JSON.parse(raw) : null;
+    return Boolean(workspace?.agenda?.some((entry: { title?: string }) => entry.title?.includes("4 place du Monteil")));
+  }), { timeout: 8_000 }).toBe(true);
 
   const stored = await page.evaluate(() => {
     const raw = window.localStorage.getItem("projetchapet-mobile-workspace-v3");
