@@ -10,6 +10,7 @@ import "./dashboard-enhancements.css";
 import "./mobile-quick-ai.css";
 import "./mobile-visibility-force.css";
 import "./mobile-card-sizing.css";
+import "./rappidos-mobile-shell.css";
 
 export const metadata: Metadata = {
   title: "Projet Chapet — gestion bâtiment",
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#102a43",
+  themeColor: "#030919",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
