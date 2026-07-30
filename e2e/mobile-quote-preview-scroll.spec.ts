@@ -74,8 +74,8 @@ test("fait défiler tous les postes et change réellement de vue sur iPhone", as
   const preview = page.locator(".rm-philippe-preview");
   const scroller = preview.locator(".rm-philippe-preview-scroll");
   await expect(preview).toBeVisible();
-  await expect(preview.getByText("9 poste(s)")).toBeVisible();
-  await expect(preview.getByText("Faites défiler pour tout consulter")).toBeVisible();
+  await expect(preview.getByText("9 postes")).toBeVisible();
+  await expect(preview.getByText("Faites défiler pour consulter les 9 postes")).toBeVisible();
 
   const metrics = await scroller.evaluate((element) => ({
     clientHeight: element.clientHeight,
@@ -108,7 +108,7 @@ test("n’affiche pas une fausse instruction de défilement pour un seul poste",
 
   await page.locator(".rm-document-card").first().click();
   const preview = page.locator(".rm-philippe-preview");
-  await expect(preview.getByText("1 poste(s)")).toBeVisible();
+  await expect(preview.getByText("1 poste", { exact: true })).toBeVisible();
   await expect(preview.getByText("Tous les postes du devis sont affichés.")).toBeVisible();
   await expect(preview.getByText("Faites défiler pour tout consulter")).toBeHidden();
 });
