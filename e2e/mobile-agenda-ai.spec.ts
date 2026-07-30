@@ -6,7 +6,7 @@ test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async 
 
   await page.locator(".rm-bottom-nav button").filter({ hasText: "Agenda" }).click();
   await expect(page.locator(".rm-bottom-nav button.active")).toContainText("Agenda");
-  await page.locator(".rm-create-ai").click();
+  await page.locator(".rm-create-main").click();
 
   const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
   await expect(assistant).toBeVisible();
