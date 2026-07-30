@@ -58,6 +58,7 @@ export default function MobileQuotePreviewInteractions() {
       childList: true,
       subtree: true,
       attributes: true,
+      characterData: true,
       attributeFilter: ["class"],
     });
     syncPreviewState();
