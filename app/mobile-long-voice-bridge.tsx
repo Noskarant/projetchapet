@@ -119,14 +119,14 @@ export default function MobileLongVoiceBridge() {
         try {
           return await transcribeLongAudio(previousFetch, init.body, init);
         } catch (error) {
+          if (error instanceof Error && error.message.includes("Safari n’a pas pu démarrer le service vocal")) {
+            throw error;
+          }
           const technical = error instanceof Error ? `${error.name} ${error.message}` : "";
-          const message = /expected pattern|did not match the expected pattern/i.test(technical)
-            ? "Safari a interrompu l’envoi audio. Relancez la dictée sans fermer cette fenêtre."
-            : "La transcription longue a été interrompue. Réessayez sans fermer cette fenêtre.";
-          return new Response(JSON.stringify({ error: message }), {
-            status: 502,
-            headers: { "Content-Type": "application/json" },
-          });
+          if (/expected pattern|did not match the expected pattern/i.test(technical)) {
+            throw new Error("Safari n’a pas pu démarrer le service vocal. Réessayez une fois ; si nécessaire, rechargez la page.");
+          }
+          throw new Error("La transcription longue a été interrompue. Réessayez sans fermer cette fenêtre.");
         }
       }
 
