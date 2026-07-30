@@ -148,10 +148,11 @@ function parseAgendaType(text: string): AgendaVoiceType {
 
 function parseCustomerHint(text: string) {
   const normalized = text.replace(/\s+/g, " ").trim();
-  const withMatch = normalized.match(/\bavec\s+(?:le\s+client\s+|la\s+cliente\s+)?(.+?)(?=\s+(?:(?:à|a)\s+\d{1,2}(?:\s*h|:)|(?:à|a)\s+l['’]adresse|au\s+\d|aux\s+|chez\s+|sur\s+le\s+chantier|pour\s+|le\s+\d{1,2}[\/-]|[,.;]|$))/i);
+  const locationStart = "(?:à|a)\\s+(?!\\d{1,2}(?:\\s*h|:))";
+  const withMatch = normalized.match(new RegExp(`\\bavec\\s+(?:le\\s+client\\s+|la\\s+cliente\\s+)?(.+?)(?=\\s+(?:(?:à|a)\\s+\\d{1,2}(?:\\s*h|:)|(?:à|a)\\s+l['’]adresse|${locationStart}|au\\s+\\d|aux\\s+|chez\\s+|sur\\s+le\\s+chantier|pour\\s+|le\\s+\\d{1,2}[\\/-]|[,.;]|$))`, "i"));
   if (withMatch?.[1]) return withMatch[1].trim();
 
-  const clientMatch = normalized.match(/\bclient(?:e)?\s+(.+?)(?=\s+(?:(?:à|a)\s+\d{1,2}(?:\s*h|:)|(?:à|a)\s+l['’]adresse|au\s+\d|chez\s+|pour\s+|[,.;]|$))/i);
+  const clientMatch = normalized.match(new RegExp(`\\bclient(?:e)?\\s+(.+?)(?=\\s+(?:(?:à|a)\\s+\\d{1,2}(?:\\s*h|:)|(?:à|a)\\s+l['’]adresse|${locationStart}|au\\s+\\d|chez\\s+|pour\\s+|[,.;]|$))`, "i"));
   return clientMatch?.[1]?.trim() ?? "";
 }
 
