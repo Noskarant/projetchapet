@@ -1,8 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const storageKey = "projetchapet-mobile-workspace-v3";
 
-function installWorkspace(page: Parameters<typeof test>[0] extends never ? never : any, itemCount: number) {
+function installWorkspace(page: Page, itemCount: number) {
   return page.addInitScript(
     ({ key, count }: { key: string; count: number }) => {
       const customer = {
