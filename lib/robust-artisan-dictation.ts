@@ -24,15 +24,22 @@ function identityTokens(value: string) {
 }
 
 function lastExactClientMention(transcript: string, contextClients: string[]) {
-  const normalizedTranscript = normalizeSpokenText(transcript);
-  let best: { name: string; index: number } | null = null;
+  const normalizedTranscript = ` ${normalizeSpokenText(transcript)} `;
+  let best: { name: string; index: number; length: number } | null = null;
 
   for (const candidate of contextClients) {
     const tokens = identityTokens(candidate);
     if (!tokens.length) continue;
-    const forms = [tokens.join(" "), tokens.at(-1) ?? ""].filter((form) => form.length >= 3);
-    const index = Math.max(...forms.map((form) => normalizedTranscript.lastIndexOf(form)));
-    if (index >= 0 && (!best || index > best.index)) best = { name: candidate, index };
+    const forms = [...new Set([tokens.join(" "), tokens.at(-1) ?? ""])].filter((form) => form.length >= 3);
+    const matches = forms.map((form) => ({
+      index: normalizedTranscript.lastIndexOf(` ${form} `),
+      length: form.length,
+    }));
+    const match = matches.sort((left, right) => right.index - left.index || right.length - left.length)[0];
+    if (match.index < 0) continue;
+    if (!best || match.index > best.index || (match.index === best.index && match.length > best.length)) {
+      best = { name: candidate, index: match.index, length: match.length };
+    }
   }
 
   return best?.name ?? "";
@@ -51,6 +58,7 @@ function finalSpokenClient(transcript: string, contextClients: string[]) {
 }
 
 function between(value: string, start: RegExp, end?: RegExp) {
+  start.lastIndex = 0;
   const startMatch = start.exec(value);
   if (!startMatch || startMatch.index === undefined) return "";
   const from = startMatch.index;
@@ -80,8 +88,8 @@ function globalTax(transcript: string) {
 
 function specialTax(transcript: string, keywords: RegExp, fallback: number) {
   const source = between(transcript, keywords);
-  const match = source.match(/tva(?:\s+standard)?\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*%?/iu)?.[1];
-  return match ? numeric(match) : fallback;
+  const matches = [...source.matchAll(/tva(?:\s+standard)?\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*%?/giu)];
+  return matches.length ? numeric(matches.at(-1)?.[1], fallback) : fallback;
 }
 
 function service(
