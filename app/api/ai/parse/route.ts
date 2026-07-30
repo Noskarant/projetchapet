@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 
 type ParseKind = "customer" | "document";
 type PriceType = "ht" | "ttc" | "unknown";
@@ -235,17 +236,24 @@ confidence est entre 0 et 1. Signale toute ambiguïté dans warnings. Réponds u
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as { kind?: ParseKind; transcript?: string; target?: string };
-    const kind = body.kind === "customer" ? "customer" : "document";
-    const target = ["customer", "quote", "invoice", "current"].includes(String(body.target)) ? String(body.target) : "quote";
-    const transcript = String(body.transcript ?? "").trim().slice(0, 14000);
+  const limited = rateLimit(request, "ai-parse", 20);
+  if (limited) return limited;
 
-    if (!transcript) return NextResponse.json({ error: "La dictée est vide." }, { status: 400 });
+  try {
+    const body = await readJsonBody<{ kind?: unknown; transcript?: unknown; target?: unknown }>(request, 20_000);
+    const kind: ParseKind = body.kind === "customer" ? "customer" : "document";
+    const target = ["customer", "quote", "invoice", "current"].includes(String(body.target)) ? String(body.target) : "quote";
+    if (typeof body.transcript !== "string") throw new ApiInputError("La dictée est invalide.");
+    const transcript = body.transcript.trim();
+    if (!transcript) throw new ApiInputError("La dictée est vide.");
+    if (transcript.length > 14_000) throw new ApiInputError("La dictée est trop longue.", 413);
 
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ provider: "local-fallback", data: kind === "customer" ? fallbackCustomer(transcript) : fallbackDocument(transcript) });
+      return NextResponse.json({
+        provider: "local-fallback",
+        data: kind === "customer" ? fallbackCustomer(transcript) : fallbackDocument(transcript),
+      });
     }
 
     const prompt = systemPrompt(kind, target);
@@ -264,13 +272,18 @@ export async function POST(request: Request) {
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result?.error?.message ?? `DeepSeek API : ${response.status}`);
 
     const content = result?.choices?.[0]?.message?.content;
     if (!content) throw new Error("DeepSeek n’a retourné aucune donnée.");
 
-    const raw = JSON.parse(content) as Record<string, unknown>;
+    let raw: Record<string, unknown>;
+    try {
+      raw = JSON.parse(content) as Record<string, unknown>;
+    } catch {
+      throw new Error("DeepSeek a retourné un JSON invalide.");
+    }
     const data = kind === "customer" ? normalizeCustomer(raw) : normalizeDocument(raw);
 
     return NextResponse.json({
@@ -280,6 +293,6 @@ export async function POST(request: Request) {
       usage: result?.usage ?? null,
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Analyse impossible." }, { status: 500 });
+    return errorResponse(error, "Analyse impossible.");
   }
 }
