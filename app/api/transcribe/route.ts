@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit } from "@/lib/api-guard";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
 const ALLOWED_AUDIO_TYPES = new Set([
@@ -17,7 +17,7 @@ const ALLOWED_AUDIO_TYPES = new Set([
 ]);
 
 const BTP_PROMPT =
-  "Dictée professionnelle d'un artisan français du bâtiment. Le locuteur peut hésiter, se reprendre, annuler une ligne et corriger un nom, une quantité, un prix ou une TVA. Vocabulaire possible : devis, facture, client, chantier, plâtrerie, peinture, ratissage, rebouchage, ponçage, impression, sous-couche, finition, fût, deux passes, préparation des supports, protection, fourniture et pose, dépose, évacuation, mètre carré, mètre linéaire, forfait, heure, main-d'œuvre, TVA, HT, TTC, SIRET.";
+  "Dictée professionnelle d'un artisan français du bâtiment. Le locuteur peut hésiter, se reprendre, annuler une ligne et corriger un nom, une quantité, un prix ou une TVA. La dictée peut être un segment d'un devis plus long : respecte strictement l'ordre et ne conclus pas prématurément. Vocabulaire possible : devis, facture, client, chantier, plâtrerie, peinture, ratissage, rebouchage, ponçage, impression, sous-couche, finition, fût, deux passes, préparation des supports, protection, fourniture et pose, dépose, évacuation, mètre carré, mètre linéaire, forfait, heure, main-d'œuvre, TVA, HT, TTC, SIRET.";
 
 function buildGroqForm(file: File) {
   const safeName = (file.name || "dictee.wav").replace(/[\\/:*?"<>|]/g, "-").slice(0, 120);
@@ -61,7 +61,7 @@ async function groqTranscription(file: File, apiKey: string) {
       }
 
       if (response.status === 413) {
-        throw new ApiInputError("La dictée audio est trop volumineuse. Enregistrez-la en deux parties.", 413);
+        throw new ApiInputError("Le segment audio est trop volumineux. Relancez la dictée.", 413);
       }
       if (response.status === 429) {
         throw new ApiInputError("Le service vocal est momentanément très sollicité. Réessayez dans quelques secondes.", 429);
@@ -89,13 +89,13 @@ async function groqTranscription(file: File, apiKey: string) {
 }
 
 export async function POST(request: Request) {
-  const limited = rateLimit(request, "transcribe", 10);
+  const limited = rateLimit(request, "transcribe", 60);
   if (limited) return limited;
 
   try {
     const declaredLength = Number(request.headers.get("content-length") || 0);
     if (declaredLength > MAX_AUDIO_BYTES + 1024 * 1024) {
-      throw new ApiInputError("La dictée dépasse 24 Mo. Enregistrez-la en plusieurs parties.", 413);
+      throw new ApiInputError("Le segment audio dépasse 24 Mo. Relancez la dictée.", 413);
     }
 
     const apiKey = process.env.GROQ_API_KEY;
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) throw new ApiInputError("Fichier audio manquant.");
     if (file.size === 0) throw new ApiInputError("Le fichier audio est vide.");
     if (file.size > MAX_AUDIO_BYTES) {
-      throw new ApiInputError("La dictée dépasse 24 Mo. Enregistrez-la en plusieurs parties.", 413);
+      throw new ApiInputError("Le segment audio dépasse 24 Mo. Relancez la dictée.", 413);
     }
     if (file.type && !ALLOWED_AUDIO_TYPES.has(file.type.toLowerCase())) {
       throw new ApiInputError("Format audio non pris en charge.");
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       provider: process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo",
-      text: String(data.text ?? "").trim().slice(0, 20_000),
+      text: String(data.text ?? "").trim().slice(0, 30_000),
       language: data.language ?? "fr",
       duration: data.duration ?? null,
       lowConfidenceSegments,
