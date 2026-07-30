@@ -1,3 +1,4 @@
+import RappidosMobileShell from "./rappidos-mobile-shell";
 import FunctionalPrototype from "./functional-prototype";
 import ProductEnhancements from "./product-enhancements";
 import AiChain from "./ai-chain";
@@ -10,6 +11,7 @@ import MobileQuickAi from "./mobile-quick-ai";
 export default function Page() {
   return (
     <>
+      <RappidosMobileShell />
       <FunctionalPrototype />
       <ProductEnhancements />
       <AiChain />
