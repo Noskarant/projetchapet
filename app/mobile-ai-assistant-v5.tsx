@@ -24,7 +24,9 @@ type RecognitionLike = {
 type RecognitionConstructor = new () => RecognitionLike;
 type AudioContextConstructor = new (options?: AudioContextOptions) => AudioContext;
 type PcmSession = { context: AudioContext; source: MediaStreamAudioSourceNode; processor: ScriptProcessorNode; silentGain: GainNode; stream: MediaStream; buffers: Float32Array[]; sampleRate: number; target: Target };
+type StoredWorkspace = { customers?: Array<{ id?: string; kind?: string; companyName?: string; civility?: string; lastName?: string; firstName?: string }> };
 
+const STORAGE_KEY = "projetchapet-mobile-workspace-v3";
 const choices = [
   { id: "quote" as Target, label: "Un devis", detail: "Client, prestations, prix et TVA", icon: FileText },
   { id: "invoice" as Target, label: "Une facture", detail: "Prestations, échéance et règlement", icon: ReceiptText },
@@ -49,6 +51,30 @@ function parseNumber(value: string | undefined, fallback = 0) {
   if (!value) return fallback;
   const parsed = Number(value.replace(/\s/g, "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalize(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+function customerDisplayName(customer: NonNullable<StoredWorkspace["customers"]>[number]) {
+  if (customer.kind === "Professionnel") return customer.companyName || "";
+  return [customer.civility, customer.lastName, customer.firstName].filter(Boolean).join(" ");
+}
+
+function customerExists(hint: string) {
+  const normalizedHint = normalize(hint);
+  if (!normalizedHint) return false;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const workspace = raw ? JSON.parse(raw) as StoredWorkspace : null;
+    return Boolean(workspace?.customers?.some((customer) => {
+      const name = normalize(customerDisplayName(customer));
+      return name && (name.includes(normalizedHint) || normalizedHint.includes(name));
+    }));
+  } catch {
+    return false;
+  }
 }
 
 function localCustomer(text: string): ParsedCustomer {
@@ -240,7 +266,7 @@ export default function MobileAiAssistantV5() {
     }
   }
 
-  async function transcribe(blob: Blob, selected: Target, duration: number) {
+  async function transcribe(blob: Blob, selected: Target) {
     if (blob.size < 1000) {
       setMessage("L’enregistrement n’a pas produit de son. Parlez au moins une seconde.");
       setStage("ready");
@@ -366,7 +392,7 @@ export default function MobileAiAssistantV5() {
       setStage("ready");
       return;
     }
-    await transcribe(encodeMonoWav(samples, session.sampleRate), session.target, duration);
+    await transcribe(encodeMonoWav(samples, session.sampleRate), session.target);
   }
 
   function choose(next: Target) {
@@ -379,6 +405,17 @@ export default function MobileAiAssistantV5() {
   function apply() {
     const selected = targetRef.current;
     if (!selected || !parsed) return;
+    if (selected !== "customer") {
+      const hint = (parsed as ParsedDocument).customer_hint?.trim() || "";
+      if (!hint) {
+        setMessage("Aucun client n’a été reconnu. Corrigez la dictée en indiquant le client avant d’ouvrir le formulaire.");
+        return;
+      }
+      if (!customerExists(hint)) {
+        setMessage(`Le client « ${hint} » n’existe pas dans la liste. Créez-le d’abord ou corrigez son nom.`);
+        return;
+      }
+    }
     window.dispatchEvent(new CustomEvent("projetchapet:ai-apply", { detail: { target: selected, data: parsed } }));
     stopAll();
     setOpen(false);
