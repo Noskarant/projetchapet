@@ -35,7 +35,9 @@ test("modifie réellement un devis existant à la voix après confirmation", asy
 
   const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
   await expect(sheet).toBeVisible();
-  await sheet.getByRole("button", { name: "Modifier à la voix", exact: true }).click();
+  await sheet.getByRole("button", { name: "Actions du devis" }).click();
+  const actions = page.getByRole("dialog", { name: "Actions du devis" });
+  await actions.getByRole("button", { name: "Modifier à la voix" }).click();
 
   const assistant = page.getByRole("dialog", { name: "Modifier à la voix" });
   await expect(assistant).toBeVisible();
