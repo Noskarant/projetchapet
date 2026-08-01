@@ -42,6 +42,26 @@ function currentQuoteNumber(preview: HTMLElement) {
   ).trim();
 }
 
+function findUnderlyingQuoteDetail(number: string) {
+  return (
+    Array.from(document.querySelectorAll<HTMLElement>(".rm-detail-sheet")).find((detail) => {
+      const kind = normalize(detail.querySelector("header small")?.textContent || "");
+      const heading = detail.querySelector("header h2")?.textContent?.trim() || "";
+      return kind === "devis" && heading === number;
+    }) || null
+  );
+}
+
+function runUnderlyingQuoteAction(pattern: RegExp) {
+  const preview = currentPreview();
+  if (!preview) return;
+  const detail = findUnderlyingQuoteDetail(currentQuoteNumber(preview));
+  const action = Array.from(detail?.querySelectorAll<HTMLButtonElement>("button") || []).find(
+    (button) => pattern.test(normalize(button.textContent || "")),
+  );
+  action?.click();
+}
+
 function requestMenuSync(delay = 100) {
   window.setTimeout(() => window.dispatchEvent(new Event(SYNC_MENU_EVENT)), delay);
 }
@@ -162,7 +182,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
       switch (action) {
         case "send":
         case "share":
-          runMoreAction(/^envoyer le pdf$/);
+          runUnderlyingQuoteAction(/^envoyer pdf$/);
           return;
         case "primary-status": {
           const status = currentPreview()
