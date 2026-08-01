@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const STORAGE_KEY = "projetchapet-mobile-workspace-v3";
 
-test("regroupe le devis et ses actions dans une seule fiche", async ({ page }, testInfo) => {
+test("regroupe le devis dans une fiche avec le menu d’actions en haut", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
@@ -14,10 +14,10 @@ test("regroupe le devis et ses actions dans une seule fiche", async ({ page }, t
   await expect(sheet.getByRole("button", { name: "Détail", exact: true })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Historique", exact: true })).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Modifier", exact: true })).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Modifier à la voix", exact: true })).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Changer le statut", exact: true })).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Plus", exact: true })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Actions du devis" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Envoyer le devis" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Indiquer comme validé" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Modifier", exact: true })).toBeHidden();
   await expect(page.locator(".rm-detail-sheet")).toBeHidden();
 
   await sheet.getByRole("button", { name: "Historique", exact: true }).click();
@@ -30,17 +30,14 @@ test("regroupe le devis et ses actions dans une seule fiche", async ({ page }, t
   await expect(card).toBeVisible();
 });
 
-test("change le statut et expose les actions secondaires", async ({ page }, testInfo) => {
+test("change le statut et expose toutes les possibilités depuis les trois points", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
   await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
   const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
 
-  await sheet.locator("[data-unified-status]").click();
-  const statusDialog = page.getByRole("dialog", { name: "Changer le statut du devis" });
-  await expect(statusDialog).toBeVisible();
-  await statusDialog.getByRole("button", { name: "Validé", exact: true }).click();
+  await sheet.getByRole("button", { name: "Indiquer comme validé" }).click();
   await expect(sheet.getByRole("button", { name: "Changer le statut, actuellement Validé" })).toBeVisible();
 
   await expect.poll(async () => page.evaluate((key) => {
@@ -50,12 +47,18 @@ test("change le statut et expose les actions secondaires", async ({ page }, test
     return workspace.quotes?.find((quote) => quote.id === "Q-378")?.status;
   }, STORAGE_KEY)).toBe("Validé");
 
-  await sheet.getByRole("button", { name: "Plus", exact: true }).click();
-  const more = page.getByRole("dialog", { name: "Autres actions du devis" });
-  await expect(more).toBeVisible();
-  await expect(more.getByRole("button", { name: "Envoyer le PDF" })).toBeVisible();
-  await expect(more.getByRole("button", { name: "Télécharger le PDF" })).toBeVisible();
-  await expect(more.getByRole("button", { name: "Dupliquer le devis" })).toBeVisible();
-  await expect(more.getByRole("button", { name: "Transformer en facture" })).toBeVisible();
-  await expect(more.getByRole("button", { name: "Supprimer le devis" })).toBeVisible();
+  await sheet.getByRole("button", { name: "Actions du devis" }).click();
+  const actions = page.getByRole("dialog", { name: "Actions du devis" });
+  await expect(actions).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Supprimer le devis" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Annuler le devis" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Modifier le devis" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Modifier à la voix" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Changer le statut" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Dupliquer le devis" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Ouvrir le PDF" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Partager le devis" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Télécharger le PDF" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Imprimer le devis" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Transformer en facture" })).toBeVisible();
 });
