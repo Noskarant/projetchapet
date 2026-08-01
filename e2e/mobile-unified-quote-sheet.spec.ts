@@ -38,7 +38,6 @@ test("change le statut et expose toutes les possibilités depuis les trois point
   const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
 
   await sheet.getByRole("button", { name: "Indiquer comme validé" }).click();
-  await expect(sheet.getByRole("button", { name: "Changer le statut, actuellement Validé" })).toBeVisible();
 
   await expect.poll(async () => page.evaluate((key) => {
     const workspace = JSON.parse(localStorage.getItem(key) || "{}") as {
@@ -46,6 +45,7 @@ test("change le statut et expose toutes les possibilités depuis les trois point
     };
     return workspace.quotes?.find((quote) => quote.id === "Q-378")?.status;
   }, STORAGE_KEY)).toBe("Validé");
+  await expect(sheet.getByRole("button", { name: "Transformer en facture" })).toBeVisible();
 
   await sheet.getByRole("button", { name: "Actions du devis" }).click();
   const actions = page.getByRole("dialog", { name: "Actions du devis" });
