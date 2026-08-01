@@ -12,18 +12,20 @@ test("affiche une couleur métier distincte pour chaque état du devis", async (
   await page.goto("/");
 
   await page.locator(".rm-document-card").first().click();
-  const previewClose = page.getByRole("button", { name: "Fermer l’aperçu détaillé" });
-  if (await previewClose.isVisible()) await previewClose.click();
-
-  const statusEditor = page.locator(".rm-status-editor");
-  await expect(statusEditor).toBeVisible();
+  const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
+  await expect(sheet).toBeVisible();
 
   for (const status of statusColors) {
-    const button = statusEditor.getByRole("button", { name: status.name, exact: true });
-    await button.click();
-    await expect(button).toHaveClass(/active/);
+    await sheet.locator("[data-unified-status]").click();
+    const dialog = page.getByRole("dialog", { name: "Changer le statut du devis" });
+    await dialog.getByRole("button", { name: status.name, exact: true }).click();
+
+    const indicator = sheet.getByRole("button", {
+      name: `Changer le statut, actuellement ${status.name}`,
+    });
+    await expect(indicator).toBeVisible();
     await expect
-      .poll(() => button.evaluate((element) => getComputedStyle(element).backgroundColor))
+      .poll(() => indicator.evaluate((element) => getComputedStyle(element).backgroundColor))
       .toBe(status.background);
   }
 });

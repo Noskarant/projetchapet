@@ -1,13 +1,15 @@
 import { expect, test } from "@playwright/test";
 
-test("affiche le détail scrollable, les prix unitaires et le PDF", async ({ page }, testInfo) => {
+test("affiche la fiche unique, le détail des postes et le PDF", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
   await page.locator(".rm-document-card").first().click();
-  const preview = page.locator(".rm-philippe-preview");
+  const preview = page.getByRole("dialog", { name: "Fiche du devis" });
   await expect(preview).toBeVisible();
-  await expect(preview.getByText("Détail des postes")).toBeVisible();
+  await expect(preview.getByRole("button", { name: "Détail", exact: true })).toBeVisible();
+  await expect(preview.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
+  await expect(preview.getByRole("button", { name: "Historique", exact: true })).toBeVisible();
   await expect(preview.locator(".rm-philippe-line-card").first()).toBeVisible();
   await expect(preview.getByText("Prix unitaire HT").first()).toBeVisible();
   await expect(preview.locator(".rm-philippe-totals")).toContainText("Total HT");
@@ -19,15 +21,16 @@ test("affiche le détail scrollable, les prix unitaires et le PDF", async ({ pag
   await expect(preview.locator("iframe")).toBeVisible();
 });
 
-test("sépare les notes personnelles du contenu client", async ({ page }, testInfo) => {
+test("ouvre directement la modification depuis la fiche unique", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
   await page.locator(".rm-document-card").first().click();
-  await page.getByRole("button", { name: "Fermer l’aperçu détaillé" }).click();
-  await page.locator(".rm-detail-actions").getByRole("button", { name: "Tout modifier" }).click();
+  const preview = page.getByRole("dialog", { name: "Fiche du devis" });
+  await preview.getByRole("button", { name: "Modifier", exact: true }).click();
 
   const editor = page.locator(".rm-v2-editor");
+  await expect(editor).toBeVisible();
   await expect(editor.getByText("Notes personnelles")).toBeVisible();
   await expect(editor.getByText("jamais visibles sur le devis ou le PDF client")).toBeVisible();
   await expect(editor.getByText("Notes visibles sur le devis")).toBeVisible();
@@ -38,9 +41,9 @@ test("sépare les notes personnelles du contenu client", async ({ page }, testIn
   await editor.locator(".rm-private-discount-input").fill("4");
   await editor.getByRole("button", { name: "Aperçu PDF" }).click();
 
-  const preview = page.locator(".rm-philippe-preview");
-  await expect(preview).toBeVisible();
-  await expect(preview.getByText("Sous-traitant Martin — devis de 1 850 €")).toBeVisible();
-  await expect(preview.locator(".rm-philippe-totals .discount")).toContainText("-4 %");
-  await expect(preview.getByText("Ces informations ne figurent jamais sur le PDF client.")).toBeVisible();
+  const updatedPreview = page.getByRole("dialog", { name: "Fiche du devis" });
+  await expect(updatedPreview).toBeVisible();
+  await expect(updatedPreview.getByText("Sous-traitant Martin — devis de 1 850 €")).toBeVisible();
+  await expect(updatedPreview.locator(".rm-philippe-totals .discount")).toContainText("-4 %");
+  await expect(updatedPreview.getByText("Ces informations ne figurent jamais sur le PDF client.")).toBeVisible();
 });
