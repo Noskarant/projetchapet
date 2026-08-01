@@ -278,7 +278,6 @@ export function fallbackMobileVoiceCommand(
   reference = new Date(),
 ): MobileVoiceCommand {
   const text = transcript.trim();
-  const normalizedText = normalize(text);
   const changes: MobileVoiceCommand["changes"] = {};
   const operations: VoiceLineOperation[] = [];
 
@@ -293,14 +292,14 @@ export function fallbackMobileVoiceCommand(
   if (title) changes.title = title;
 
   if (target.entity === "quote") {
-    if (/\b(?:valide|accept[ée]?|accepté)\b/i.test(text)) changes.status = "Validé";
-    else if (/\b(?:refus[ée]?|annul[ée]?)\b/i.test(text)) changes.status = "Refusé";
-    else if (/\b(?:termin[ée]?|archive)\b/i.test(text)) changes.status = "Terminé";
+    if (/\b(?:valid[eé]e?|accept[eé]e?)\b/i.test(text)) changes.status = "Validé";
+    else if (/\b(?:refus[eé]e?|annul[eé]e?)\b/i.test(text)) changes.status = "Refusé";
+    else if (/\b(?:termin[eé]e?|archive)\b/i.test(text)) changes.status = "Terminé";
     else if (/\ben attente\b/i.test(text)) changes.status = "En attente";
   }
 
   if (target.entity === "invoice") {
-    if (/\b(?:pay[ée]?|régl[ée]?)\b/i.test(text)) changes.status = "Payée";
+    if (/\b(?:pay[eé]e?|r[eé]gl[eé]e?)\b/i.test(text)) changes.status = "Payée";
     else if (/\ben retard\b/i.test(text)) changes.status = "En retard";
     else if (/\bbrouillon\b/i.test(text)) changes.status = "Brouillon";
     else if (/\ben cours\b/i.test(text)) changes.status = "En cours";
@@ -317,8 +316,8 @@ export function fallbackMobileVoiceCommand(
       changes.customer_id = agendaCustomer.id;
       changes.customer_name = customerDisplayName(agendaCustomer);
     }
-    if (/\b(?:termin[ée]?|fait|réalis[ée]?)\b/i.test(text)) changes.done = true;
-    if (/\b(?:rouvre|pas termin[ée]?|à faire)\b/i.test(text)) changes.done = false;
+    if (/\b(?:termin[eé]e?|fait|r[eé]alis[eé]e?)\b/i.test(text)) changes.done = true;
+    if (/\b(?:rouvre|pas termin[eé]e?|à faire)\b/i.test(text)) changes.done = false;
   }
 
   const deleteMatch = text.match(/(?:supprime|retire|enl[eè]ve|oublie)\s+(?:la ligne|le poste|la prestation)?\s*([^.;]+)/i)?.[1]?.trim();
@@ -343,8 +342,8 @@ export function fallbackMobileVoiceCommand(
     operations.push({
       action: "update",
       match: updateMatch,
-      quantite: moneyValue(text, /(?:quantit[ée]|surface)\s*(?:à|a|de)?\s*(\d+(?:[,.]\d+)?)/i),
-      prix_unitaire_ht: moneyValue(text, /(?:prix|tarif|passe|mets?|remplace)\s*(?:à|a|par)?\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/i),
+      quantite: moneyValue(text, /(?:quantit[eé]|surface)\s*(?:à|a|de)?\s*(\d+(?:[,.]\d+)?)/i),
+      prix_unitaire_ht: moneyValue(text, /(?:prix|tarif|passe|mets?|remplace)\s*(?:le\s+prix\s*)?(?:à|a|par)?\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/i),
       taux_tva: moneyValue(text, /tva\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*%/i),
     });
   }
