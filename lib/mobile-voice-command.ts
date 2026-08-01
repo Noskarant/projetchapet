@@ -278,6 +278,7 @@ export function fallbackMobileVoiceCommand(
   reference = new Date(),
 ): MobileVoiceCommand {
   const text = transcript.trim();
+  const normalizedText = normalize(text);
   const changes: MobileVoiceCommand["changes"] = {};
   const operations: VoiceLineOperation[] = [];
 
@@ -292,17 +293,13 @@ export function fallbackMobileVoiceCommand(
   if (title) changes.title = title;
 
   if (target.entity === "quote") {
-    if (/\b(?:valid[eé]e?|accept[eé]e?)\b/i.test(text)) changes.status = "Validé";
-    else if (/\b(?:refus[eé]e?|annul[eé]e?)\b/i.test(text)) changes.status = "Refusé";
-    else if (/\b(?:termin[eé]e?|archive)\b/i.test(text)) changes.status = "Terminé";
-    else if (/\ben attente\b/i.test(text)) changes.status = "En attente";
+    const status = quoteStatus(normalizedText);
+    if (status) changes.status = status;
   }
 
   if (target.entity === "invoice") {
-    if (/\b(?:pay[eé]e?|r[eé]gl[eé]e?)\b/i.test(text)) changes.status = "Payée";
-    else if (/\ben retard\b/i.test(text)) changes.status = "En retard";
-    else if (/\bbrouillon\b/i.test(text)) changes.status = "Brouillon";
-    else if (/\ben cours\b/i.test(text)) changes.status = "En cours";
+    const status = invoiceStatus(normalizedText);
+    if (status) changes.status = status;
   }
 
   if (target.entity === "agenda") {
@@ -316,8 +313,8 @@ export function fallbackMobileVoiceCommand(
       changes.customer_id = agendaCustomer.id;
       changes.customer_name = customerDisplayName(agendaCustomer);
     }
-    if (/\b(?:termin[eé]e?|fait|r[eé]alis[eé]e?)\b/i.test(text)) changes.done = true;
-    if (/\b(?:rouvre|pas termin[eé]e?|à faire)\b/i.test(text)) changes.done = false;
+    if (/\b(?:termine|fait|realise)\b/.test(normalizedText)) changes.done = true;
+    if (/\b(?:rouvre|pas termine|a faire)\b/.test(normalizedText)) changes.done = false;
   }
 
   const deleteMatch = text.match(/(?:supprime|retire|enl[eè]ve|oublie)\s+(?:la ligne|le poste|la prestation)?\s*([^.;]+)/i)?.[1]?.trim();
