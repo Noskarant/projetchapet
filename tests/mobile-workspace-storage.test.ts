@@ -22,6 +22,10 @@ class MemoryStorage {
   }
 }
 
+function jsonValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 test("initialise le prototype avec les données de démonstration", () => {
   const storage = new MemoryStorage();
   const fallback = seedMobileWorkspace();
@@ -29,7 +33,7 @@ test("initialise le prototype avec les données de démonstration", () => {
   const status = prepareMobileWorkspaceStorage(storage, fallback);
 
   assert.equal(status, "seeded");
-  assert.deepEqual(JSON.parse(storage.getItem(MOBILE_WORKSPACE_STORAGE_KEY) ?? "null"), fallback);
+  assert.deepEqual(JSON.parse(storage.getItem(MOBILE_WORKSPACE_STORAGE_KEY) ?? "null"), jsonValue(fallback));
 });
 
 test("conserve un workspace déjà valide sans le réécrire", () => {
@@ -73,5 +77,5 @@ test("sauvegarde le JSON corrompu avant restauration", () => {
 
   assert.equal(status, "recovered");
   assert.equal(backup?.[1], "{json-invalide");
-  assert.deepEqual(JSON.parse(storage.getItem(MOBILE_WORKSPACE_STORAGE_KEY) ?? "null"), fallback);
+  assert.deepEqual(JSON.parse(storage.getItem(MOBILE_WORKSPACE_STORAGE_KEY) ?? "null"), jsonValue(fallback));
 });

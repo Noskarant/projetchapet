@@ -1,0 +1,160 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10080;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(2, 10, 26, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.panel {
+  width: min(100%, 760px);
+  max-height: 92dvh;
+  overflow-y: auto;
+  border: 1px solid rgba(116, 150, 215, 0.32);
+  border-radius: 30px 30px 0 0;
+  background: linear-gradient(150deg, #06152f 0%, #0b2e70 100%);
+  color: #fff;
+  box-shadow: 0 -24px 70px rgba(0, 0, 0, 0.38);
+  padding: 24px;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.close {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 26px;
+}
+
+.header div {
+  text-align: center;
+}
+
+.header small,
+.context small,
+.review small {
+  display: block;
+  color: #a9badc;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 5px 0 0;
+  font-size: clamp(24px, 6vw, 34px);
+}
+
+.context,
+.review {
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(1, 11, 31, 0.54);
+}
+
+.context strong,
+.review strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 18px;
+}
+
+.micRow {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: 24px 0 18px;
+}
+
+.mic {
+  width: 118px;
+  height: 118px;
+  border: 10px solid #edf5ff;
+  border-radius: 50%;
+  background: #2f7ec5;
+  color: #fff;
+  font-size: 38px;
+  box-shadow: 0 0 0 18px rgba(25, 99, 177, 0.2);
+}
+
+.recording {
+  background: #d74258;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  50% { transform: scale(1.04); }
+}
+
+.textarea {
+  width: 100%;
+  min-height: 145px;
+  resize: vertical;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(5, 15, 37, 0.8);
+  color: #fff;
+  padding: 16px;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.textarea::placeholder { color: #8090ae; }
+
+.message {
+  margin: 14px 0 0;
+  border-radius: 14px;
+  background: rgba(255, 182, 72, 0.12);
+  color: #ffd89a;
+  padding: 12px 14px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.actions button {
+  min-height: 54px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.actions .primary {
+  border-color: #8fc2ff;
+  background: #fff;
+  color: #0c1d3b;
+}
+
+.changeList {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #dce8ff;
+  line-height: 1.5;
+}
+
+.busy {
+  opacity: 0.65;
+  pointer-events: none;
+}

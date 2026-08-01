@@ -137,7 +137,20 @@ export function upsertQuote(workspace: MobileWorkspace, quote: MobileQuote): Mob
 export function upsertInvoice(workspace: MobileWorkspace, invoice: MobileInvoice): MobileWorkspace {
   const normalized = normalizeInvoice(invoice);
   const exists = workspace.invoices.some((item) => item.id === invoice.id);
-  return { ...workspace, invoices: exists ? workspace.invoices.map((item) => item.id === invoice.id ? normalized : item) : [normalized, ...workspace.invoices] };
+  const invoices = exists
+    ? workspace.invoices.map((item) => item.id === invoice.id ? normalized : item)
+    : [normalized, ...workspace.invoices];
+
+  // Un devis accepté reste dans l’onglet « Validé » tant que sa facture n’est pas payée.
+  // Au paiement, il passe en « Terminé » : il disparaît du filtre des devis acceptés,
+  // tout en restant conservé dans la liste générale et dans l’historique local.
+  const quotes = normalized.status === "Payée" && normalized.sourceQuoteId
+    ? workspace.quotes.map((quote) => quote.id === normalized.sourceQuoteId
+      ? normalizeQuote({ ...quote, status: "Terminé" })
+      : quote)
+    : workspace.quotes;
+
+  return { ...workspace, invoices, quotes };
 }
 
 export function upsertAgenda(workspace: MobileWorkspace, entry: MobileAgendaEntry): MobileWorkspace {
@@ -157,8 +170,10 @@ export function convertQuoteToInvoice(workspace: MobileWorkspace, quote: MobileQ
     status: "Brouillon", items: quote.items.map((item) => ({ ...item, id: makeId("line") })), notes: quote.notes,
     subtotal: 0, taxTotal: 0, total: 0, paidTotal: 0, accountantSent: false, sourceQuoteId: quote.id,
   });
-  const updatedQuote = { ...quote, status: "Terminé" as QuoteStatus };
-  return { workspace: upsertInvoice(upsertQuote(workspace, updatedQuote), invoice), invoice };
+
+  // La conversion ne clôt plus prématurément le devis accepté.
+  // Sa clôture intervient automatiquement lorsque la facture liée est payée.
+  return { workspace: upsertInvoice(workspace, invoice), invoice };
 }
 
 export function createCreditNote(workspace: MobileWorkspace, invoice: MobileInvoice): { workspace: MobileWorkspace; credit: MobileInvoice } {
@@ -211,11 +226,11 @@ export function seedMobileWorkspace(): MobileWorkspace {
     quoteBase("Q-377", "D-2026-377", "C-004", "Reprise plafond cuisine", "Validé", [line("Reprise plafond cuisine", 1, 310, 10)], "2026-07-29", "2026-08-28"),
     quoteBase("Q-376", "D-2026-376", "C-002", "Hall d’entrée", "En attente", [line("Préparation et peinture hall", 1, 2036.36, 10)], "2026-07-18", "2026-08-18"),
   ];
-  const invoiceFrom = (id: string, number: string, customerId: string, title: string, status: InvoiceStatus, items: LineItem[], issueDate: string, dueDate: string, paidTotal = 0, accountantSent = false): MobileInvoice => normalizeInvoice({ id, number, customerId, customerName: customerDisplayName(customers.find((item) => item.id === customerId)!), title, issueDate, dueDate, status, items, notes: "", subtotal: 0, taxTotal: 0, total: 0, paidTotal, accountantSent });
+  const invoiceFrom = (id: string, number: string, customerId: string, title: string, status: InvoiceStatus, items: LineItem[], issueDate: string, dueDate: string, paidTotal = 0, accountantSent = false, sourceQuoteId?: string): MobileInvoice => normalizeInvoice({ id, number, customerId, customerName: customerDisplayName(customers.find((item) => item.id === customerId)!), title, issueDate, dueDate, status, items, notes: "", subtotal: 0, taxTotal: 0, total: 0, paidTotal, accountantSent, sourceQuoteId });
   const invoices = [
     invoiceFrom("I-017", "F-2026-017", "C-001", "Situation chantier", "Payée", [line("Facture de situation", 1, 2650.91, 10)], "2026-07-10", "2026-08-10", 2916, true),
     invoiceFrom("I-018", "F-2026-018", "C-002", "Hall d’entrée", "En cours", [line("Acompte travaux", 1, 1221.82, 10)], "2026-07-12", "2026-08-12", 0, true),
-    invoiceFrom("I-019", "F-2026-019", "C-004", "Reprise plafond", "Brouillon", [line("Reprise plafond", 1, 310, 10)], "2026-07-09", "2026-08-09"),
+    invoiceFrom("I-019", "F-2026-019", "C-004", "Reprise plafond", "Brouillon", [line("Reprise plafond", 1, 310, 10)], "2026-07-09", "2026-08-09", 0, false, "Q-377"),
   ];
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);

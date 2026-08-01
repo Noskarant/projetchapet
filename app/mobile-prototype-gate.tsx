@@ -8,9 +8,11 @@ import MobileAiAssistantV6 from "./mobile-ai-assistant-v6";
 import MobileAiContextBridge from "./mobile-ai-context-bridge";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileCommercialDemo from "./mobile-commercial-demo";
+import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
 import MobilePriorityPolish from "./mobile-priority-polish";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
+import MobileVoiceEditAssistant from "./mobile-voice-edit-assistant";
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
 import { seedMobileWorkspace } from "@/lib/mobile-prototype";
 import { prepareMobileWorkspaceStorage } from "@/lib/mobile-workspace-storage";
@@ -56,10 +58,12 @@ export default function MobilePrototypeGate() {
       <MobilePriorityPolish />
       <MobileAiAssistantV6 />
       <MobileAgendaAiBridge />
+      <MobileVoiceEditAssistant />
       <MobileAutoPdfPreview />
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
       <MobileCommercialDemo />
+      <MobileElectronicInvoicingReadiness />
     </>
   );
 }
