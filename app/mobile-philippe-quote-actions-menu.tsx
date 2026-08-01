@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 const OPEN_MENU_EVENT = "projetchapet:open-quote-actions";
 const RUN_ACTION_EVENT = "projetchapet:run-quote-action";
+const SYNC_MENU_EVENT = "projetchapet:sync-quote-actions";
 
 type QuoteAction =
   | "send"
@@ -30,9 +31,7 @@ function normalize(value: string) {
 }
 
 function currentPreview() {
-  return document.querySelector<HTMLElement>(
-    ".rm-philippe-preview[data-unified-quote-sheet='true']",
-  );
+  return document.querySelector<HTMLElement>(".rm-philippe-preview");
 }
 
 function currentQuoteNumber(preview: HTMLElement) {
@@ -41,6 +40,10 @@ function currentQuoteNumber(preview: HTMLElement) {
     preview.querySelector(".rm-philippe-preview-header h2")?.textContent ||
     ""
   ).trim();
+}
+
+function requestMenuSync(delay = 100) {
+  window.setTimeout(() => window.dispatchEvent(new Event(SYNC_MENU_EVENT)), delay);
 }
 
 function clickUnifiedAction(action: "edit" | "voice" | "status" | "more") {
@@ -52,7 +55,8 @@ function clickUnifiedAction(action: "edit" | "voice" | "status" | "more") {
 function clickDialogButton(
   dialogLabel: string,
   buttonPattern: RegExp,
-  attempts = 20,
+  attempts = 24,
+  afterClick?: () => void,
 ) {
   const dialog = Array.from(
     document.querySelectorAll<HTMLElement>("[role='dialog'][aria-label]"),
@@ -63,21 +67,22 @@ function clickDialogButton(
 
   if (button) {
     button.click();
+    afterClick?.();
     return;
   }
 
   if (attempts > 0) {
     window.setTimeout(
-      () => clickDialogButton(dialogLabel, buttonPattern, attempts - 1),
+      () => clickDialogButton(dialogLabel, buttonPattern, attempts - 1, afterClick),
       50,
     );
   }
 }
 
-function runMoreAction(pattern: RegExp) {
+function runMoreAction(pattern: RegExp, afterClick?: () => void) {
   clickUnifiedAction("more");
   window.setTimeout(
-    () => clickDialogButton("Autres actions du devis", pattern),
+    () => clickDialogButton("Autres actions du devis", pattern, 24, afterClick),
     20,
   );
 }
@@ -89,6 +94,8 @@ function runStatusAction(status: string) {
       clickDialogButton(
         "Changer le statut du devis",
         new RegExp(`^${normalize(status)}$`),
+        24,
+        () => requestMenuSync(),
       ),
     20,
   );
@@ -98,14 +105,15 @@ function switchToPdf() {
   const preview = currentPreview();
   const pdf = Array.from(
     preview?.querySelectorAll<HTMLButtonElement>(".rm-philippe-preview-tabs button") || [],
-  ).find((button) => normalize(button.getAttribute("aria-label") || button.textContent || "") === "pdf");
+  ).find(
+    (button) =>
+      normalize(button.getAttribute("aria-label") || button.textContent || "") === "pdf",
+  );
   pdf?.click();
 }
 
 function dispatchAction(action: QuoteAction) {
-  window.dispatchEvent(
-    new CustomEvent<QuoteAction>(RUN_ACTION_EVENT, { detail: action }),
-  );
+  window.dispatchEvent(new CustomEvent<QuoteAction>(RUN_ACTION_EVENT, { detail: action }));
 }
 
 function createPrimaryButton(
@@ -129,7 +137,8 @@ function createPrimaryButton(
 }
 
 function syncPrimaryStatusButton(preview: HTMLElement, button: HTMLButtonElement) {
-  const status = preview.querySelector<HTMLButtonElement>("[data-unified-status]")?.dataset.status || "";
+  const status =
+    preview.querySelector<HTMLButtonElement>("[data-unified-status]")?.dataset.status || "";
   let label = "Changer le statut";
 
   if (status === "en-attente") label = "Indiquer comme validé";
@@ -213,6 +222,8 @@ export default function MobilePhilippeQuoteActionsMenu() {
   }, []);
 
   useEffect(() => {
+    let scheduled = false;
+
     const clear = () => {
       document.body.classList.remove("rm-philippe-quote-actions-enabled");
       setActiveNumber(null);
@@ -220,11 +231,16 @@ export default function MobilePhilippeQuoteActionsMenu() {
     };
 
     const enhance = () => {
+      scheduled = false;
       const preview = currentPreview();
       if (!preview) {
         if (document.body.classList.contains("rm-philippe-quote-actions-enabled")) clear();
         return;
       }
+
+      const footer = preview.querySelector<HTMLElement>(".rm-philippe-preview-actions");
+      const unifiedEdit = footer?.querySelector("[data-unified-quote-action='edit']");
+      if (!footer || !unifiedEdit) return;
 
       const number = currentQuoteNumber(preview);
       if (!number) return;
@@ -249,9 +265,6 @@ export default function MobilePhilippeQuoteActionsMenu() {
         });
         header.insertBefore(trigger, originalClose || null);
       }
-
-      const footer = preview.querySelector<HTMLElement>(".rm-philippe-preview-actions");
-      if (!footer) return;
 
       let send = footer.querySelector<HTMLButtonElement>(
         "[data-philippe-primary-action='send']",
@@ -279,19 +292,33 @@ export default function MobilePhilippeQuoteActionsMenu() {
       syncPrimaryStatusButton(preview, status);
     };
 
+    const scheduleEnhance = () => {
+      if (scheduled) return;
+      scheduled = true;
+      window.requestAnimationFrame(enhance);
+    };
+
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest("button");
+      if (!button) return;
+      const dialog = button.closest<HTMLElement>("[role='dialog'][aria-label]");
+      if (dialog?.getAttribute("aria-label") === "Changer le statut du devis") {
+        requestMenuSync(120);
+      }
+    };
+
     enhance();
-    const observer = new MutationObserver(enhance);
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class", "data-status"],
-    });
-    const interval = window.setInterval(enhance, 220);
+    const observer = new MutationObserver(scheduleEnhance);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener(SYNC_MENU_EVENT, scheduleEnhance);
+    document.addEventListener("click", onDocumentClick, true);
 
     return () => {
       observer.disconnect();
-      window.clearInterval(interval);
+      window.removeEventListener(SYNC_MENU_EVENT, scheduleEnhance);
+      document.removeEventListener("click", onDocumentClick, true);
       document.body.classList.remove("rm-philippe-quote-actions-enabled");
     };
   }, []);
@@ -302,144 +329,71 @@ export default function MobilePhilippeQuoteActionsMenu() {
     <>
       <style>{`
         @media (max-width: 820px) {
-          body.rm-philippe-quote-actions-enabled .rm-philippe-preview-header {
-            position: relative;
-          }
+          body.rm-philippe-quote-actions-enabled .rm-philippe-preview-header { position: relative; }
           .rm-philippe-actions-trigger {
-            position: absolute;
-            top: 50%;
-            right: 0;
-            z-index: 5;
-            display: grid !important;
-            width: 42px;
-            height: 42px;
-            place-items: center;
-            transform: translateY(-50%);
-            border: 1px solid rgba(255,255,255,.14) !important;
-            border-radius: 50% !important;
-            background: rgba(255,255,255,.08) !important;
-            color: #fff !important;
-            font-size: 25px !important;
-            font-weight: 900;
-            line-height: 1;
+            position: absolute; top: 50%; right: 0; z-index: 5;
+            display: grid !important; width: 42px; height: 42px; place-items: center;
+            transform: translateY(-50%); border: 1px solid rgba(255,255,255,.14) !important;
+            border-radius: 50% !important; background: rgba(255,255,255,.08) !important;
+            color: #fff !important; font-size: 25px !important; font-weight: 900; line-height: 1;
           }
           body.rm-philippe-quote-actions-enabled .rm-philippe-preview-actions {
-            grid-template-columns: 1fr !important;
-            gap: 10px !important;
+            grid-template-columns: 1fr !important; gap: 10px !important;
           }
           body.rm-philippe-quote-actions-enabled .rm-philippe-preview-actions > :not([data-philippe-primary-action]) {
             display: none !important;
           }
           .rm-philippe-primary-action {
-            display: grid !important;
-            width: 100%;
-            min-height: 52px !important;
-            place-items: center;
-            padding: 11px 16px !important;
-            border-radius: 14px !important;
-            font-size: 14px !important;
-            font-weight: 900 !important;
+            display: grid !important; width: 100%; min-height: 52px !important;
+            place-items: center; padding: 11px 16px !important; border-radius: 14px !important;
+            font-size: 14px !important; font-weight: 900 !important;
           }
           .rm-philippe-primary-send {
-            border: 0 !important;
+            border: 0 !important; color: #fff !important;
             background: linear-gradient(100deg, #6f20ff, #ff3e75 58%, #ff7b3d) !important;
-            color: #fff !important;
-            box-shadow: 0 10px 24px rgba(121, 40, 255, .28);
+            box-shadow: 0 10px 24px rgba(121,40,255,.28);
           }
           .rm-philippe-primary-status {
-            border: 1px solid transparent !important;
-            background:
-              linear-gradient(#10182b, #10182b) padding-box,
-              linear-gradient(100deg, #7437ff, #ff4f7c, #ff7b42) border-box !important;
-            color: #fff !important;
+            border: 1px solid transparent !important; color: #fff !important;
+            background: linear-gradient(#10182b,#10182b) padding-box,
+              linear-gradient(100deg,#7437ff,#ff4f7c,#ff7b42) border-box !important;
           }
           .rm-philippe-actions-backdrop {
-            position: fixed;
-            inset: 0;
-            z-index: 9400;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            padding: 14px 12px max(14px, env(safe-area-inset-bottom));
-            background: rgba(1, 6, 18, .66);
-            backdrop-filter: blur(8px);
+            position: fixed; inset: 0; z-index: 9400; display: flex; align-items: flex-end;
+            justify-content: center; padding: 14px 12px max(14px, env(safe-area-inset-bottom));
+            background: rgba(1,6,18,.66); backdrop-filter: blur(8px);
           }
           .rm-philippe-actions-panel {
-            width: min(100%, 640px);
-            max-height: min(82dvh, 760px);
-            overflow-y: auto;
-            padding: 14px;
-            border: 1px solid rgba(255,255,255,.12);
-            border-radius: 24px;
-            background: rgba(9, 15, 31, .98);
-            box-shadow: 0 -24px 70px rgba(0, 0, 0, .45);
+            width: min(100%,640px); max-height: min(82dvh,760px); overflow-y: auto;
+            padding: 14px; border: 1px solid rgba(255,255,255,.12); border-radius: 24px;
+            background: rgba(9,15,31,.98); box-shadow: 0 -24px 70px rgba(0,0,0,.45);
           }
           .rm-philippe-actions-panel header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 12px;
-            padding: 2px 2px 4px;
-            color: #fff;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            margin-bottom: 12px; padding: 2px 2px 4px; color: #fff;
           }
-          .rm-philippe-actions-panel header div {
-            display: grid;
-            gap: 2px;
-          }
+          .rm-philippe-actions-panel header div { display: grid; gap: 2px; }
           .rm-philippe-actions-panel header small {
-            color: #9eabc1;
-            font-size: 9px;
-            font-weight: 850;
-            letter-spacing: .11em;
+            color: #9eabc1; font-size: 9px; font-weight: 850; letter-spacing: .11em;
           }
-          .rm-philippe-actions-panel header strong {
-            font-size: 18px;
-          }
+          .rm-philippe-actions-panel header strong { font-size: 18px; }
           .rm-philippe-actions-panel header button {
-            display: grid;
-            width: 38px;
-            height: 38px;
-            place-items: center;
-            border: 0;
-            border-radius: 12px;
-            background: rgba(255,255,255,.09);
-            color: #fff;
-            font-size: 22px;
+            display: grid; width: 38px; height: 38px; place-items: center; border: 0;
+            border-radius: 12px; background: rgba(255,255,255,.09); color: #fff; font-size: 22px;
           }
-          .rm-philippe-actions-list {
-            display: grid;
-            gap: 9px;
-          }
+          .rm-philippe-actions-list { display: grid; gap: 9px; }
           .rm-philippe-actions-list button {
-            display: grid;
-            grid-template-columns: 34px 1fr;
-            gap: 10px;
-            align-items: center;
-            min-height: 50px;
-            padding: 10px 14px;
-            border: 1px solid transparent;
-            border-radius: 14px;
-            background:
-              linear-gradient(#10182b, #10182b) padding-box,
-              linear-gradient(100deg, #7338ff, #e348ff 46%, #ff7448) border-box;
-            color: #fff;
-            text-align: left;
-            font-size: 13px;
-            font-weight: 850;
+            display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center;
+            min-height: 50px; padding: 10px 14px; border: 1px solid transparent;
+            border-radius: 14px; color: #fff; text-align: left; font-size: 13px; font-weight: 850;
+            background: linear-gradient(#10182b,#10182b) padding-box,
+              linear-gradient(100deg,#7338ff,#e348ff 46%,#ff7448) border-box;
           }
           .rm-philippe-actions-list button span:first-child {
-            display: grid;
-            width: 32px;
-            height: 32px;
-            place-items: center;
-            border-radius: 10px;
-            background: rgba(255,255,255,.08);
-            font-size: 16px;
+            display: grid; width: 32px; height: 32px; place-items: center;
+            border-radius: 10px; background: rgba(255,255,255,.08); font-size: 16px;
           }
-          .rm-philippe-actions-list button.danger {
-            color: #ffb3bd;
-          }
+          .rm-philippe-actions-list button.danger { color: #ffb3bd; }
         }
       `}</style>
 
