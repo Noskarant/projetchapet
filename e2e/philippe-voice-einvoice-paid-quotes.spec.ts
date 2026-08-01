@@ -2,11 +2,6 @@ import { expect, test } from "@playwright/test";
 
 const STORAGE_KEY = "projetchapet-mobile-workspace-v3";
 
-async function closeAutomaticPreview(page: import("@playwright/test").Page) {
-  const close = page.getByRole("button", { name: "Fermer l’aperçu détaillé" });
-  if (await close.isVisible().catch(() => false)) await close.click();
-}
-
 test("modifie réellement un devis existant à la voix après confirmation", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
 
@@ -37,11 +32,10 @@ test("modifie réellement un devis existant à la voix après confirmation", asy
 
   await page.goto("/");
   await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
-  await closeAutomaticPreview(page);
 
-  const voiceButton = page.getByRole("button", { name: "Modifier à la voix" });
-  await expect(voiceButton).toBeVisible();
-  await voiceButton.click();
+  const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Modifier à la voix", exact: true }).click();
 
   const assistant = page.getByRole("dialog", { name: "Modifier à la voix" });
   await expect(assistant).toBeVisible();
