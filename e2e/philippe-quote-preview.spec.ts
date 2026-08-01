@@ -10,6 +10,7 @@ test("affiche la fiche unique, le détail des postes et le PDF", async ({ page }
   await expect(preview.getByRole("button", { name: "Détail", exact: true })).toBeVisible();
   await expect(preview.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
   await expect(preview.getByRole("button", { name: "Historique", exact: true })).toBeVisible();
+  await expect(preview.getByRole("button", { name: "Actions du devis" })).toBeVisible();
   await expect(preview.locator(".rm-philippe-line-card").first()).toBeVisible();
   await expect(preview.getByText("Prix unitaire HT").first()).toBeVisible();
   await expect(preview.locator(".rm-philippe-totals")).toContainText("Total HT");
@@ -21,13 +22,15 @@ test("affiche la fiche unique, le détail des postes et le PDF", async ({ page }
   await expect(preview.locator("iframe")).toBeVisible();
 });
 
-test("ouvre directement la modification depuis la fiche unique", async ({ page }, testInfo) => {
+test("ouvre directement la modification depuis le menu en haut", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
   await page.locator(".rm-document-card").first().click();
   const preview = page.getByRole("dialog", { name: "Fiche du devis" });
-  await preview.getByRole("button", { name: "Modifier", exact: true }).click();
+  await preview.getByRole("button", { name: "Actions du devis" }).click();
+  const actions = page.getByRole("dialog", { name: "Actions du devis" });
+  await actions.getByRole("button", { name: "Modifier le devis" }).click();
 
   const editor = page.locator(".rm-v2-editor");
   await expect(editor).toBeVisible();
