@@ -12,6 +12,7 @@ import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-re
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
 import MobilePriorityPolish from "./mobile-priority-polish";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
+import MobileUnifiedQuoteSheet from "./mobile-unified-quote-sheet";
 import MobileVoiceEditAssistant from "./mobile-voice-edit-assistant";
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
 import { seedMobileWorkspace } from "@/lib/mobile-prototype";
@@ -60,6 +61,7 @@ export default function MobilePrototypeGate() {
       <MobileAgendaAiBridge />
       <MobileVoiceEditAssistant />
       <MobileAutoPdfPreview />
+      <MobileUnifiedQuoteSheet />
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
       <MobileCommercialDemo />
