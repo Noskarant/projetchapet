@@ -60,8 +60,10 @@ test("centralise notifications, sauvegarde et envoi du PDF", async ({ page }, te
   await page.locator(".rm-side-drawer header button").click();
 
   await page.locator(".rm-document-card").first().click();
-  await page.getByRole("button", { name: "Fermer l’aperçu détaillé" }).click();
-  await page.getByRole("button", { name: "Envoyer PDF" }).click();
+  const quote = page.getByRole("dialog", { name: "Fiche du devis" });
+  await quote.getByRole("button", { name: "Plus", exact: true }).click();
+  const more = page.getByRole("dialog", { name: "Autres actions du devis" });
+  await more.getByRole("button", { name: "Envoyer le PDF" }).click();
 
   const email = page.getByRole("dialog", { name: "Envoyer le document" });
   await expect(email).toBeVisible();
