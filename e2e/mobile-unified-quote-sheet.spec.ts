@@ -37,7 +37,7 @@ test("change le statut et expose les actions secondaires", async ({ page }, test
   await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
   const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
 
-  await sheet.getByRole("button", { name: "Changer le statut", exact: true }).click();
+  await sheet.locator("[data-unified-status]").click();
   const statusDialog = page.getByRole("dialog", { name: "Changer le statut du devis" });
   await expect(statusDialog).toBeVisible();
   await statusDialog.getByRole("button", { name: "Validé", exact: true }).click();
