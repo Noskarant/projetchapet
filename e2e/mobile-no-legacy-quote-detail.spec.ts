@@ -30,7 +30,8 @@ test("conserve la fiche existante des factures", async ({ page }, testInfo) => {
   await page.locator(".rm-document-card").first().click();
 
   const invoiceDetail = page.locator(".rm-detail-sheet", { hasText: "FACTURE" });
+  const invoiceBackdrop = page.locator(".rm-modal-backdrop").filter({ has: invoiceDetail });
   await expect(invoiceDetail).toBeVisible();
   await expect(invoiceDetail.locator("header small")).toHaveText("FACTURE");
-  await expect(invoiceDetail.closest(".rm-modal-backdrop")).not.toHaveClass(/rm-legacy-quote-detail-backdrop/);
+  await expect(invoiceBackdrop).not.toHaveClass(/rm-legacy-quote-detail-backdrop/);
 });
