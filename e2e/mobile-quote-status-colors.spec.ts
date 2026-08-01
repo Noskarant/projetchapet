@@ -16,7 +16,7 @@ test("affiche une couleur métier distincte pour chaque état du devis", async (
   await expect(sheet).toBeVisible();
 
   for (const status of statusColors) {
-    await sheet.getByRole("button", { name: "Changer le statut", exact: true }).click();
+    await sheet.locator("[data-unified-status]").click();
     const dialog = page.getByRole("dialog", { name: "Changer le statut du devis" });
     await dialog.getByRole("button", { name: status.name, exact: true }).click();
 
