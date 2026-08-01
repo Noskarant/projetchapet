@@ -41,7 +41,9 @@ function syncPreviewState() {
       button.setAttribute("aria-pressed", String(button.classList.contains("active")));
     });
 
+    const detailTab = tabButtons[0] ?? null;
     const pdfTab = tabButtons[1] ?? null;
+    setButtonText(detailTab, "Détail");
     setButtonText(pdfTab, "PDF");
     setButtonText(
       preview.querySelector<HTMLButtonElement>(
