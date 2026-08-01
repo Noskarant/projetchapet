@@ -62,6 +62,17 @@ function runUnderlyingQuoteAction(pattern: RegExp) {
   action?.click();
 }
 
+function runUnderlyingStatusAction(status: string) {
+  const preview = currentPreview();
+  if (!preview) return;
+  const detail = findUnderlyingQuoteDetail(currentQuoteNumber(preview));
+  const button = Array.from(
+    detail?.querySelectorAll<HTMLButtonElement>(".rm-status-editor button") || [],
+  ).find((candidate) => normalize(candidate.textContent || "") === normalize(status));
+  button?.click();
+  requestMenuSync(120);
+}
+
 function requestMenuSync(delay = 100) {
   window.setTimeout(() => window.dispatchEvent(new Event(SYNC_MENU_EVENT)), delay);
 }
@@ -103,20 +114,6 @@ function runMoreAction(pattern: RegExp, afterClick?: () => void) {
   clickUnifiedAction("more");
   window.setTimeout(
     () => clickDialogButton("Autres actions du devis", pattern, 24, afterClick),
-    20,
-  );
-}
-
-function runStatusAction(status: string) {
-  clickUnifiedAction("status");
-  window.setTimeout(
-    () =>
-      clickDialogButton(
-        "Changer le statut du devis",
-        new RegExp(`^${normalize(status)}$`),
-        24,
-        () => requestMenuSync(),
-      ),
     20,
   );
 }
@@ -189,7 +186,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
             ?.querySelector<HTMLButtonElement>("[data-unified-status]")
             ?.dataset.status;
           if (status === "en-attente") {
-            runStatusAction("Validé");
+            runUnderlyingStatusAction("Validé");
             return;
           }
           if (status === "valide") {
@@ -209,7 +206,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
           clickUnifiedAction("status");
           return;
         case "cancel":
-          runStatusAction("Refusé");
+          runUnderlyingStatusAction("Refusé");
           return;
         case "duplicate":
           runMoreAction(/^dupliquer le devis$/);
