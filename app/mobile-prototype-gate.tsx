@@ -9,6 +9,7 @@ import MobileAiContextBridge from "./mobile-ai-context-bridge";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileCommercialDemo from "./mobile-commercial-demo";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
+import MobileLegacyQuoteDetailGuard from "./mobile-legacy-quote-detail-guard";
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
 import MobilePhilippeQuoteActionsMenu from "./mobile-philippe-quote-actions-menu";
 import MobilePriorityPolish from "./mobile-priority-polish";
@@ -57,6 +58,7 @@ export default function MobilePrototypeGate() {
       <MobileLongVoiceBridge />
       <MobileAiApplyGuard />
       <RappidosMobileShellV2 />
+      <MobileLegacyQuoteDetailGuard />
       <MobilePriorityPolish />
       <MobileAiAssistantV6 />
       <MobileAgendaAiBridge />
