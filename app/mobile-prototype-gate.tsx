@@ -10,6 +10,7 @@ import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileCommercialDemo from "./mobile-commercial-demo";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
+import MobilePhilippeQuoteActionsMenu from "./mobile-philippe-quote-actions-menu";
 import MobilePriorityPolish from "./mobile-priority-polish";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
 import MobileUnifiedQuoteSheet from "./mobile-unified-quote-sheet";
@@ -62,6 +63,7 @@ export default function MobilePrototypeGate() {
       <MobileVoiceEditAssistant />
       <MobileAutoPdfPreview />
       <MobileUnifiedQuoteSheet />
+      <MobilePhilippeQuoteActionsMenu />
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
       <MobileCommercialDemo />
