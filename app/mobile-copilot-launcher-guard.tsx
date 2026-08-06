@@ -16,6 +16,18 @@ function isVisible(element: Element) {
   return element.getClientRects().length > 0;
 }
 
+function applyLauncherState(launcher: HTMLElement, blocked: boolean) {
+  const display = blocked ? "none" : "";
+  const pointerEvents = blocked ? "none" : "";
+
+  if (launcher.style.display !== display) launcher.style.display = display;
+  if (launcher.style.pointerEvents !== pointerEvents) launcher.style.pointerEvents = pointerEvents;
+  if (launcher.hidden !== blocked) launcher.hidden = blocked;
+
+  if (blocked) launcher.setAttribute("aria-hidden", "true");
+  else launcher.removeAttribute("aria-hidden");
+}
+
 export default function MobileCopilotLauncherGuard() {
   useEffect(() => {
     let frame = 0;
@@ -26,7 +38,7 @@ export default function MobileCopilotLauncherGuard() {
         const launcher = document.querySelector<HTMLElement>(".mcp-launcher");
         if (!launcher) return;
         const blocked = Array.from(document.querySelectorAll(BLOCKING_SURFACE_SELECTOR)).some(isVisible);
-        launcher.hidden = blocked;
+        applyLauncherState(launcher, blocked);
       });
     };
 
@@ -45,7 +57,7 @@ export default function MobileCopilotLauncherGuard() {
       window.removeEventListener("resize", update);
       window.cancelAnimationFrame(frame);
       const launcher = document.querySelector<HTMLElement>(".mcp-launcher");
-      if (launcher) launcher.hidden = false;
+      if (launcher) applyLauncherState(launcher, false);
     };
   }, []);
 
