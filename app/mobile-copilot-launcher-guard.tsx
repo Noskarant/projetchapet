@@ -28,6 +28,27 @@ function applyLauncherState(launcher: HTMLElement, blocked: boolean) {
   else launcher.removeAttribute("aria-hidden");
 }
 
+function placeLauncherAboveCreateDock(launcher: HTMLElement) {
+  const dock = document.querySelector<HTMLElement>(".rm-create-dock");
+  const app = document.querySelector<HTMLElement>(".rm-app");
+
+  if (!dock || !isVisible(dock)) {
+    launcher.style.removeProperty("bottom");
+    launcher.style.removeProperty("right");
+    return;
+  }
+
+  const dockRect = dock.getBoundingClientRect();
+  const appRect = app?.getBoundingClientRect();
+  const bottom = Math.max(16, Math.ceil(window.innerHeight - dockRect.top + 10));
+  const right = appRect
+    ? Math.max(15, Math.ceil(window.innerWidth - appRect.right + 15))
+    : 15;
+
+  launcher.style.bottom = `${bottom}px`;
+  launcher.style.right = `${right}px`;
+}
+
 export default function MobileCopilotLauncherGuard() {
   useEffect(() => {
     let frame = 0;
@@ -39,6 +60,7 @@ export default function MobileCopilotLauncherGuard() {
         if (!launcher) return;
         const blocked = Array.from(document.querySelectorAll(BLOCKING_SURFACE_SELECTOR)).some(isVisible);
         applyLauncherState(launcher, blocked);
+        if (!blocked) placeLauncherAboveCreateDock(launcher);
       });
     };
 
@@ -50,16 +72,38 @@ export default function MobileCopilotLauncherGuard() {
       attributeFilter: ["class", "style", "hidden", "aria-hidden"],
     });
     window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
     update();
 
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
       window.cancelAnimationFrame(frame);
       const launcher = document.querySelector<HTMLElement>(".mcp-launcher");
-      if (launcher) applyLauncherState(launcher, false);
+      if (launcher) {
+        applyLauncherState(launcher, false);
+        launcher.style.removeProperty("bottom");
+        launcher.style.removeProperty("right");
+      }
     };
   }, []);
 
-  return null;
+  return (
+    <style>{`
+      @media (max-width: 820px) {
+        .mcp-launcher {
+          max-width: min(220px, calc(100vw - 30px));
+          min-height: 46px;
+          justify-content: center;
+          white-space: nowrap;
+        }
+
+        body:has(.mcp-launcher:not([hidden])) .rm-list-scroll,
+        body:has(.mcp-launcher:not([hidden])) .rm-home-section .rm-scroll-area {
+          padding-bottom: 148px;
+        }
+      }
+    `}</style>
+  );
 }
