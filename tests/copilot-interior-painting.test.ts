@@ -4,6 +4,7 @@ import {
   buildInteriorPaintingProposal,
   interpretInteriorPaintingDescription,
 } from "../lib/copilot/interior-painting";
+import { normalizeInteriorPaintingAiInterpretation } from "../lib/copilot/ai-normalization";
 
 test("comprend un chantier de peinture et rend ses hypothèses visibles", () => {
   const interpretation = interpretInteriorPaintingDescription(
@@ -69,4 +70,33 @@ test("refuse de présenter un devis complet lorsque les quantités manquent", ()
   assert.equal(proposal.status, "needs_information");
   assert.equal(proposal.lines.length, 0);
   assert.ok(proposal.questions.some((item) => item.includes("surface de murs")));
+});
+
+test("normalise la compréhension IA mais garde les calculs déterministes", () => {
+  const interpretation = normalizeInteriorPaintingAiInterpretation(
+    "Repeindre l appartement de Mme Lopez avec les murs, les plafonds et trois portes.",
+    {
+      customer_hint: "Mme Lopez",
+      title: "Peinture complète appartement",
+      facts: {
+        floor_area_m2: 50,
+        wall_area_m2: 118,
+        ceiling_area_m2: 50,
+        door_count: 3,
+        has_cracks: false,
+        include_walls: true,
+        include_ceilings: true,
+        include_doors: true,
+      },
+      confidence: 0.94,
+    },
+  );
+  const proposal = buildInteriorPaintingProposal(interpretation);
+
+  assert.equal(interpretation.customerHint, "Mme Lopez");
+  assert.equal(interpretation.facts.wallAreaM2, 118);
+  assert.equal(interpretation.facts.ceilingAreaM2, 50);
+  assert.equal(interpretation.facts.doorCount, 3);
+  assert.equal(proposal.status, "ready_for_review");
+  assert.ok(proposal.lines.some((line) => line.code === "wall_paint_2_coats" && line.quantity === 118));
 });
