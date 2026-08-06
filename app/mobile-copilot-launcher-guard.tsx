@@ -16,6 +16,14 @@ function isVisible(element: Element) {
   return element.getClientRects().length > 0;
 }
 
+function setStyleProperty(element: HTMLElement, property: "bottom" | "right", value: string) {
+  if (element.style[property] !== value) element.style[property] = value;
+}
+
+function removeStyleProperty(element: HTMLElement, property: "bottom" | "right") {
+  if (element.style[property]) element.style.removeProperty(property);
+}
+
 function applyLauncherState(launcher: HTMLElement, blocked: boolean) {
   const display = blocked ? "none" : "";
   const pointerEvents = blocked ? "none" : "";
@@ -24,8 +32,8 @@ function applyLauncherState(launcher: HTMLElement, blocked: boolean) {
   if (launcher.style.pointerEvents !== pointerEvents) launcher.style.pointerEvents = pointerEvents;
   if (launcher.hidden !== blocked) launcher.hidden = blocked;
 
-  if (blocked) launcher.setAttribute("aria-hidden", "true");
-  else launcher.removeAttribute("aria-hidden");
+  if (blocked && launcher.getAttribute("aria-hidden") !== "true") launcher.setAttribute("aria-hidden", "true");
+  if (!blocked && launcher.hasAttribute("aria-hidden")) launcher.removeAttribute("aria-hidden");
 }
 
 function placeLauncherAboveCreateDock(launcher: HTMLElement) {
@@ -33,8 +41,8 @@ function placeLauncherAboveCreateDock(launcher: HTMLElement) {
   const app = document.querySelector<HTMLElement>(".rm-app");
 
   if (!dock || !isVisible(dock)) {
-    launcher.style.removeProperty("bottom");
-    launcher.style.removeProperty("right");
+    removeStyleProperty(launcher, "bottom");
+    removeStyleProperty(launcher, "right");
     return;
   }
 
@@ -45,8 +53,8 @@ function placeLauncherAboveCreateDock(launcher: HTMLElement) {
     ? Math.max(15, Math.ceil(window.innerWidth - appRect.right + 15))
     : 15;
 
-  launcher.style.bottom = `${bottom}px`;
-  launcher.style.right = `${right}px`;
+  setStyleProperty(launcher, "bottom", `${bottom}px`);
+  setStyleProperty(launcher, "right", `${right}px`);
 }
 
 export default function MobileCopilotLauncherGuard() {
@@ -83,8 +91,8 @@ export default function MobileCopilotLauncherGuard() {
       const launcher = document.querySelector<HTMLElement>(".mcp-launcher");
       if (launcher) {
         applyLauncherState(launcher, false);
-        launcher.style.removeProperty("bottom");
-        launcher.style.removeProperty("right");
+        removeStyleProperty(launcher, "bottom");
+        removeStyleProperty(launcher, "right");
       }
     };
   }, []);
