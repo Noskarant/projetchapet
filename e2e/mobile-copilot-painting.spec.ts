@@ -28,8 +28,8 @@ test("prépare un devis de peinture avec hypothèses, origine des prix et marge"
   const editor = page.locator(".rm-v2-editor");
   await expect(editor).toBeVisible();
   await expect(editor).toContainText("SCI BELLEVUE");
-  await expect(editor).toContainText("Peinture des murs – deux couches");
-  await expect(editor).toContainText("Peinture des plafonds – deux couches");
+  await expect(editor.getByDisplayValue("Peinture des murs – deux couches")).toBeVisible();
+  await expect(editor.getByDisplayValue("Peinture des plafonds – deux couches")).toBeVisible();
 });
 
 test("bloque le brouillon tant que les quantités métier sont absentes", async ({ page }, testInfo) => {
