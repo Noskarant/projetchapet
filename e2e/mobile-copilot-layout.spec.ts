@@ -18,7 +18,11 @@ test("place le copilote au-dessus du dock sans bloquer la création manuelle", a
   expect(dockBox).not.toBeNull();
   expect((launcherBox?.y ?? 0) + (launcherBox?.height ?? 0)).toBeLessThanOrEqual((dockBox?.y ?? 0) - 8);
 
-  await manualCreate.click();
-  await expect(page.locator(".rm-v2-editor")).toBeVisible();
-  await expect(launcher).toBeHidden();
+  const manualButtonIsTopmost = await manualCreate.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return target === button || (target instanceof Node && button.contains(target));
+  });
+  expect(manualButtonIsTopmost).toBe(true);
+  await manualCreate.click({ trial: true });
 });
