@@ -39,7 +39,7 @@ function setButtonState(button: HTMLButtonElement, label: string, busy: boolean,
   button.setAttribute("aria-busy", busy ? "true" : "false");
 }
 
-function restoreButton(session: RecordingSession) {
+function restoreButton(session: Pick<RecordingSession, "button" | "originalHtml">) {
   session.button.innerHTML = session.originalHtml;
   session.button.disabled = false;
   session.button.classList.remove("recording");
@@ -69,6 +69,9 @@ export default function MobileCopilotDictationBridge() {
       session = null;
       if (!current) return;
       if (current.autoStopTimer) window.clearTimeout(current.autoStopTimer);
+      current.recorder.ondataavailable = null;
+      current.recorder.onstop = null;
+      current.recorder.onerror = null;
       try {
         if (current.recorder.state !== "inactive") current.recorder.stop();
       } catch {}
@@ -132,15 +135,16 @@ export default function MobileCopilotDictationBridge() {
 
     const startRecording = async (button: HTMLButtonElement) => {
       if (session || transcribing) return;
+      const originalHtml = button.innerHTML;
+
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
         setButtonState(button, "Micro non disponible sur ce navigateur", false);
         window.setTimeout(() => {
-          if (document.contains(button)) window.location.reload();
-        }, 2200);
+          if (document.contains(button)) restoreButton({ button, originalHtml });
+        }, 2600);
         return;
       }
 
-      const originalHtml = button.innerHTML;
       setButtonState(button, "Autorisation du micro…", true);
 
       try {
@@ -169,7 +173,9 @@ export default function MobileCopilotDictationBridge() {
           if (event.data?.size) chunks.push(event.data);
         };
         recorder.onerror = () => {
-          session = null;
+          if (session === current) session = null;
+          recorder.onstop = null;
+          if (current.autoStopTimer) window.clearTimeout(current.autoStopTimer);
           stopStream(stream);
           setButtonState(button, "Enregistrement interrompu — réessayer", false);
           window.setTimeout(() => {
@@ -195,16 +201,9 @@ export default function MobileCopilotDictationBridge() {
         const message = name === "NotAllowedError" || name === "SecurityError"
           ? "Micro refusé — autorisez-le dans Safari puis réessayez"
           : "Impossible d’ouvrir le micro — réessayez";
-        button.innerHTML = originalHtml;
         setButtonState(button, message, false);
         window.setTimeout(() => {
-          if (document.contains(button)) {
-            button.innerHTML = originalHtml;
-            button.disabled = false;
-            button.classList.remove("recording");
-            button.removeAttribute("aria-busy");
-            button.removeAttribute("aria-label");
-          }
+          if (document.contains(button)) restoreButton({ button, originalHtml });
         }, 3000);
       }
     };
