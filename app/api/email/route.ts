@@ -46,8 +46,10 @@ function hasPdfMagic(value: string) {
 }
 
 function cleanAttachments(value: unknown) {
-  if (value === undefined || value === null) return [];
-  if (!Array.isArray(value) || value.length > 2) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ApiInputError("Un document PDF est requis pour l’envoi.");
+  }
+  if (value.length > 2) {
     throw new ApiInputError("Deux pièces jointes maximum sont autorisées.");
   }
 
