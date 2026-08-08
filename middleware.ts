@@ -5,6 +5,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 function isSameOriginMutation(request: NextRequest) {
   const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
   if (fetchSite === "cross-site") return false;
+  if (fetchSite === "same-origin") return true;
 
   const origin = request.headers.get("origin");
   if (!origin) return true;
