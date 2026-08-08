@@ -48,6 +48,7 @@ async function groqTranscription(file: File, apiKey: string) {
       const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(90_000),
         body: buildGroqForm(file),
       });
 

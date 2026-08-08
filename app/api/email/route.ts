@@ -31,6 +31,20 @@ function cleanEmails(value: unknown) {
   return [...new Set(emails)];
 }
 
+function normalizePdfBase64(value: string) {
+  return value.replace(/^data:application\/pdf;base64,/i, "").replace(/\s/g, "");
+}
+
+function hasPdfMagic(value: string) {
+  const clean = normalizePdfBase64(value);
+  if (clean.length < 8) return false;
+  try {
+    return Buffer.from(clean.slice(0, 16), "base64").subarray(0, 5).toString("ascii") === "%PDF-";
+  } catch {
+    return false;
+  }
+}
+
 function cleanAttachments(value: unknown) {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value) || value.length > 2) {
@@ -45,7 +59,10 @@ function cleanAttachments(value: unknown) {
     const content = requireString(attachment.content, "Contenu de la pièce jointe", 11_000_000);
     totalBytes += base64ByteLength(content);
     if (totalBytes > 7_500_000) throw new ApiInputError("Pièces jointes trop volumineuses.", 413);
-    return { filename, content };
+    if (!filename.toLowerCase().endsWith(".pdf") || !hasPdfMagic(content)) {
+      throw new ApiInputError("Seuls les documents PDF valides peuvent être envoyés.");
+    }
+    return { filename, content: normalizePdfBase64(content) };
   });
 }
 
@@ -66,7 +83,7 @@ export async function POST(request: Request) {
     const from = process.env.RESEND_FROM_EMAIL;
     if (!apiKey || !from) {
       return NextResponse.json(
-        { configured: false, error: "RESEND_API_KEY ou RESEND_FROM_EMAIL non configurée." },
+        { configured: false, error: "Le service d’envoi n’est pas configuré." },
         { status: 503 },
       );
     }
@@ -74,6 +91,7 @@ export async function POST(request: Request) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(20_000),
       body: JSON.stringify({
         from,
         to: [to],
@@ -85,7 +103,7 @@ export async function POST(request: Request) {
       }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.message ?? `Resend API : ${response.status}`);
+    if (!response.ok) throw new Error(`Resend API : ${response.status}`);
     return NextResponse.json({ configured: true, id: data.id });
   } catch (error) {
     return errorResponse(error, "Envoi impossible.");

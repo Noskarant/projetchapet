@@ -95,8 +95,8 @@ export function errorResponse(error: unknown, fallback: string) {
   if (error instanceof ApiInputError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
-  return NextResponse.json(
-    { error: error instanceof Error ? error.message : fallback },
-    { status: 500 },
-  );
+
+  // Les messages des fournisseurs peuvent contenir des détails d'infrastructure.
+  // Ils ne doivent jamais être renvoyés tels quels au navigateur.
+  return NextResponse.json({ error: fallback }, { status: 500 });
 }
