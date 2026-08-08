@@ -93,4 +93,58 @@ test("retourne les en-têtes de sécurité du prototype", async ({ request }) =>
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
   expect(response.headers()["x-frame-options"]).toBe("SAMEORIGIN");
   expect(response.headers()["permissions-policy"]).toContain("microphone=(self)");
+  expect(response.headers()["strict-transport-security"]).toBe("max-age=31536000");
+});
+
+test("ne met pas les réponses API en cache", async ({ request }) => {
+  const response = await request.get("/api/ai/status");
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(response.headers()["x-robots-tag"]).toContain("noindex");
+});
+
+test("bloque les mutations API provenant d’un autre site", async ({ request }) => {
+  const response = await request.post("/api/einvoice", {
+    headers: {
+      Origin: "https://example-attacker.invalid",
+      "Sec-Fetch-Site": "cross-site",
+      "Content-Type": "application/json",
+    },
+    data: { invoice: {}, company: {} },
+  });
+  expect(response.status()).toBe(403);
+  await expect(response.json()).resolves.toMatchObject({ error: "Origine de requête refusée." });
+});
+
+test("refuse d’utiliser l’API e-mail comme relais sans document", async ({ request }) => {
+  const response = await request.post("/api/email", {
+    data: {
+      to: "client@example.com",
+      subject: "Message sans document",
+      html: "<p>Test</p>",
+    },
+  });
+  expect(response.status()).toBe(400);
+  await expect(response.json()).resolves.toMatchObject({
+    error: "Un document PDF est requis pour l’envoi.",
+  });
+});
+
+test("refuse les pièces jointes qui ne sont pas de vrais PDF", async ({ request }) => {
+  const response = await request.post("/api/email", {
+    data: {
+      to: "client@example.com",
+      subject: "Document",
+      attachments: [
+        {
+          filename: "document.pdf",
+          content: Buffer.from("contenu qui n'est pas un PDF").toString("base64"),
+        },
+      ],
+    },
+  });
+  expect(response.status()).toBe(400);
+  await expect(response.json()).resolves.toMatchObject({
+    error: "Seuls les documents PDF valides peuvent être envoyés.",
+  });
 });
