@@ -116,6 +116,20 @@ test("bloque les mutations API provenant d’un autre site", async ({ request })
   await expect(response.json()).resolves.toMatchObject({ error: "Origine de requête refusée." });
 });
 
+test("refuse d’utiliser l’API e-mail comme relais sans document", async ({ request }) => {
+  const response = await request.post("/api/email", {
+    data: {
+      to: "client@example.com",
+      subject: "Message sans document",
+      html: "<p>Test</p>",
+    },
+  });
+  expect(response.status()).toBe(400);
+  await expect(response.json()).resolves.toMatchObject({
+    error: "Un document PDF est requis pour l’envoi.",
+  });
+});
+
 test("refuse les pièces jointes qui ne sont pas de vrais PDF", async ({ request }) => {
   const response = await request.post("/api/email", {
     data: {
