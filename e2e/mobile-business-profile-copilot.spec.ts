@@ -31,9 +31,9 @@ test("le profil métier et les tarifs entreprise sont injectés dans le copilote
     }));
   });
 
-  let received: Record<string, unknown> | null = null;
+  const received: Array<Record<string, unknown>> = [];
   await page.route("**/api/copilot/proposal", async (route) => {
-    received = route.request().postDataJSON() as Record<string, unknown>;
+    received.push(route.request().postDataJSON() as Record<string, unknown>);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
   });
 
@@ -48,10 +48,11 @@ test("le profil métier et les tarifs entreprise sont injectés dans le copilote
     });
   });
 
-  expect(received).not.toBeNull();
-  expect(received?.trade).toBe("upholstery_decorator");
-  expect((received?.settings as { hourlyCost?: number })?.hourlyCost).toBe(41);
-  expect((received?.catalog as Array<{ code?: string; unitPriceHt?: number }>)?.[0]).toMatchObject({
+  expect(received).toHaveLength(1);
+  const payload = received[0]!;
+  expect(payload.trade).toBe("upholstery_decorator");
+  expect((payload.settings as { hourlyCost?: number })?.hourlyCost).toBe(41);
+  expect((payload.catalog as Array<{ code?: string; unitPriceHt?: number }>)?.[0]).toMatchObject({
     code: "upholstery_stripping",
     unitPriceHt: 190,
   });
