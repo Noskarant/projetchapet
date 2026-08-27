@@ -1,7 +1,8 @@
-export type CopilotTrade = "interior_painting";
-export type CopilotJobType = "interior_painting_apartment";
+export type CopilotTrade = "interior_painting" | "upholstery_decorator";
+export type CopilotJobType = "interior_painting_apartment" | "upholstery_furniture";
 export type CopilotProposalStatus = "ready_for_review" | "needs_information";
 export type CopilotSourceKind = "user_input" | "company_catalog" | "template_default" | "calculated";
+export type CopilotUnit = "m2" | "m" | "ml" | "l" | "h" | "jour" | "unite" | "forfait";
 
 export type InteriorPaintingFacts = {
   floorAreaM2: number | null;
@@ -17,12 +18,29 @@ export type InteriorPaintingFacts = {
   finishLevel: "standard" | "premium";
 };
 
-export type CopilotInterpretation = {
-  trade: CopilotTrade;
-  jobType: CopilotJobType;
+export type UpholsteryDecoratorFacts = {
+  itemKind: "fauteuil" | "canape" | "chaise" | "rideau" | "tenture" | "autre" | null;
+  itemLabel: string;
+  itemCount: number;
+  technique: "traditionnelle" | "mousse" | "mixte" | null;
+  includeStripping: boolean;
+  includeUpholsteryWork: boolean;
+  includeCovering: boolean;
+  fabricProvidedBy: "client" | "artisan" | "unknown";
+  fabricMeters: number | null;
+  includeTrim: boolean;
+  trimProvidedBy: "client" | "artisan" | "unknown";
+  includePickup: boolean;
+  includeDelivery: boolean;
+  labourHours: number | null;
+};
+
+type CopilotInterpretationBase<TTrade extends CopilotTrade, TJobType extends CopilotJobType, TFacts> = {
+  trade: TTrade;
+  jobType: TJobType;
   customerHint: string;
   title: string;
-  facts: InteriorPaintingFacts;
+  facts: TFacts;
   understoodData: string[];
   assumptions: string[];
   missingInformation: string[];
@@ -30,11 +48,25 @@ export type CopilotInterpretation = {
   confidence: number;
 };
 
+export type CopilotInterpretation = CopilotInterpretationBase<
+  "interior_painting",
+  "interior_painting_apartment",
+  InteriorPaintingFacts
+>;
+
+export type UpholsteryDecoratorInterpretation = CopilotInterpretationBase<
+  "upholstery_decorator",
+  "upholstery_furniture",
+  UpholsteryDecoratorFacts
+>;
+
+export type AnyCopilotInterpretation = CopilotInterpretation | UpholsteryDecoratorInterpretation;
+
 export type CopilotCatalogService = {
   code: string;
   label: string;
   description: string;
-  unit: "m2" | "unite" | "forfait";
+  unit: CopilotUnit;
   unitPriceHt: number;
   materialCostPerUnit: number;
   labourHoursPerUnit: number;
@@ -54,7 +86,7 @@ export type CopilotProposalLine = {
   label: string;
   description: string;
   quantity: number;
-  unit: "m2" | "unite" | "forfait";
+  unit: CopilotUnit;
   unitPriceHt: number;
   taxRate: number;
   saleTotalHt: number;
@@ -80,10 +112,12 @@ export type CopilotProposalMetrics = {
   marginAlert: string | null;
 };
 
-export type CopilotProposal = {
+export type CopilotProposal<TInterpretation extends AnyCopilotInterpretation = CopilotInterpretation> = {
   status: CopilotProposalStatus;
-  interpretation: CopilotInterpretation;
+  interpretation: TInterpretation;
   lines: CopilotProposalLine[];
   questions: string[];
   metrics: CopilotProposalMetrics;
 };
+
+export type AnyCopilotProposal = CopilotProposal<AnyCopilotInterpretation>;

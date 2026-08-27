@@ -6,25 +6,40 @@ import {
   readJsonBody,
   requireString,
 } from "@/lib/api-guard";
+import { detectCopilotTradeFromDescription } from "@/lib/copilot/trade-detection";
 import {
-  buildInteriorPaintingProposal,
-  DEFAULT_COMPANY_SETTINGS,
-  DEFAULT_INTERIOR_PAINTING_CATALOG,
-  interpretInteriorPaintingDescription,
-} from "@/lib/copilot/interior-painting";
-import { normalizeInteriorPaintingAiInterpretation } from "@/lib/copilot/ai-normalization";
-import type { CopilotCatalogService, CopilotCompanySettings } from "@/lib/copilot/types";
+  getCopilotTradePack,
+  resolveCopilotTrade,
+  type CopilotTradePack,
+} from "@/lib/copilot/trade-packs";
+import type {
+  CopilotCatalogService,
+  CopilotCompanySettings,
+  CopilotUnit,
+} from "@/lib/copilot/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 type ProposalBody = {
   description?: unknown;
+  trade?: unknown;
   catalog?: unknown;
   settings?: unknown;
 };
 
 type UnknownRecord = Record<string, unknown>;
+
+const COPILOT_UNITS = new Set<CopilotUnit>([
+  "m2",
+  "m",
+  "ml",
+  "l",
+  "h",
+  "jour",
+  "unite",
+  "forfait",
+]);
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -39,16 +54,16 @@ function boundedNumber(value: unknown, minimum: number, maximum: number, fallbac
   return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
 }
 
-function sanitizeCatalog(value: unknown): CopilotCatalogService[] {
+function sanitizeCatalog(value: unknown, pack: CopilotTradePack): CopilotCatalogService[] {
   if (!Array.isArray(value)) return [];
-  const defaults = new Map(DEFAULT_INTERIOR_PAINTING_CATALOG.map((service) => [service.code, service]));
+  const defaults = new Map(pack.defaultCatalog.map((service) => [service.code, service]));
 
-  return value.slice(0, 100).flatMap((entry) => {
+  return value.slice(0, 150).flatMap((entry) => {
     if (!isRecord(entry) || typeof entry.code !== "string") return [];
     const fallback = defaults.get(entry.code.trim());
     if (!fallback) return [];
-    const unit = entry.unit === "m2" || entry.unit === "unite" || entry.unit === "forfait"
-      ? entry.unit
+    const unit = typeof entry.unit === "string" && COPILOT_UNITS.has(entry.unit as CopilotUnit)
+      ? entry.unit as CopilotUnit
       : fallback.unit;
     const taxRate = [0, 5.5, 10, 20].includes(Number(entry.taxRate))
       ? Number(entry.taxRate)
@@ -72,21 +87,22 @@ function sanitizeCatalog(value: unknown): CopilotCatalogService[] {
   });
 }
 
-function sanitizeSettings(value: unknown): Partial<CopilotCompanySettings> {
+function sanitizeSettings(value: unknown, pack: CopilotTradePack): Partial<CopilotCompanySettings> {
   if (!isRecord(value)) return {};
+  const defaults = pack.defaultSettings;
   return {
-    hourlyCost: boundedNumber(value.hourlyCost, 0, 500, DEFAULT_COMPANY_SETTINGS.hourlyCost),
-    targetMarginRate: boundedNumber(value.targetMarginRate, 0, 100, DEFAULT_COMPANY_SETTINGS.targetMarginRate),
+    hourlyCost: boundedNumber(value.hourlyCost, 0, 500, defaults.hourlyCost),
+    targetMarginRate: boundedNumber(value.targetMarginRate, 0, 100, defaults.targetMarginRate),
     defaultTaxRate: [0, 5.5, 10, 20].includes(Number(value.defaultTaxRate))
       ? Number(value.defaultTaxRate)
-      : DEFAULT_COMPANY_SETTINGS.defaultTaxRate,
+      : defaults.defaultTaxRate,
     includeTravelFee: typeof value.includeTravelFee === "boolean"
       ? value.includeTravelFee
-      : DEFAULT_COMPANY_SETTINGS.includeTravelFee,
+      : defaults.includeTravelFee,
   };
 }
 
-async function understandWithDeepSeek(description: string) {
+async function understandWithDeepSeek(description: string, pack: CopilotTradePack) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) return null;
 
@@ -101,30 +117,10 @@ async function understandWithDeepSeek(description: string) {
       model: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
       thinking: { type: "disabled" },
       temperature: 0,
-      max_tokens: 1200,
+      max_tokens: 1600,
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content: `Tu extrais uniquement des faits d'un chantier de peinture intérieure pour un artisan français.
-Tu ne calcules aucun prix, aucune marge et aucun total. Tu n'inventes aucune surface.
-Une information absente reste null. Réponds uniquement avec ce JSON strict :
-{
-  "customer_hint": "",
-  "title": "",
-  "facts": {
-    "floor_area_m2": null,
-    "wall_area_m2": null,
-    "ceiling_area_m2": null,
-    "door_count": 0,
-    "has_cracks": false,
-    "include_walls": false,
-    "include_ceilings": false,
-    "include_doors": false
-  },
-  "confidence": 0
-}`,
-        },
+        { role: "system", content: pack.aiSystemPrompt },
         { role: "user", content: description },
       ],
     }),
@@ -144,29 +140,39 @@ export async function POST(request: Request) {
   try {
     const body = await readJsonBody<ProposalBody>(request, 80_000);
     const description = requireString(body.description, "La description du chantier", 20_000);
-    const localInterpretation = interpretInteriorPaintingDescription(description);
+    const hasExplicitTrade = typeof body.trade === "string" && body.trade.trim().length > 0;
+    const trade = hasExplicitTrade
+      ? resolveCopilotTrade(body.trade)
+      : detectCopilotTradeFromDescription(description);
+    if (!trade) {
+      throw new ApiInputError("Ce métier n’est pas encore pris en charge par le copilote.");
+    }
+    const pack = getCopilotTradePack(trade);
+    const localInterpretation = pack.interpretLocal(description);
     let interpretation = localInterpretation;
     let provider = "local-business-parser";
     let warning: string | null = null;
 
     try {
-      const aiFacts = await understandWithDeepSeek(description);
+      const aiFacts = await understandWithDeepSeek(description, pack);
       if (aiFacts) {
-        interpretation = normalizeInteriorPaintingAiInterpretation(description, aiFacts);
+        interpretation = pack.normalizeAi(description, aiFacts);
         provider = process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash";
       }
     } catch {
       warning = "La compréhension locale fiable a été utilisée automatiquement.";
     }
 
-    const proposal = buildInteriorPaintingProposal(interpretation, {
-      catalog: sanitizeCatalog(body.catalog),
-      settings: sanitizeSettings(body.settings),
+    const proposal = pack.buildProposal(interpretation, {
+      catalog: sanitizeCatalog(body.catalog, pack),
+      settings: sanitizeSettings(body.settings, pack),
     });
 
     return NextResponse.json({
       provider,
       mode: "ai-understanding-deterministic-business-engine",
+      trade: pack.trade,
+      trade_pack_version: pack.version,
       proposal,
       ready_to_create_draft: proposal.status === "ready_for_review",
       warning,
