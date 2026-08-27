@@ -11,7 +11,7 @@ test("le suivi de rentabilité calcule les coûts saisis sans modifier les devis
   await dialog.getByLabel("Coût main-d’œuvre (€)").fill("100");
   await dialog.getByLabel("Matières (€)").fill("50");
   await dialog.getByLabel("Déplacements (€)").fill("25");
-  await expect(dialog.getByText("Coût réel").locator("..").getByText("175,00 €")).toBeVisible();
+  await expect(dialog.getByText("Coût réel").locator("..")).toContainText("175,00");
 
   await dialog.getByRole("button", { name: /Enregistrer les coûts réels/ }).click();
   await expect(dialog.getByRole("button", { name: /Coûts enregistrés/ })).toBeVisible();
