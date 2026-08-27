@@ -6,6 +6,7 @@ import {
   readJsonBody,
   requireString,
 } from "@/lib/api-guard";
+import { detectCopilotTradeFromDescription } from "@/lib/copilot/trade-detection";
 import {
   getCopilotTradePack,
   resolveCopilotTrade,
@@ -139,7 +140,10 @@ export async function POST(request: Request) {
   try {
     const body = await readJsonBody<ProposalBody>(request, 80_000);
     const description = requireString(body.description, "La description du chantier", 20_000);
-    const trade = resolveCopilotTrade(body.trade);
+    const hasExplicitTrade = typeof body.trade === "string" && body.trade.trim().length > 0;
+    const trade = hasExplicitTrade
+      ? resolveCopilotTrade(body.trade)
+      : detectCopilotTradeFromDescription(description);
     if (!trade) {
       throw new ApiInputError("Ce métier n’est pas encore pris en charge par le copilote.");
     }
