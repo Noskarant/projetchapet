@@ -39,6 +39,9 @@ test("le profil métier et les tarifs entreprise sont injectés dans le copilote
 
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Configurer le métier et les tarifs FORGEO" })).toBeVisible();
+  await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
+  await expect(page.getByLabel("Description du chantier")).toHaveAttribute("placeholder", /Voltaire/);
+  await expect(page.getByText(/COPILOTE · TAPISSERIE D’AMEUBLEMENT/i)).toBeVisible();
 
   await page.evaluate(async () => {
     await fetch("/api/copilot/proposal", {
