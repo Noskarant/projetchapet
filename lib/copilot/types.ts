@@ -23,6 +23,9 @@ export type UpholsteryDecoratorFacts = {
   itemLabel: string;
   itemCount: number;
   technique: "traditionnelle" | "mousse" | "mixte" | null;
+  includeStripping: boolean;
+  includeUpholsteryWork: boolean;
+  includeCovering: boolean;
   fabricProvidedBy: "client" | "artisan" | "unknown";
   fabricMeters: number | null;
   includeTrim: boolean;
