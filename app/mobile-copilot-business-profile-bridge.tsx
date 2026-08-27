@@ -1,6 +1,6 @@
 "use client";
 
-import { BriefcaseBusiness } from "lucide-react";
+import { BriefcaseBusiness, TrendingUp } from "lucide-react";
 import { useEffect } from "react";
 import { getTradeProfile, readForgeoBusinessProfile } from "@/lib/copilot/business-profile";
 
@@ -56,18 +56,27 @@ export default function MobileCopilotBusinessProfileBridge() {
 
   return (
     <>
-      <button
-        type="button"
-        className="fbs-launcher"
-        onClick={() => window.dispatchEvent(new Event("forgeo:open-business-settings"))}
-        aria-label="Configurer le métier et les tarifs FORGEO"
-      >
-        <BriefcaseBusiness size={17} />
-        <span>Métier & tarifs</span>
-      </button>
+      <div className="fbs-launchers">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("forgeo:open-business-settings"))}
+          aria-label="Configurer le métier et les tarifs FORGEO"
+        >
+          <BriefcaseBusiness size={17} />
+          <span>Métier & tarifs</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("forgeo:open-project-profitability"))}
+          aria-label="Ouvrir la rentabilité réelle FORGEO"
+        >
+          <TrendingUp size={17} />
+          <span>Rentabilité</span>
+        </button>
+      </div>
       <style>{`
-        .fbs-launcher{position:fixed;z-index:4190;left:14px;bottom:calc(84px + env(safe-area-inset-bottom));min-height:42px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border:1px solid #c9d6e2;border-radius:999px;background:rgba(255,255,255,.96);color:#214d73;box-shadow:0 8px 22px rgba(15,47,82,.15);font:800 12px/1 Arial,sans-serif;backdrop-filter:blur(8px)}
-        @media(min-width:821px){.fbs-launcher{display:none}}
+        .fbs-launchers{position:fixed;z-index:4190;left:14px;bottom:calc(84px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:flex-start;gap:7px}.fbs-launchers button{min-height:40px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #c9d6e2;border-radius:999px;background:rgba(255,255,255,.96);color:#214d73;box-shadow:0 8px 22px rgba(15,47,82,.15);font:800 12px/1 Arial,sans-serif;backdrop-filter:blur(8px)}
+        @media(min-width:821px){.fbs-launchers{display:none}}
       `}</style>
     </>
   );
