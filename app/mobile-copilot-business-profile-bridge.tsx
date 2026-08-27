@@ -3,6 +3,7 @@
 import { BriefcaseBusiness, TrendingUp } from "lucide-react";
 import { useEffect } from "react";
 import { getTradeProfile, readForgeoBusinessProfile } from "@/lib/copilot/business-profile";
+import { getCopilotTradePack } from "@/lib/copilot/trade-packs";
 
 function requestUrl(input: RequestInfo | URL) {
   if (typeof input === "string") return input;
@@ -14,6 +15,22 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
   if (init?.method) return init.method.toUpperCase();
   if (typeof Request !== "undefined" && input instanceof Request) return input.method.toUpperCase();
   return "GET";
+}
+
+function applyTradeExperience() {
+  const profile = readForgeoBusinessProfile(window.localStorage);
+  const pack = getCopilotTradePack(profile.primaryTrade);
+  const textarea = document.querySelector<HTMLTextAreaElement>("#mcp-description");
+  const eyebrow = document.querySelector<HTMLElement>(".mcp-header small");
+  const intro = document.querySelector<HTMLElement>(".mcp-intro small");
+
+  if (textarea) {
+    textarea.placeholder = profile.primaryTrade === "upholstery_decorator"
+      ? "Ex. Deux fauteuils Voltaire à refaire en traditionnel, dégarnissage complet, tissu fourni par le client, avec galon et livraison."
+      : "Ex. Chez SCI Bellevue, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.";
+  }
+  if (eyebrow) eyebrow.textContent = `COPILOTE · ${pack.shortLabel.toUpperCase()}`;
+  if (intro) intro.textContent = pack.description;
 }
 
 export default function MobileCopilotBusinessProfileBridge() {
@@ -48,8 +65,16 @@ export default function MobileCopilotBusinessProfileBridge() {
       }
     };
 
+    const observer = new MutationObserver(() => applyTradeExperience());
+    observer.observe(document.body, { childList: true, subtree: true });
+    const onProfileUpdate = () => applyTradeExperience();
+    window.addEventListener("forgeo:business-profile-updated", onProfileUpdate);
+    applyTradeExperience();
+
     window.fetch = bridgedFetch;
     return () => {
+      observer.disconnect();
+      window.removeEventListener("forgeo:business-profile-updated", onProfileUpdate);
       if (window.fetch === bridgedFetch) window.fetch = originalFetch;
     };
   }, []);
