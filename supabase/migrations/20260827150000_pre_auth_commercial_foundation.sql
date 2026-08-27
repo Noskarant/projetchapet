@@ -100,6 +100,60 @@ create index if not exists project_cost_entries_org_quote_idx
 create index if not exists project_cost_entries_org_invoice_idx
   on public.project_cost_entries (organization_id, invoice_id, occurred_at desc);
 
+create or replace function public.validate_project_cost_entry_organization()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.quote_id is not null and not exists (
+    select 1 from public.quotes
+    where id = new.quote_id and organization_id = new.organization_id
+  ) then
+    raise exception 'quote does not belong to organization';
+  end if;
+
+  if new.invoice_id is not null and not exists (
+    select 1 from public.invoices
+    where id = new.invoice_id and organization_id = new.organization_id
+  ) then
+    raise exception 'invoice does not belong to organization';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.validate_project_cost_entry_organization() from public;
+
+drop trigger if exists project_cost_entries_validate_organization on public.project_cost_entries;
+create trigger project_cost_entries_validate_organization
+before insert or update on public.project_cost_entries
+for each row execute function public.validate_project_cost_entry_organization();
+
+create or replace function public.validate_company_copilot_rule_organization()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.source_correction_id is not null and not exists (
+    select 1 from public.copilot_corrections
+    where id = new.source_correction_id and organization_id = new.organization_id
+  ) then
+    raise exception 'correction does not belong to organization';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.validate_company_copilot_rule_organization() from public;
+
+drop trigger if exists company_copilot_rules_validate_organization on public.company_copilot_rules;
+create trigger company_copilot_rules_validate_organization
+before insert or update on public.company_copilot_rules
+for each row execute function public.validate_company_copilot_rule_organization();
+
 alter table public.company_trade_pricing_settings enable row level security;
 alter table public.company_copilot_rules enable row level security;
 alter table public.project_cost_entries enable row level security;
