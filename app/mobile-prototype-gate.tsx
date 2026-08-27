@@ -18,6 +18,7 @@ import MobileLegacyQuoteDetailGuard from "./mobile-legacy-quote-detail-guard";
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
 import MobilePhilippeQuoteActionsMenu from "./mobile-philippe-quote-actions-menu";
 import MobilePriorityPolish from "./mobile-priority-polish";
+import MobileProjectProfitability from "./mobile-project-profitability";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
 import MobileUnifiedQuoteSheet from "./mobile-unified-quote-sheet";
 import MobileVoiceEditAssistant from "./mobile-voice-edit-assistant";
@@ -71,6 +72,7 @@ export default function MobilePrototypeGate() {
       <MobileCopilotDictationBridge />
       <MobileCopilotLauncherGuard />
       <MobileForgeoBusinessSettings />
+      <MobileProjectProfitability />
       <MobileAgendaAiBridge />
       <MobileVoiceEditAssistant />
       <MobileAutoPdfPreview />
