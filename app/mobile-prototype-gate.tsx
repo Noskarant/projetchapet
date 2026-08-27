@@ -9,6 +9,7 @@ import MobileAiContextBridge from "./mobile-ai-context-bridge";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileCommercialDemo from "./mobile-commercial-demo";
 import MobileCopilotAssistant from "./mobile-copilot-assistant";
+import MobileCopilotBusinessProfileBridge from "./mobile-copilot-business-profile-bridge";
 import MobileCopilotDictationBridge from "./mobile-copilot-dictation-bridge";
 import MobileCopilotLauncherGuard from "./mobile-copilot-launcher-guard";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
@@ -65,6 +66,7 @@ export default function MobilePrototypeGate() {
       <MobileLegacyQuoteDetailGuard />
       <MobilePriorityPolish />
       <MobileAiAssistantV6 />
+      <MobileCopilotBusinessProfileBridge />
       <MobileCopilotAssistant />
       <MobileCopilotDictationBridge />
       <MobileCopilotLauncherGuard />
