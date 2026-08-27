@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CopilotProposal } from "@/lib/copilot/types";
+import type { CopilotProposal, CopilotUnit } from "@/lib/copilot/types";
 
 type Stage = "input" | "loading" | "review" | "error";
 
@@ -53,9 +53,14 @@ function euro(value: number) {
   }).format(Number(value || 0));
 }
 
-function unitForQuote(unit: "m2" | "unite" | "forfait") {
+function unitForQuote(unit: CopilotUnit) {
   if (unit === "m2") return "m²";
   if (unit === "unite") return "u";
+  if (unit === "ml") return "ml";
+  if (unit === "m") return "m";
+  if (unit === "l") return "L";
+  if (unit === "h") return "h";
+  if (unit === "jour") return "jour";
   return "forfait";
 }
 
