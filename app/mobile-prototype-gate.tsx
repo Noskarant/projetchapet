@@ -9,13 +9,16 @@ import MobileAiContextBridge from "./mobile-ai-context-bridge";
 import MobileAutoPdfPreview from "./mobile-auto-pdf-preview";
 import MobileCommercialDemo from "./mobile-commercial-demo";
 import MobileCopilotAssistant from "./mobile-copilot-assistant";
+import MobileCopilotBusinessProfileBridge from "./mobile-copilot-business-profile-bridge";
 import MobileCopilotDictationBridge from "./mobile-copilot-dictation-bridge";
 import MobileCopilotLauncherGuard from "./mobile-copilot-launcher-guard";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
+import MobileForgeoBusinessSettings from "./mobile-forgeo-business-settings";
 import MobileLegacyQuoteDetailGuard from "./mobile-legacy-quote-detail-guard";
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
 import MobilePhilippeQuoteActionsMenu from "./mobile-philippe-quote-actions-menu";
 import MobilePriorityPolish from "./mobile-priority-polish";
+import MobileProjectProfitability from "./mobile-project-profitability";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
 import MobileUnifiedQuoteSheet from "./mobile-unified-quote-sheet";
 import MobileVoiceEditAssistant from "./mobile-voice-edit-assistant";
@@ -64,9 +67,12 @@ export default function MobilePrototypeGate() {
       <MobileLegacyQuoteDetailGuard />
       <MobilePriorityPolish />
       <MobileAiAssistantV6 />
+      <MobileCopilotBusinessProfileBridge />
       <MobileCopilotAssistant />
       <MobileCopilotDictationBridge />
       <MobileCopilotLauncherGuard />
+      <MobileForgeoBusinessSettings />
+      <MobileProjectProfitability />
       <MobileAgendaAiBridge />
       <MobileVoiceEditAssistant />
       <MobileAutoPdfPreview />

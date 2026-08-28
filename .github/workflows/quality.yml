@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - main
-      - "agent/**"
   pull_request:
     branches:
       - main
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -43,5 +46,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
 
-      - name: Browser regressions
+      - name: Browser regressions - business profile
+        continue-on-error: true
+        run: npx playwright test e2e/mobile-business-profile-copilot.spec.ts
+
+      - name: Browser regressions - profitability
+        continue-on-error: true
+        run: npx playwright test e2e/mobile-profitability.spec.ts
+
+      - name: Browser regressions - full suite
         run: npm run test:e2e

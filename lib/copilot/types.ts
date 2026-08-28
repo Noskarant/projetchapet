@@ -1,5 +1,15 @@
-export type CopilotTrade = "interior_painting" | "upholstery_decorator";
-export type CopilotJobType = "interior_painting_apartment" | "upholstery_furniture";
+export type StructuredCopilotTrade =
+  | "plumbing_heating"
+  | "electrician"
+  | "carpentry_joinery"
+  | "tiling_flooring"
+  | "roofing"
+  | "masonry"
+  | "landscaping"
+  | "locksmith_metalwork";
+
+export type CopilotTrade = "interior_painting" | "upholstery_decorator" | StructuredCopilotTrade;
+export type CopilotJobType = "interior_painting_apartment" | "upholstery_furniture" | "structured_trade_job";
 export type CopilotProposalStatus = "ready_for_review" | "needs_information";
 export type CopilotSourceKind = "user_input" | "company_catalog" | "template_default" | "calculated";
 export type CopilotUnit = "m2" | "m" | "ml" | "l" | "h" | "jour" | "unite" | "forfait";
@@ -35,6 +45,17 @@ export type UpholsteryDecoratorFacts = {
   labourHours: number | null;
 };
 
+export type StructuredTradeServiceFact = {
+  serviceCode: string;
+  quantity: number | null;
+  unit: CopilotUnit | null;
+  detail: string;
+};
+
+export type StructuredTradeFacts = {
+  services: StructuredTradeServiceFact[];
+};
+
 type CopilotInterpretationBase<TTrade extends CopilotTrade, TJobType extends CopilotJobType, TFacts> = {
   trade: TTrade;
   jobType: TJobType;
@@ -60,7 +81,13 @@ export type UpholsteryDecoratorInterpretation = CopilotInterpretationBase<
   UpholsteryDecoratorFacts
 >;
 
-export type AnyCopilotInterpretation = CopilotInterpretation | UpholsteryDecoratorInterpretation;
+export type StructuredTradeInterpretation = CopilotInterpretationBase<
+  StructuredCopilotTrade,
+  "structured_trade_job",
+  StructuredTradeFacts
+>;
+
+export type AnyCopilotInterpretation = CopilotInterpretation | UpholsteryDecoratorInterpretation | StructuredTradeInterpretation;
 
 export type CopilotCatalogService = {
   code: string;
