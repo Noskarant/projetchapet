@@ -1,5 +1,18 @@
 import { expect, test } from "@playwright/test";
 
+const AVAILABLE_TRADES = [
+  "carpentry_joinery",
+  "electrician",
+  "interior_painting",
+  "landscaping",
+  "locksmith_metalwork",
+  "masonry",
+  "plumbing_heating",
+  "roofing",
+  "tiling_flooring",
+  "upholstery_decorator",
+];
+
 test("le copilote conserve la peinture par défaut et détecte le tapissier en compatibilité", async ({ request }) => {
   const painting = await request.post("/api/copilot/proposal", {
     data: {
@@ -25,11 +38,11 @@ test("le copilote conserve la peinture par défaut et détecte le tapissier en c
   expect(upholsteryBody.proposal.lines.every((line: { unitPriceHt: number }) => line.unitPriceHt === 0)).toBeTruthy();
 });
 
-test("un métier explicite invalide est refusé au lieu d’utiliser silencieusement un autre pack", async ({ request }) => {
+test("un métier encore planifié est refusé au lieu d’utiliser silencieusement un autre pack", async ({ request }) => {
   const response = await request.post("/api/copilot/proposal", {
     data: {
-      trade: "electricien",
-      description: "Installer un nouveau tableau électrique et quatre prises.",
+      trade: "facadier",
+      description: "Ravalement complet de 85 m² de façade avec reprise des fissures.",
     },
   });
 
@@ -38,15 +51,17 @@ test("un métier explicite invalide est refusé au lieu d’utiliser silencieuse
   expect(body.error).toContain("pas encore pris en charge");
 });
 
-test("le catalogue de métiers distingue les packs disponibles des métiers planifiés", async ({ request }) => {
+test("le catalogue de métiers distingue les dix packs exécutables des métiers planifiés", async ({ request }) => {
   const response = await request.get("/api/copilot/trades");
   expect(response.ok()).toBeTruthy();
   const body = await response.json();
 
   expect(body.trades.length).toBeGreaterThanOrEqual(50);
-  expect(body.availablePacks.map((pack: { trade: string }) => pack.trade).sort()).toEqual([
-    "interior_painting",
-    "upholstery_decorator",
-  ]);
-  expect(body.trades.some((trade: { id: string; availability: string }) => trade.id === "electricien" && trade.availability === "planned")).toBeTruthy();
+  expect(body.availablePacks.map((pack: { trade: string }) => pack.trade).sort()).toEqual(AVAILABLE_TRADES);
+  expect(body.trades.some((trade: { id: string; availability: string; packTrade?: string }) =>
+    trade.id === "electricien" && trade.availability !== "planned" && trade.packTrade === "electrician",
+  )).toBeTruthy();
+  expect(body.trades.some((trade: { id: string; availability: string; packTrade?: string }) =>
+    trade.id === "facadier" && trade.availability === "planned" && !trade.packTrade,
+  )).toBeTruthy();
 });
