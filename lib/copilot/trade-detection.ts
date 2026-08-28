@@ -24,7 +24,7 @@ const TRADE_SIGNALS: Partial<Record<CopilotTrade, Signals>> = {
   ],
   plumbing_heating: [
     [/plomb|chauffag|chaudiere|pompe a chaleur|\bpac\b|climatisation/, 5],
-    [/multicouche|\bper\b|cuivre|radiateur|sanitaire|wc|vasque/, 2],
+    [/multicouche|\bper\b|cuivre|radiateur|sanitaire|wc|vasque/, 3],
   ],
   electrician: [
     [/electric|tableau electrique|2p\+t|\bdcl\b|disjoncteur|differentiel/, 5],
