@@ -4,6 +4,20 @@ import { BriefcaseBusiness, TrendingUp } from "lucide-react";
 import { useEffect } from "react";
 import { getTradeProfile, readForgeoBusinessProfile } from "@/lib/copilot/business-profile";
 import { getCopilotTradePack } from "@/lib/copilot/trade-packs";
+import type { CopilotTrade } from "@/lib/copilot/types";
+
+const TRADE_EXAMPLES: Record<CopilotTrade, string> = {
+  interior_painting: "Ex. Chez SCI Bellevue, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.",
+  upholstery_decorator: "Ex. Deux fauteuils Voltaire à refaire en traditionnel, dégarnissage complet, tissu fourni par le client, avec galon et livraison.",
+  plumbing_heating: "Ex. Chez Mme Arnaud, je remplace 2 WC, je pose 3 radiateurs et je tire 18 m de multicouche.",
+  electrician: "Ex. Huit prises 2P+T, quatre DCL, deux circuits dédiés et 45 m de gaine ICTA avec reprise du tableau.",
+  carpentry_joinery: "Ex. Trois fenêtres à remplacer, un dressing sur mesure, 4,2 m de plan de travail et 17 m de plinthes.",
+  tiling_flooring: "Ex. 42 m² de carrelage au sol, 18 m² de faïence, ragréage, SPEC et 31 m de plinthes.",
+  roofing: "Ex. Réfection de 120 m² de tuiles, 14 m de faîtage, 26 m de gouttière zinc, deux Velux et échafaudage.",
+  masonry: "Ex. 35 m² de mur en parpaing, dalle béton de 28 m², deux ouvertures et 12 m de semelle filante.",
+  landscaping: "Ex. 150 m² de gazon, 25 m de haie, 12 arbustes, 30 m² de terrasse pavée et 40 m de clôture.",
+  locksmith_metalwork: "Ex. Deux cylindres à remplacer, ouverture d’une porte claquée, 8 m de garde-corps et un portail acier.",
+};
 
 function requestUrl(input: RequestInfo | URL) {
   if (typeof input === "string") return input;
@@ -23,9 +37,7 @@ function applyTradeExperience() {
   const textarea = document.querySelector<HTMLTextAreaElement>("#mcp-description");
   const eyebrow = document.querySelector<HTMLElement>(".mcp-header small");
   const intro = document.querySelector<HTMLElement>(".mcp-intro small");
-  const placeholder = profile.primaryTrade === "upholstery_decorator"
-    ? "Ex. Deux fauteuils Voltaire à refaire en traditionnel, dégarnissage complet, tissu fourni par le client, avec galon et livraison."
-    : "Ex. Chez SCI Bellevue, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.";
+  const placeholder = TRADE_EXAMPLES[profile.primaryTrade];
   const eyebrowText = `COPILOTE · ${pack.shortLabel.toUpperCase()}`;
 
   if (textarea && textarea.placeholder !== placeholder) textarea.placeholder = placeholder;
