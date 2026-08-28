@@ -7,7 +7,8 @@ export function normalizeUpholsteryNaturalPhrasing(description: string) {
   return description
     .replace(/\bje\s+viens\s+(?:les?|la|le|l['’])?\s*chercher\b/gi, "je viens chercher")
     .replace(/\b(?:on|nous)\s+vient\s+(?:les?|la|le|l['’])?\s*chercher\b/gi, "nous récupérons")
-    .replace(/\b(tissu|galon|passementerie|passepoil)\s+(?:est\s+)?fourni(?:e)?\s+par\s+(?:moi|nous|l['’]?atelier|l['’]?artisan)\b/gi, "je fournis $1")
+    // Conserver le nom de la matière à sa place évite de casser « 11,5 m de tissu ».
+    .replace(/\b(tissu|galon|passementerie|passepoil)\s+(?:est\s+)?fourni(?:e)?\s+par\s+(?:moi|nous|l['’]?atelier|l['’]?artisan)\b/gi, "$1 fourni par artisan")
     .replace(/\b(tissu|galon|passementerie|passepoil)\s+(?:est\s+)?fourni(?:e)?\s+par\s+(?:le|la)\s+client(?:e)?\b/gi, "$1 fourni par le client")
     .replace(/\bje\s+ramene\s+(?:les?|la|le)\b/gi, "je rapporte")
     .replace(/\bje\s+les\s+ramene\b/gi, "je rapporte");
