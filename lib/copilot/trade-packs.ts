@@ -15,11 +15,13 @@ import {
   structuredTradeDefaultCatalog,
 } from "./structured-trades";
 import {
+  interpretUpholsteryForPack,
+  normalizeUpholsteryAiForPack,
+} from "./upholstery-pack-adapter";
+import {
   buildUpholsteryDecoratorProposal,
   DEFAULT_UPHOLSTERY_COMPANY_SETTINGS,
   DEFAULT_UPHOLSTERY_DECORATOR_CATALOG,
-  interpretUpholsteryDecoratorDescription,
-  normalizeUpholsteryDecoratorAiInterpretation,
 } from "./upholstery-decorator";
 import type {
   AnyCopilotInterpretation,
@@ -173,8 +175,8 @@ export const COPILOT_TRADE_PACKS: Record<CopilotTrade, CopilotTradePack> = {
     defaultCatalog: DEFAULT_UPHOLSTERY_DECORATOR_CATALOG,
     defaultSettings: DEFAULT_UPHOLSTERY_COMPANY_SETTINGS,
     aiSystemPrompt: UPHOLSTERY_AI_PROMPT,
-    interpretLocal: interpretUpholsteryDecoratorDescription,
-    normalizeAi: normalizeUpholsteryDecoratorAiInterpretation,
+    interpretLocal: interpretUpholsteryForPack,
+    normalizeAi: normalizeUpholsteryAiForPack,
     buildProposal: upholsteryBuild,
   },
   ...STRUCTURED_PACKS,
