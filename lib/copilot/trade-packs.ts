@@ -5,6 +5,7 @@ import {
   DEFAULT_INTERIOR_PAINTING_CATALOG,
   interpretInteriorPaintingDescription,
 } from "./interior-painting";
+import { normalizeStructuredTradePhrasing } from "./structured-phrase-adapter";
 import {
   buildStructuredTradeProposal,
   interpretStructuredTradeDescription,
@@ -125,6 +126,7 @@ function upholsteryBuild(
 
 function makeStructuredPack(trade: StructuredCopilotTrade): CopilotTradePack {
   const definition = STRUCTURED_TRADE_DEFINITIONS[trade];
+  const normalizeDescription = (description: string) => normalizeStructuredTradePhrasing(trade, description);
   return {
     trade,
     version: 1,
@@ -135,8 +137,8 @@ function makeStructuredPack(trade: StructuredCopilotTrade): CopilotTradePack {
     defaultCatalog: structuredTradeDefaultCatalog(definition),
     defaultSettings: DEFAULT_COMPANY_SETTINGS,
     aiSystemPrompt: structuredTradeAiPrompt(definition),
-    interpretLocal: (description) => interpretStructuredTradeDescription(description, definition),
-    normalizeAi: (description, raw) => normalizeStructuredTradeAiInterpretation(description, raw, definition),
+    interpretLocal: (description) => interpretStructuredTradeDescription(normalizeDescription(description), definition),
+    normalizeAi: (description, raw) => normalizeStructuredTradeAiInterpretation(normalizeDescription(description), raw, definition),
     buildProposal: (interpretation, options) => {
       if (!isStructuredTradeInterpretation(interpretation) || interpretation.trade !== trade) {
         throw new Error(`Le pack ${definition.shortLabel} a reçu une interprétation d’un autre métier.`);
