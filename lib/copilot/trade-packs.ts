@@ -6,6 +6,15 @@ import {
   interpretInteriorPaintingDescription,
 } from "./interior-painting";
 import {
+  buildStructuredTradeProposal,
+  interpretStructuredTradeDescription,
+  isStructuredTradeInterpretation,
+  normalizeStructuredTradeAiInterpretation,
+  STRUCTURED_TRADE_DEFINITIONS,
+  structuredTradeAiPrompt,
+  structuredTradeDefaultCatalog,
+} from "./structured-trades";
+import {
   buildUpholsteryDecoratorProposal,
   DEFAULT_UPHOLSTERY_COMPANY_SETTINGS,
   DEFAULT_UPHOLSTERY_DECORATOR_CATALOG,
@@ -19,6 +28,7 @@ import type {
   CopilotCompanySettings,
   CopilotInterpretation,
   CopilotTrade,
+  StructuredCopilotTrade,
   UpholsteryDecoratorInterpretation,
 } from "./types";
 
@@ -93,10 +103,7 @@ Réponds uniquement avec ce JSON strict :
 
 function paintingBuild(
   interpretation: AnyCopilotInterpretation,
-  options?: {
-    catalog?: CopilotCatalogService[];
-    settings?: Partial<CopilotCompanySettings>;
-  },
+  options?: { catalog?: CopilotCatalogService[]; settings?: Partial<CopilotCompanySettings> },
 ): AnyCopilotProposal {
   if (interpretation.trade !== "interior_painting") {
     throw new Error("Le pack peinture a reçu une interprétation d’un autre métier.");
@@ -106,16 +113,40 @@ function paintingBuild(
 
 function upholsteryBuild(
   interpretation: AnyCopilotInterpretation,
-  options?: {
-    catalog?: CopilotCatalogService[];
-    settings?: Partial<CopilotCompanySettings>;
-  },
+  options?: { catalog?: CopilotCatalogService[]; settings?: Partial<CopilotCompanySettings> },
 ): AnyCopilotProposal {
   if (interpretation.trade !== "upholstery_decorator") {
     throw new Error("Le pack tapissier a reçu une interprétation d’un autre métier.");
   }
   return buildUpholsteryDecoratorProposal(interpretation as UpholsteryDecoratorInterpretation, options);
 }
+
+function makeStructuredPack(trade: StructuredCopilotTrade): CopilotTradePack {
+  const definition = STRUCTURED_TRADE_DEFINITIONS[trade];
+  return {
+    trade,
+    version: 1,
+    label: definition.label,
+    shortLabel: definition.shortLabel,
+    description: definition.description,
+    vocabulary: definition.vocabulary,
+    defaultCatalog: structuredTradeDefaultCatalog(definition),
+    defaultSettings: DEFAULT_COMPANY_SETTINGS,
+    aiSystemPrompt: structuredTradeAiPrompt(definition),
+    interpretLocal: (description) => interpretStructuredTradeDescription(description, definition),
+    normalizeAi: (description, raw) => normalizeStructuredTradeAiInterpretation(description, raw, definition),
+    buildProposal: (interpretation, options) => {
+      if (!isStructuredTradeInterpretation(interpretation) || interpretation.trade !== trade) {
+        throw new Error(`Le pack ${definition.shortLabel} a reçu une interprétation d’un autre métier.`);
+      }
+      return buildStructuredTradeProposal(interpretation, definition, options);
+    },
+  };
+}
+
+const STRUCTURED_PACKS = Object.fromEntries(
+  (Object.keys(STRUCTURED_TRADE_DEFINITIONS) as StructuredCopilotTrade[]).map((trade) => [trade, makeStructuredPack(trade)]),
+) as Record<StructuredCopilotTrade, CopilotTradePack>;
 
 export const COPILOT_TRADE_PACKS: Record<CopilotTrade, CopilotTradePack> = {
   interior_painting: {
@@ -124,19 +155,7 @@ export const COPILOT_TRADE_PACKS: Record<CopilotTrade, CopilotTradePack> = {
     label: "Peintre / plâtrier-peintre",
     shortLabel: "Peinture intérieure",
     description: "Préparation des supports, murs, plafonds, portes, protection et fin de chantier.",
-    vocabulary: [
-      "mur",
-      "plafond",
-      "support",
-      "enduit",
-      "fissure",
-      "ponçage",
-      "impression",
-      "sous-couche",
-      "velours",
-      "mat",
-      "satin",
-    ],
+    vocabulary: ["mur", "plafond", "support", "enduit", "fissure", "ponçage", "impression", "sous-couche", "velours", "mat", "satin"],
     defaultCatalog: DEFAULT_INTERIOR_PAINTING_CATALOG,
     defaultSettings: DEFAULT_COMPANY_SETTINGS,
     aiSystemPrompt: PAINTING_AI_PROMPT,
@@ -150,25 +169,7 @@ export const COPILOT_TRADE_PACKS: Record<CopilotTrade, CopilotTradePack> = {
     label: "Tapissier décorateur / tapissier d’ameublement",
     shortLabel: "Tapisserie d’ameublement",
     description: "Sièges, garnitures, tissus, passementerie, rideaux, tentures et transport du mobilier.",
-    vocabulary: [
-      "fauteuil",
-      "Voltaire",
-      "bergère",
-      "crapaud",
-      "cabriolet",
-      "dégarnissage",
-      "sanglage",
-      "ressorts",
-      "crin",
-      "garniture traditionnelle",
-      "mousse",
-      "couverture",
-      "passementerie",
-      "galon",
-      "passepoil",
-      "rideau",
-      "tenture",
-    ],
+    vocabulary: ["fauteuil", "Voltaire", "bergère", "crapaud", "cabriolet", "dégarnissage", "sanglage", "ressorts", "crin", "garniture traditionnelle", "mousse", "couverture", "passementerie", "galon", "passepoil", "rideau", "tenture"],
     defaultCatalog: DEFAULT_UPHOLSTERY_DECORATOR_CATALOG,
     defaultSettings: DEFAULT_UPHOLSTERY_COMPANY_SETTINGS,
     aiSystemPrompt: UPHOLSTERY_AI_PROMPT,
@@ -176,6 +177,7 @@ export const COPILOT_TRADE_PACKS: Record<CopilotTrade, CopilotTradePack> = {
     normalizeAi: normalizeUpholsteryDecoratorAiInterpretation,
     buildProposal: upholsteryBuild,
   },
+  ...STRUCTURED_PACKS,
 };
 
 const TRADE_ALIASES: Record<string, CopilotTrade> = {
@@ -189,6 +191,34 @@ const TRADE_ALIASES: Record<string, CopilotTrade> = {
   tapissier_decorateur: "upholstery_decorator",
   "tapissier-décorateur": "upholstery_decorator",
   tapissier_ameublement: "upholstery_decorator",
+  plumbing_heating: "plumbing_heating",
+  plombier: "plumbing_heating",
+  chauffagiste: "plumbing_heating",
+  climaticien: "plumbing_heating",
+  frigoriste: "plumbing_heating",
+  electrician: "electrician",
+  electricien: "electrician",
+  "électricien": "electrician",
+  carpentry_joinery: "carpentry_joinery",
+  menuisier: "carpentry_joinery",
+  agenceur: "carpentry_joinery",
+  tiling_flooring: "tiling_flooring",
+  carreleur: "tiling_flooring",
+  solier: "tiling_flooring",
+  parqueteur: "tiling_flooring",
+  roofing: "roofing",
+  couvreur: "roofing",
+  zingueur: "roofing",
+  masonry: "masonry",
+  macon: "masonry",
+  "maçon": "masonry",
+  landscaping: "landscaping",
+  paysagiste: "landscaping",
+  jardinier: "landscaping",
+  locksmith_metalwork: "locksmith_metalwork",
+  serrurier: "locksmith_metalwork",
+  metallier: "locksmith_metalwork",
+  "métallier": "locksmith_metalwork",
 };
 
 export function resolveCopilotTrade(value: unknown, fallback: CopilotTrade = DEFAULT_COPILOT_TRADE) {
