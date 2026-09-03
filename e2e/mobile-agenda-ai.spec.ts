@@ -12,7 +12,12 @@ test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async 
   await expect(assistant).toBeVisible();
   await expect(assistant.getByText("NOUVEL ÉVÉNEMENT")).toBeVisible();
 
-  await assistant.getByLabel("Demande à analyser").fill(
+  const textarea = assistant.getByLabel("Demande à analyser");
+  if (!(await textarea.isVisible())) {
+    await assistant.getByRole("button", { name: "Saisir ou corriger au clavier" }).click();
+  }
+  await expect(textarea).toBeVisible();
+  await textarea.fill(
     "Mets-moi un rendez-vous demain à 14h30 avec SCI Bellevue à 4 place du Monteil pour faire le point avant démarrage.",
   );
   await assistant.getByRole("button", { name: "Analyser et préparer" }).click();
