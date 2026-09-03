@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import AiChain from "./ai-chain";
 import AiRecordingHotfix from "./ai-recording-hotfix";
 import AppErrorBoundary from "./app-error-boundary";
+import CompanyProfileSettings from "./company-profile-settings";
 import DashboardEnhancements from "./dashboard-enhancements";
+import DesktopExerciseBridge from "./desktop-exercise-bridge";
 import DocumentPreviewBridge from "./document-preview-bridge";
 import DocumentWorkflow from "./document-workflow";
 import FunctionalPrototype from "./functional-prototype";
@@ -47,6 +49,8 @@ export default function ResponsiveApp() {
   return (
     <AppErrorBoundary>
       <PwaRegister />
+      <CompanyProfileSettings />
+      <DesktopExerciseBridge />
       {mode === "mobile" ? (
         <MobilePrototypeGate />
       ) : (
