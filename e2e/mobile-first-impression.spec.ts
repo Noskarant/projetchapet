@@ -8,7 +8,7 @@ async function openFreshMobile(page: import("@playwright/test").Page) {
   await expect(page.getByRole("navigation")).toBeVisible();
   await page.evaluate(() => {
     window.localStorage.removeItem("projetchapet-mobile-workspace-v3");
-    window.localStorage.removeItem("forgeo:mobile-fresh-start:v1");
+    window.localStorage.removeItem("projetchapet:fresh-start:2026-09-v1");
   });
   await page.reload();
   await expect(page.locator(".rm-header h1")).toHaveText("Devis");
