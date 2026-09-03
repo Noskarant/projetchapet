@@ -6,6 +6,12 @@ async function openMobile(page: import("@playwright/test").Page) {
   await page.setViewportSize(mobile);
   await page.goto("/");
   await expect(page.getByRole("navigation")).toBeVisible();
+  await page.evaluate(() => {
+    window.localStorage.removeItem("projetchapet-mobile-workspace-v3");
+    window.localStorage.removeItem("projetchapet:fresh-start:2026-09-v1");
+  });
+  await page.reload();
+  await expect(page.getByRole("navigation")).toBeVisible();
 }
 
 test("un nouvel artisan démarre avec des listes vides", async ({ page }) => {
