@@ -68,6 +68,14 @@ function cleanAttachments(value: unknown) {
   });
 }
 
+export async function GET() {
+  const from = process.env.RESEND_FROM_EMAIL ?? "";
+  return NextResponse.json({
+    configured: Boolean(process.env.RESEND_API_KEY && from),
+    sender: from || null,
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(request: Request) {
   const limited = rateLimit(request, "email", 5);
   if (limited) return limited;
