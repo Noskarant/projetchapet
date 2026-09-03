@@ -24,11 +24,15 @@ test("un nouvel artisan démarre avec des listes vides", async ({ page }) => {
 
 test("la dictée masque le texte technique par défaut", async ({ page }) => {
   await openMobile(page);
-  await page.getByLabel("Créer avec le micro IA").click();
-  const textarea = page.getByLabel("Demande à analyser");
+  await page.getByLabel("Créer avec l’IA").click();
+
+  const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
+  await expect(assistant).toBeVisible();
+  const textarea = assistant.getByLabel("Demande à analyser");
   await expect(textarea).toBeHidden();
-  await expect(page.getByRole("button", { name: "Saisir ou corriger au clavier" })).toBeVisible();
-  await page.getByRole("button", { name: "Saisir ou corriger au clavier" }).click();
+  const keyboard = assistant.getByRole("button", { name: "Saisir ou corriger au clavier" });
+  await expect(keyboard).toBeVisible();
+  await keyboard.click();
   await expect(textarea).toBeVisible();
 });
 
@@ -37,8 +41,10 @@ test("les paramètres entreprise sont accessibles et l'exercice est modifiable",
   await page.getByLabel("Menu").click();
   await page.getByRole("button", { name: /Mon entreprise/ }).click();
   await page.getByRole("button", { name: /Modifier les informations/ }).click();
-  await expect(page.getByRole("dialog", { name: "Paramètres de l’entreprise" })).toBeVisible();
-  await expect(page.getByLabel("Raison sociale")).toBeVisible();
-  await expect(page.getByLabel("Début (MM-JJ)")).toHaveValue("01-01");
-  await expect(page.getByText(/Envoi réel (connecté|à configurer)/)).toBeVisible();
+
+  const settings = page.getByRole("dialog", { name: "Paramètres de l’entreprise" });
+  await expect(settings).toBeVisible();
+  await expect(settings.getByLabel("Raison sociale")).toBeVisible();
+  await expect(settings.getByLabel("Début (MM-JJ)")).toHaveValue("01-01");
+  await expect(settings.getByText(/Envoi réel (connecté|à configurer)/)).toBeVisible();
 });
