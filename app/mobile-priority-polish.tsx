@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 
 type AiTarget = "quote" | "invoice" | "customer" | "agenda";
-type MeterCleanup = () => void;
 
 const VOICE_BAR_WEIGHTS = [0.62, 0.88, 1, 0.82, 0.58];
 
@@ -43,8 +42,6 @@ function replaceDockContent() {
 function hideTechnicalProviderName() {
   const safeLabel = "Analyse terminée · à vérifier";
   document.querySelectorAll<HTMLElement>(".mai-success small").forEach((node) => {
-    // Ne pas réécrire un texte déjà correct : textContent déclenche sinon
-    // le MutationObserver à l'infini au passage de « Préparation » au résultat.
     if (node.textContent !== safeLabel) node.textContent = safeLabel;
   });
 }
@@ -189,6 +186,14 @@ function applyVoiceLevel(level: number) {
   }
 }
 
+function voiceLevelFromSamples(samples: Float32Array) {
+  if (!samples.length) return 0;
+  let sum = 0;
+  for (const value of samples) sum += value * value;
+  const rms = Math.sqrt(sum / samples.length);
+  return Math.max(0, Math.min(1, (rms - 0.008) / 0.11));
+}
+
 export default function MobilePriorityPolish() {
   useEffect(() => {
     if (!window.matchMedia("(max-width: 820px)").matches) return;
@@ -215,85 +220,39 @@ export default function MobilePriorityPolish() {
       });
     }
 
-    let meterCleanup: MeterCleanup | null = null;
-    const mediaDevices = navigator.mediaDevices;
-    const originalGetUserMedia = mediaDevices?.getUserMedia;
+    const scope = window as typeof window & { webkitAudioContext?: typeof AudioContext };
+    const AudioContextClass = window.AudioContext || scope.webkitAudioContext;
+    const audioPrototype = AudioContextClass?.prototype;
+    const originalCreateScriptProcessor = audioPrototype?.createScriptProcessor;
+    let patchedCreateScriptProcessor: typeof AudioContext.prototype.createScriptProcessor | null = null;
 
-    const stopMeter = () => {
-      meterCleanup?.();
-      meterCleanup = null;
-      resetVoiceVisual();
-    };
-
-    const startMeter = (stream: MediaStream) => {
-      stopMeter();
-
-      const scope = window as typeof window & { webkitAudioContext?: typeof AudioContext };
-      const AudioContextClass = window.AudioContext || scope.webkitAudioContext;
-      if (!AudioContextClass) return;
-
-      let context: AudioContext;
-      try {
-        context = new AudioContextClass({ latencyHint: "interactive" });
-      } catch {
-        return;
-      }
-
-      const source = context.createMediaStreamSource(stream);
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.72;
-      source.connect(analyser);
-
-      const samples = new Uint8Array(analyser.fftSize);
-      let frame = 0;
-      let smoothedLevel = 0;
-      let stopped = false;
-      const tracks = stream.getAudioTracks();
-
-      const cleanup = () => {
-        if (stopped) return;
-        stopped = true;
-        if (frame) window.cancelAnimationFrame(frame);
-        tracks.forEach((track) => track.removeEventListener("ended", cleanup));
-        try { source.disconnect(); } catch {}
-        try { analyser.disconnect(); } catch {}
-        void context.close().catch(() => undefined);
-        resetVoiceVisual();
+    if (audioPrototype && originalCreateScriptProcessor) {
+      patchedCreateScriptProcessor = function patchedProcessor(
+        this: AudioContext,
+        bufferSize?: number,
+        numberOfInputChannels?: number,
+        numberOfOutputChannels?: number,
+      ) {
+        const processor = originalCreateScriptProcessor.call(
+          this,
+          bufferSize,
+          numberOfInputChannels,
+          numberOfOutputChannels,
+        );
+        let smoothedLevel = 0;
+        processor.addEventListener("audioprocess", (event) => {
+          if (!document.querySelector('.forgeo-voice-magic[data-state="recording"]')) return;
+          const audioEvent = event as AudioProcessingEvent;
+          const samples = audioEvent.inputBuffer.getChannelData(0);
+          const rawLevel = voiceLevelFromSamples(samples);
+          smoothedLevel = rawLevel > smoothedLevel
+            ? rawLevel * 0.72 + smoothedLevel * 0.28
+            : rawLevel * 0.2 + smoothedLevel * 0.8;
+          applyVoiceLevel(smoothedLevel);
+        });
+        return processor;
       };
-
-      tracks.forEach((track) => track.addEventListener("ended", cleanup, { once: true }));
-      void context.resume().catch(() => undefined);
-
-      const tick = () => {
-        if (stopped) return;
-        analyser.getByteTimeDomainData(samples);
-        let sum = 0;
-        for (const value of samples) {
-          const centered = (value - 128) / 128;
-          sum += centered * centered;
-        }
-        const rms = Math.sqrt(sum / samples.length);
-        const rawLevel = Math.max(0, Math.min(1, (rms - 0.01) / 0.12));
-        smoothedLevel = rawLevel > smoothedLevel
-          ? rawLevel * 0.72 + smoothedLevel * 0.28
-          : rawLevel * 0.2 + smoothedLevel * 0.8;
-        applyVoiceLevel(smoothedLevel);
-        frame = window.requestAnimationFrame(tick);
-      };
-
-      frame = window.requestAnimationFrame(tick);
-      meterCleanup = cleanup;
-    };
-
-    let patchedGetUserMedia: typeof mediaDevices.getUserMedia | null = null;
-    if (mediaDevices && originalGetUserMedia) {
-      patchedGetUserMedia = async (constraints?: MediaStreamConstraints) => {
-        const stream = await originalGetUserMedia.call(mediaDevices, constraints);
-        if (constraints?.audio) startMeter(stream);
-        return stream;
-      };
-      mediaDevices.getUserMedia = patchedGetUserMedia;
+      audioPrototype.createScriptProcessor = patchedCreateScriptProcessor;
     }
 
     const refresh = () => {
@@ -361,9 +320,14 @@ export default function MobilePriorityPolish() {
     return () => {
       observer.disconnect();
       document.removeEventListener("click", onClick, true);
-      stopMeter();
-      if (mediaDevices && originalGetUserMedia && patchedGetUserMedia && mediaDevices.getUserMedia === patchedGetUserMedia) {
-        mediaDevices.getUserMedia = originalGetUserMedia;
+      resetVoiceVisual();
+      if (
+        audioPrototype &&
+        originalCreateScriptProcessor &&
+        patchedCreateScriptProcessor &&
+        audioPrototype.createScriptProcessor === patchedCreateScriptProcessor
+      ) {
+        audioPrototype.createScriptProcessor = originalCreateScriptProcessor;
       }
       if (numberFormatDescriptor) {
         Object.defineProperty(
