@@ -15,6 +15,20 @@ async function openFreshMobile(page: import("@playwright/test").Page) {
   await expect(page.getByLabel("Créer manuellement")).toBeVisible();
 }
 
+async function injectHiddenAiRequest(
+  assistant: import("@playwright/test").Locator,
+  text: string,
+) {
+  const textarea = assistant.getByLabel("Demande à analyser");
+  await expect(textarea).toBeHidden();
+  await textarea.evaluate((node, value) => {
+    const input = node as HTMLTextAreaElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, text);
+}
+
 test("ouvre sur Devis sans données de démonstration", async ({ page }) => {
   await openFreshMobile(page);
 
@@ -26,7 +40,7 @@ test("ouvre sur Devis sans données de démonstration", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Créer le devis" })).toBeVisible();
 });
 
-test("préremplit un devis par dictée texte depuis le micro IA", async ({ page }) => {
+test("préremplit un devis par dictée IA sans exposer la transcription", async ({ page }) => {
   await openFreshMobile(page);
 
   await page.getByRole("button", { name: "Clients", exact: true }).click();
@@ -44,17 +58,15 @@ test("préremplit un devis par dictée texte depuis le micro IA", async ({ page 
 
   const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
   await expect(assistant).toBeVisible();
-  const textarea = assistant.getByLabel("Demande à analyser");
-  if (!(await textarea.isVisible())) {
-    await assistant.getByRole("button", { name: "Saisir ou corriger au clavier" }).click();
-  }
-  await expect(textarea).toBeVisible();
-  await textarea.fill("Client SCI Bellevue, peinture 18 m² à 32 euros, TVA 10 %.");
+  await expect(assistant.getByRole("button", { name: "Saisir ou corriger au clavier" })).toHaveCount(0);
+  await injectHiddenAiRequest(
+    assistant,
+    "Client SCI Bellevue, peinture 18 m² à 32 euros, TVA 10 %.",
+  );
   await assistant.getByRole("button", { name: "Analyser et préparer" }).click();
 
-  await expect(assistant.getByText("Informations reconnues")).toBeVisible();
-  await assistant.getByRole("button", { name: "Ouvrir le formulaire prérempli" }).click();
   await expect(page.locator(".rm-v2-editor")).toBeVisible();
+  await expect(assistant).toBeHidden();
   await expect(page.locator(".rm-v2-lines article")).toHaveCount(1);
   await expect(page.locator(".rm-v2-lines article").first().locator('input[placeholder="Désignation"]')).not.toHaveValue("");
 });
