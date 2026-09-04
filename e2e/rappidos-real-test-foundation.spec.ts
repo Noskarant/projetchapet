@@ -22,18 +22,30 @@ test("un nouvel artisan démarre avec des listes vides", async ({ page }) => {
   await expect(page.locator(".rm-client-card")).toHaveCount(0);
 });
 
-test("la dictée masque le texte technique par défaut", async ({ page }) => {
+test("la dictée IA ne montre jamais la transcription technique", async ({ page }) => {
   await openMobile(page);
   await page.getByLabel("Créer avec l’IA").click();
 
   const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
   await expect(assistant).toBeVisible();
-  const textarea = assistant.getByLabel("Demande à analyser");
-  await expect(textarea).toBeHidden();
-  const keyboard = assistant.getByRole("button", { name: "Saisir ou corriger au clavier" });
-  await expect(keyboard).toBeVisible();
-  await keyboard.click();
-  await expect(textarea).toBeVisible();
+  await expect(assistant.getByLabel("Demande à analyser")).toBeHidden();
+  await expect(assistant.getByRole("button", { name: "Saisir ou corriger au clavier" })).toHaveCount(0);
+});
+
+test("le shell mobile réserve moins de hauteur aux barres système", async ({ page }) => {
+  await openMobile(page);
+
+  const dimensions = await page.evaluate(() => {
+    const header = document.querySelector<HTMLElement>(".rm-header");
+    const nav = document.querySelector<HTMLElement>(".rm-bottom-nav");
+    return {
+      header: header?.getBoundingClientRect().height ?? 0,
+      nav: nav?.getBoundingClientRect().height ?? 0,
+    };
+  });
+
+  expect(dimensions.header).toBeLessThanOrEqual(70);
+  expect(dimensions.nav).toBeLessThanOrEqual(72);
 });
 
 test("les paramètres entreprise sont accessibles et l'exercice est modifiable", async ({ page }) => {
