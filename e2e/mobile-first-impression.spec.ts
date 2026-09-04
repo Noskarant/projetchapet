@@ -29,6 +29,12 @@ async function injectHiddenAiRequest(
   }, text);
 }
 
+async function runHiddenAiAnalysis(assistant: import("@playwright/test").Locator) {
+  const button = assistant.getByRole("button", { name: "Analyser et préparer" });
+  await expect(button).toBeVisible();
+  await button.evaluate((node) => (node as HTMLButtonElement).click());
+}
+
 test("ouvre sur Devis sans données de démonstration", async ({ page }) => {
   await openFreshMobile(page);
 
@@ -63,7 +69,7 @@ test("préremplit un devis par dictée IA sans exposer la transcription", async 
     assistant,
     "Client SCI Bellevue, peinture 18 m² à 32 euros, TVA 10 %.",
   );
-  await assistant.getByRole("button", { name: "Analyser et préparer" }).click();
+  await runHiddenAiAnalysis(assistant);
 
   await expect(page.locator(".rm-v2-editor")).toBeVisible();
   await expect(assistant).toBeHidden();
