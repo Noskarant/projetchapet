@@ -14,6 +14,12 @@ async function injectHiddenAiRequest(
   }, text);
 }
 
+async function runHiddenAiAnalysis(assistant: import("@playwright/test").Locator) {
+  const button = assistant.getByRole("button", { name: "Analyser et préparer" });
+  await expect(button).toBeVisible();
+  await button.evaluate((node) => (node as HTMLButtonElement).click());
+}
+
 test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
@@ -31,7 +37,7 @@ test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async 
     assistant,
     "Mets-moi un rendez-vous demain à 14h30 avec SCI Bellevue à 4 place du Monteil pour faire le point avant démarrage.",
   );
-  await assistant.getByRole("button", { name: "Analyser et préparer" }).click();
+  await runHiddenAiAnalysis(assistant);
 
   await expect(assistant.getByText("Rendez-vous", { exact: true })).toBeVisible();
   await expect(assistant.getByText(/SCI Bellevue.*4 place du Monteil/i)).toBeVisible();
