@@ -1,5 +1,19 @@
 import { expect, test } from "@playwright/test";
 
+async function injectHiddenAiRequest(
+  assistant: import("@playwright/test").Locator,
+  text: string,
+) {
+  const textarea = assistant.getByLabel("Demande à analyser");
+  await expect(textarea).toBeHidden();
+  await textarea.evaluate((node, value) => {
+    const input = node as HTMLTextAreaElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, text);
+}
+
 test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
@@ -11,13 +25,10 @@ test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async 
   const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
   await expect(assistant).toBeVisible();
   await expect(assistant.getByText("NOUVEL ÉVÉNEMENT")).toBeVisible();
+  await expect(assistant.getByRole("button", { name: "Saisir ou corriger au clavier" })).toHaveCount(0);
 
-  const textarea = assistant.getByLabel("Demande à analyser");
-  if (!(await textarea.isVisible())) {
-    await assistant.getByRole("button", { name: "Saisir ou corriger au clavier" }).click();
-  }
-  await expect(textarea).toBeVisible();
-  await textarea.fill(
+  await injectHiddenAiRequest(
+    assistant,
     "Mets-moi un rendez-vous demain à 14h30 avec SCI Bellevue à 4 place du Monteil pour faire le point avant démarrage.",
   );
   await assistant.getByRole("button", { name: "Analyser et préparer" }).click();
