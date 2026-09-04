@@ -31,12 +31,6 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Setup npm audit client
-        run: npm install --global npm@11.19.0 --no-audit --no-fund
-
-      - name: Dependency security audit
-        run: npm audit --omit=dev --audit-level=high
-
       - name: Typecheck
         run: npm run typecheck
 
@@ -59,3 +53,9 @@ jobs:
 
       - name: Browser regressions - full suite
         run: npm run test:e2e
+
+      - name: Setup npm audit client
+        run: npm install --global npm@11.19.0 --no-audit --no-fund
+
+      - name: Dependency security audit
+        run: npm audit --omit=dev --audit-level=high
