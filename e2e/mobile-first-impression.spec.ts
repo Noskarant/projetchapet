@@ -36,7 +36,10 @@ test("préremplit un devis par dictée texte depuis le micro IA", async ({ page 
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await expect(page.locator(".rm-client-card")).toHaveCount(1);
 
-  await page.getByRole("button", { name: "Devis", exact: true }).click();
+  const customerDetail = page.locator(".rm-modal-backdrop .rm-detail-sheet");
+  await expect(customerDetail.getByRole("heading", { name: "SCI Bellevue", exact: true })).toBeVisible();
+  await customerDetail.getByRole("button", { name: "Voir les devis", exact: true }).click();
+  await expect(page.locator(".rm-header h1")).toHaveText("Devis");
   await page.getByLabel("Créer avec l’IA").click();
 
   const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
