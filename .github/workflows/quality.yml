@@ -31,9 +31,6 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Dependency security audit
-        run: npm audit --omit=dev --audit-level=high
-
       - name: Typecheck
         run: npm run typecheck
 
@@ -56,3 +53,27 @@ jobs:
 
       - name: Browser regressions - full suite
         run: npm run test:e2e
+
+      - name: Setup npm audit client
+        run: npm install --global npm@11.19.0 --no-audit --no-fund
+
+      - name: Dependency security audit
+        shell: bash
+        run: |
+          set +e
+          output="$(timeout 120s npm audit --omit=dev --audit-level=high 2>&1)"
+          status=$?
+          set -e
+
+          printf '%s\n' "$output"
+
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if [ "$status" -eq 124 ] || printf '%s\n' "$output" | grep -Eqi '5[0-9][0-9] (Service Unavailable|Internal Server Error|Bad Gateway|Gateway Timeout)|ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up'; then
+            echo "::warning::npm audit indisponible (erreur réseau/service). Les tests restent valides, mais aucun résultat de vulnérabilité n’a pu être obtenu."
+            exit 0
+          fi
+
+          exit "$status"

@@ -1,4 +1,24 @@
 import { defineConfig, devices } from "@playwright/test";
+import { seedMobileWorkspace } from "./lib/mobile-prototype";
+
+const demoStorageState = {
+  cookies: [],
+  origins: [
+    {
+      origin: "http://127.0.0.1:3000",
+      localStorage: [
+        {
+          name: "projetchapet-mobile-workspace-v3",
+          value: JSON.stringify(seedMobileWorkspace()),
+        },
+        {
+          name: "projetchapet:fresh-start:2026-09-v1",
+          value: "done",
+        },
+      ],
+    },
+  ],
+};
 
 export default defineConfig({
   testDir: "./e2e",
@@ -12,6 +32,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:3000",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    storageState: demoStorageState,
   },
   webServer: {
     command: "npm run dev -- --hostname 127.0.0.1",

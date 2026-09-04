@@ -22,8 +22,9 @@ import MobileProjectProfitability from "./mobile-project-profitability";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
 import MobileUnifiedQuoteSheet from "./mobile-unified-quote-sheet";
 import MobileVoiceEditAssistant from "./mobile-voice-edit-assistant";
+import RappidosExperienceBridge from "./rappidos-experience-bridge";
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
-import { seedMobileWorkspace } from "@/lib/mobile-prototype";
+import { EMPTY_MOBILE_WORKSPACE, prepareFreshArtisanStart } from "@/lib/mobile-fresh-start";
 import { prepareMobileWorkspaceStorage } from "@/lib/mobile-workspace-storage";
 
 export default function MobilePrototypeGate() {
@@ -31,7 +32,8 @@ export default function MobilePrototypeGate() {
 
   useEffect(() => {
     try {
-      prepareMobileWorkspaceStorage(window.localStorage, seedMobileWorkspace());
+      prepareFreshArtisanStart(window.localStorage);
+      prepareMobileWorkspaceStorage(window.localStorage, EMPTY_MOBILE_WORKSPACE);
     } catch (error) {
       console.warn("[Projet Chapet] Préparation du stockage mobile impossible", error);
     } finally {
@@ -64,6 +66,7 @@ export default function MobilePrototypeGate() {
       <MobileLongVoiceBridge />
       <MobileAiApplyGuard />
       <RappidosMobileShellV2 />
+      <RappidosExperienceBridge />
       <MobileLegacyQuoteDetailGuard />
       <MobilePriorityPolish />
       <MobileAiAssistantV6 />
