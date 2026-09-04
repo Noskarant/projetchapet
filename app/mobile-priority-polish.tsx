@@ -147,10 +147,11 @@ function openPreparedDraftDirectly() {
   if (primary.dataset.forgeoAutoOpen === "true") return;
 
   primary.dataset.forgeoAutoOpen = "true";
-  review.classList.add("forgeo-auto-opening");
-  window.requestAnimationFrame(() => {
+  review.style.visibility = "hidden";
+  review.style.pointerEvents = "none";
+  window.setTimeout(() => {
     if (primary.isConnected) primary.click();
-  });
+  }, 0);
 }
 
 function resetVoiceVisual() {
@@ -267,9 +268,8 @@ export default function MobilePriorityPolish() {
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      attributes: true,
-      attributeFilter: ["class"],
     });
+    const voiceTicker = window.setInterval(ensureVoiceMagic, 120);
     refresh();
 
     const onClick = (event: MouseEvent) => {
@@ -319,6 +319,7 @@ export default function MobilePriorityPolish() {
 
     return () => {
       observer.disconnect();
+      window.clearInterval(voiceTicker);
       document.removeEventListener("click", onClick, true);
       resetVoiceVisual();
       if (
