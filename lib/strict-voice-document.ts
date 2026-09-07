@@ -2,10 +2,10 @@ export type StrictVoiceUnit = "m2" | "m" | "l" | "h" | "forfait" | "unite";
 
 export type StrictVoiceService = {
   designation: string;
-  quantite: number;
-  unite: StrictVoiceUnit;
-  prix_unitaire_ht: number;
-  taux_tva: number;
+  quantite: number | null;
+  unite: StrictVoiceUnit | null;
+  prix_unitaire_ht: number | null;
+  taux_tva: number | null;
 };
 
 export type StrictVoiceDocument = {
@@ -38,6 +38,12 @@ function number(value: unknown) {
       ? Number(value.replace(/\s/g, "").replace(",", "."))
       : Number.NaN;
   return Number.isFinite(parsed) ? Math.min(1_000_000_000, Math.max(0, parsed)) : 0;
+}
+
+function optionalNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function normalizeSpokenText(value: string) {
@@ -140,8 +146,9 @@ export function resolveContextClient(contextClients: string[], spokenName: strin
   return { status: "matched", name: scores[0].candidate };
 }
 
-function unit(value: unknown): StrictVoiceUnit {
+function unit(value: unknown): StrictVoiceUnit | null {
   const normalized = normalizeSpokenText(text(value, 30));
+  if (!normalized) return null;
   if (/^(?:m2|m 2|metre carre|metres carres)$/.test(normalized)) return "m2";
   if (/^(?:m|ml|metre|metres|metre lineaire|metres lineaires)$/.test(normalized)) return "m";
   if (/^(?:l|litre|litres)$/.test(normalized)) return "l";
@@ -159,16 +166,16 @@ function serviceKey(value: string) {
 function normalizeService(raw: unknown): StrictVoiceService | null {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   const designation = text(value.designation, 240);
-  const quantite = number(value.quantite);
-  const price = number(value.prix_unitaire_ht);
-  const tax = number(value.taux_tva);
-  if (!designation && quantite === 0 && price === 0) return null;
+  const quantite = optionalNumber(value.quantite);
+  const price = optionalNumber(value.prix_unitaire_ht);
+  const tax = optionalNumber(value.taux_tva);
+  if (!designation && quantite === null && price === null) return null;
   return {
     designation,
     quantite,
-    unite: unit(value.unite),
+    unite: value.unite ? unit(value.unite) : null,
     prix_unitaire_ht: price,
-    taux_tva: [0, 5.5, 10, 20].includes(tax) ? tax : 0,
+    taux_tva: tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax : null,
   };
 }
 
@@ -195,7 +202,10 @@ export function normalizeStrictVoiceDocument(raw: unknown, contextClients: strin
 }
 
 export function strictDocumentToLegacy(document: StrictVoiceDocument) {
-  return {
+  const computedTitle = document.prestations.length > 1
+    ? (document.prestations.some((item) => /peint|mur|plafond|plinth|papier|enduit|protection/i.test(item.designation)) ? "Travaux de peinture intérieure" : "Travaux à préciser")
+    : document.prestations[0]?.designation || "Travaux à préciser";
+  const legacy = {
     customer_hint: document.client.nom,
     title: document.prestations[0]?.designation || "Travaux à préciser",
     site_address: "",
@@ -212,6 +222,7 @@ export function strictDocumentToLegacy(document: StrictVoiceDocument) {
     })),
     warnings: [],
   };
+  return { ...legacy, title: computedTitle };
 }
 
 export function filterSpeechNoise(value: string) {
@@ -324,10 +335,10 @@ export function fallbackStrictVoiceDocument(transcript: string, contextClients: 
 
     const service: StrictVoiceService = {
       designation: designation || "Prestation dictée",
-      quantite: quantity?.value ?? 1,
-      unite: quantity?.unit ?? "unite",
-      prix_unitaire_ht: price?.value ?? 0,
-      taux_tva: tax,
+      quantite: quantity?.value ?? null,
+      unite: quantity?.unit ?? null,
+      prix_unitaire_ht: price?.value ?? null,
+      taux_tva: tax || null,
     };
     const existing = prestations.findIndex((entry) => serviceKey(entry.designation) === serviceKey(service.designation));
     if (existing >= 0) prestations.splice(existing, 1);
