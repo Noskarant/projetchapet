@@ -22,43 +22,44 @@ async function injectHiddenAiRequest(assistant: import("@playwright/test").Locat
   }, text);
 }
 
-async function addQuentinDuboisCustomer(page: import("@playwright/test").Page) {
-  await page.evaluate(() => {
-    const key = "projetchapet-mobile-workspace-v3";
-    const raw = window.localStorage.getItem(key);
-    const workspace = raw ? JSON.parse(raw) : { customers: [], quotes: [], invoices: [], agenda: [] };
-    workspace.customers = [
-      {
-        id: "C-QUENTIN-DUBOIS",
-        kind: "Professionnel",
-        companyName: "Quentin Dubois",
-        civility: "",
-        lastName: "",
-        firstName: "",
-        emails: ["quentin.dubois@example.test", ""],
-        phones: ["", ""],
-        address: "",
-        postalCode: "",
-        city: "",
-        siret: "",
-        vat: "",
-        notes: "",
-      },
-      ...workspace.customers.filter((customer: { id?: string }) => customer.id !== "C-QUENTIN-DUBOIS"),
-    ];
-    window.localStorage.setItem(key, JSON.stringify(workspace));
+async function seedQuentinDuboisBeforeApp(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    const workspace = {
+      customers: [
+        {
+          id: "C-QUENTIN-DUBOIS",
+          kind: "Professionnel",
+          companyName: "Quentin Dubois",
+          civility: "",
+          lastName: "",
+          firstName: "",
+          emails: ["quentin.dubois@example.test", ""],
+          phones: ["", ""],
+          address: "",
+          postalCode: "",
+          city: "",
+          siret: "",
+          vat: "",
+          notes: "",
+        },
+      ],
+      quotes: [],
+      invoices: [],
+      agenda: [],
+    };
+    window.localStorage.setItem("projetchapet:fresh-start:2026-09-v1", "done");
+    window.localStorage.setItem("projetchapet-mobile-workspace-v3", JSON.stringify(workspace));
   });
 }
 
 test("flux IA devis Quentin Dubois conserve les inconnues et bloque le PDF final incomplet", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
 
-  // Le premier chargement laisse le fresh-start mobile s'initialiser. On ajoute ensuite
-  // Quentin dans le workspace persistant puis on recharge afin que l'état React lise
-  // exactement le même workspace que le test vient de préparer.
+  // Le client doit exister avant de créer un devis/facture. On prépare donc le workspace
+  // avant le premier script de l'app, ce qui évite toute course avec le fresh-start mobile.
+  await seedQuentinDuboisBeforeApp(page);
   await page.goto("/");
-  await addQuentinDuboisCustomer(page);
-  await page.reload();
+  await expect(page.locator(".rm-shell")).toBeVisible();
 
   await page.locator(".rm-bottom-nav button").filter({ hasText: "Devis" }).click();
   await page.getByRole("button", { name: /Créer avec l.*IA/i }).click();
