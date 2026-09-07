@@ -61,6 +61,14 @@ function readControlValue(
   return control?.value ?? "";
 }
 
+function readNullableNumber(root: ParentNode, label: string) {
+  const raw = readControlValue(root, label).trim();
+  if (!raw) return null;
+  const normalized = raw.replace(/\s/g, "").replace(",", ".");
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
+}
+
 function readWorkspace() {
   return parseMobileWorkspace(window.localStorage.getItem(WORKSPACE_STORAGE_KEY));
 }
@@ -92,14 +100,23 @@ function readQuoteFromEditor(editor: HTMLElement): {
   ).map((article, index): LineItem => {
     const designation = article.querySelector<HTMLInputElement>(":scope > input");
     const description = article.querySelector<HTMLTextAreaElement>(":scope > textarea");
+    const quantity = readNullableNumber(article, "Quantité");
+    const unit = readControlValue(article, "Unité").trim() || null;
+    const unitPrice = readNullableNumber(article, "Prix HT");
+    const taxRate = readNullableNumber(article, "TVA %");
     return {
       id: `preview-${index}`,
       label: designation?.value.trim() || `Prestation ${index + 1}`,
       description: description?.value.trim() || "",
-      quantity: Number(readControlValue(article, "Quantité")) || 0,
-      unit: readControlValue(article, "Unité") || "u",
-      unitPrice: Number(readControlValue(article, "Prix HT")) || 0,
-      taxRate: Number(readControlValue(article, "TVA %")) || 0,
+      quantity,
+      unit,
+      unitPrice,
+      taxRate,
+      incomplete: quantity === null || unit === null || unitPrice === null,
+      provenance:
+        quantity === null || unit === null || unitPrice === null
+          ? "unknown"
+          : "user_explicit",
     };
   });
   const totals = calculateQuotePreviewTotals(items, 0);
@@ -278,7 +295,7 @@ async function buildQuotePdf(
       align: "right",
     });
     pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 145, y, { align: "right" });
-    pdf.text(`${item.taxRate} %`, 162, y, { align: "right" });
+    pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 162, y, { align: "right" });
     pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
     y += Math.max(12, labelLines.length * 4.5 + (item.description ? 6 : 0));
     pdf.setDrawColor(235, 239, 244);
@@ -540,7 +557,7 @@ export default function MobileAutoPdfPreview() {
                         <strong>{item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong>
                       </div>
                     </div>
-                    <div className="rm-philippe-line-tax">TVA {item.taxRate} %</div>
+                    <div className="rm-philippe-line-tax">TVA {item.taxRate === null ? "À préciser" : `${item.taxRate} %`}</div>
                   </article>
                 ))}
               </div>

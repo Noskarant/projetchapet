@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
+import { robustArtisanDictation } from "@/lib/robust-artisan-dictation";
+import { strictDocumentToLegacy } from "@/lib/strict-voice-document";
 
 type ParseKind = "customer" | "document";
 type PriceType = "ht" | "ttc" | "unknown";
@@ -26,7 +28,7 @@ function cleanNumber(value: unknown) {
       : typeof value === "string"
         ? Number(value.replace(/\s/g, "").replace(",", "."))
         : Number.NaN;
-  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
 }
 
 function optionalNumber(value: unknown) {
@@ -36,7 +38,7 @@ function optionalNumber(value: unknown) {
 
 function cleanTax(value: unknown) {
   const parsed = cleanNumber(value);
-  return [0, 5.5, 10, 20].includes(parsed) ? parsed : 0;
+  return parsed !== null && [0, 5.5, 10, 20].includes(parsed) ? parsed : null;
 }
 
 function cleanPriceType(value: unknown): PriceType {
@@ -86,16 +88,16 @@ function normalizeLine(value: unknown, index: number) {
 
   let unitPrice = spokenPrice;
   if (priceType === "ttc") {
-    if (taxRate > 0 && spokenPrice !== null) unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
+    if (taxRate !== null && taxRate > 0 && spokenPrice !== null) unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
     else warnings.push(`Ligne ${index + 1} : prix TTC détecté mais taux de TVA absent, conversion HT impossible.`);
   }
 
   const label = cleanText(line.label, 240);
   const quantity = optionalNumber(line.quantity);
   if (!label) warnings.push(`Ligne ${index + 1} : désignation manquante.`);
-  if (quantity === 0) warnings.push(`Ligne ${index + 1} : quantité absente ou nulle.`);
-  if (spokenPrice === 0) warnings.push(`Ligne ${index + 1} : prix unitaire absent ou nul.`);
-  if (taxRate === 0 && cleanNumber(line.tax_rate) !== 0) warnings.push(`Ligne ${index + 1} : taux de TVA non reconnu, remis à 0 %.`);
+  if (quantity === null) warnings.push(`Ligne ${index + 1} : quantité absente.`);
+  if (spokenPrice === null) warnings.push(`Ligne ${index + 1} : prix unitaire absent.`);
+  if (taxRate === null && cleanNumber(line.tax_rate) !== null) warnings.push(`Ligne ${index + 1} : taux de TVA non reconnu.`);
 
   return {
     item: {
@@ -106,7 +108,7 @@ function normalizeLine(value: unknown, index: number) {
       unit_price: unitPrice,
       tax_rate: taxRate,
       price_type: priceType,
-      confidence: Math.min(1, cleanNumber(line.confidence) || 0),
+      confidence: Math.min(1, cleanNumber(line.confidence) ?? 0),
     },
     warnings,
   };
@@ -159,6 +161,12 @@ function fallbackCustomer(text: string) {
 }
 
 function fallbackDocument(text: string) {
+  const strictData = robustArtisanDictation(text);
+  return {
+    ...strictDocumentToLegacy(strictData),
+    warnings: ["Analyse locale stricte : valeurs absentes conservees a completer."],
+  };
+
   const tax = Number(text.match(/TVA\s*(?:à|de)?\s*(5[,.]5|10|20|0)\s*%/i)?.[1]?.replace(",", ".") ?? 0) || 0;
   const chunks = text.split(/(?:\.\s+|;\s*|\bensuite\b|\bpuis\b)/i).map((chunk) => chunk.trim()).filter((chunk) => chunk.length > 8);
   const items = chunks.map((chunk) => {

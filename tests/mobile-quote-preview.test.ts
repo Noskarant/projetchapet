@@ -58,6 +58,48 @@ test("borne une remise invalide", () => {
   assert.equal(calculateQuotePreviewTotals(items, 140).discountPercent, 100);
 });
 
+test("ignore les lignes incompletes sans confondre un vrai zero explicite", () => {
+  const totals = calculateQuotePreviewTotals(
+    [
+      {
+        id: "known",
+        label: "Peinture",
+        description: "",
+        quantity: 42,
+        unit: "m²",
+        unitPrice: 32,
+        taxRate: 10,
+      },
+      {
+        id: "unknown",
+        label: "Protection chantier",
+        description: "",
+        quantity: null,
+        unit: null,
+        unitPrice: null,
+        taxRate: null,
+        incomplete: true,
+        provenance: "unknown",
+      },
+      {
+        id: "free",
+        label: "Geste commercial",
+        description: "",
+        quantity: 1,
+        unit: "forfait",
+        unitPrice: 0,
+        taxRate: 10,
+        provenance: "user_explicit",
+      },
+    ],
+    0,
+  );
+
+  assert.equal(totals.grossSubtotal, 1344);
+  assert.equal(totals.taxTotal, 134.4);
+  assert.equal(totals.total, 1478.4);
+});
+
 test("conserve les notes personnelles dans un stockage séparé", () => {
   const storage = new MemoryStorage();
   writeQuoteInternalMeta(storage, "D-2026-388", {
