@@ -148,7 +148,7 @@ test("tolère les variantes de transcription qui avaient laissé 2 portes et la 
   const aiDrift = {
     client: { nom: "Quentin Dubois" },
     prestations: [
-      { designation: "Peinture des plinthes dans le salon", quantite: 14, unite: "m", prix_unitaire_ht: 9, taux_tva: null },
+      { designation: "Peinture des plaintes dans le salon", quantite: 14, unite: "m", prix_unitaire_ht: 9, taux_tva: null },
       { designation: "Peinture de 2 portes", quantite: 2, unite: "unite", prix_unitaire_ht: 85, taux_tva: 10 },
     ],
   };
@@ -177,6 +177,7 @@ test("tolère les variantes de transcription qui avaient laissé 2 portes et la 
     const services = payload.strict_data.prestations;
     const door = services.find((service) => /porte/i.test(service.designation));
     const plinths = services.find((service) => /plinthe/i.test(service.designation));
+    const siteProtection = services.find((service) => /protection du chantier/i.test(service.designation));
 
     assert.ok(door);
     assert.equal(door?.quantite, 1);
@@ -184,9 +185,15 @@ test("tolère les variantes de transcription qui avaient laissé 2 portes et la 
     assert.equal(door?.taux_tva, 10);
 
     assert.ok(plinths);
+    assert.equal(plinths?.designation, "Peinture des plinthes");
     assert.equal(plinths?.quantite, 14);
     assert.equal(plinths?.prix_unitaire_ht, 9);
     assert.equal(plinths?.taux_tva, 10);
+
+    assert.ok(siteProtection);
+    assert.equal(siteProtection?.quantite, null);
+    assert.equal(siteProtection?.unite, null);
+    assert.equal(siteProtection?.prix_unitaire_ht, null);
 
     assert.equal(knownSubtotal(services), 3085);
     assert.equal(knownTax(services), 308.5);
