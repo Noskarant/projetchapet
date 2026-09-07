@@ -173,9 +173,12 @@ export default function RappidosMobileShellV2() {
         newCustomer({ kind: data.kind === "individual" ? "Particulier" : "Professionnel", companyName: data.company_name || "", civility: data.civility || "M.", lastName: data.last_name || "", firstName: data.first_name || "", siret: data.siret || "", vat: data.vat_number || "", emails: [data.email1 || "", data.email2 || ""], phones: [data.phone1 || "", data.phone2 || ""], address: data.line1 || "", postalCode: data.postal_code || "", city: data.city || "" });
         return;
       }
-      const data = detail.data as { customer_hint?: string; title?: string; notes?: string; items?: Array<{ label?: string; description?: string; quantity?: number; unit?: string; unit_price?: number; tax_rate?: number }> };
+      const data = detail.data as { customer_hint?: string; title?: string; notes?: string; items?: Array<{ label?: string; description?: string; quantity?: number | null; unit?: string | null; unit_price?: number | null; tax_rate?: number | null }> };
       const matched = workspace.customers.find((customer) => customerDisplayName(customer).toLowerCase().includes((data.customer_hint || "").toLowerCase()) || (data.customer_hint || "").toLowerCase().includes(customerDisplayName(customer).toLowerCase()));
-      const items = (data.items || []).map((item) => ({ id: makeId("line"), label: item.label || "Prestation", description: item.description || "", quantity: item.quantity ?? null, unit: item.unit ?? null, unitPrice: item.unit_price ?? null, taxRate: item.tax_rate ?? null, incomplete: item.quantity == null || item.unit_price == null }));
+      const items = (data.items || []).map((item) => {
+        const incomplete = item.quantity == null || item.unit == null || item.unit_price == null;
+        return { id: makeId("line"), label: item.label || "Prestation", description: item.description || "", quantity: item.quantity ?? null, unit: item.unit ?? null, unitPrice: item.unit_price ?? null, taxRate: item.tax_rate ?? null, incomplete, provenance: incomplete ? "unknown" as const : "user_explicit" as const };
+      });
       const prefill = { customerId: matched?.id || workspace.customers[0]?.id || "", customerName: matched ? customerDisplayName(matched) : data.customer_hint || "Client à sélectionner", title: data.title || "Travaux", notes: data.notes || "", items: items.length ? items : [emptyLine()] };
       if (detail.target === "invoice") newInvoice(prefill); else newQuote(prefill);
     };
@@ -192,7 +195,11 @@ export default function RappidosMobileShellV2() {
     });
   }
   function updateLine(index: number, key: keyof LineItem, raw: string) {
-    updateEditorDocument((value) => ({ ...value, items: value.items.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: ["quantity", "unitPrice", "taxRate"].includes(key) ? Number(raw) : raw } : item) }));
+    updateEditorDocument((value) => ({ ...value, items: value.items.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const next = { ...item, [key]: ["quantity", "unitPrice", "taxRate"].includes(key) ? (raw.trim() === "" ? null : Number(raw)) : (raw.trim() === "" ? null : raw) };
+      return { ...next, incomplete: next.quantity == null || next.unit == null || next.unitPrice == null };
+    }) }));
   }
 
   async function openPreview(documentData: BusinessDocument, withoutPrices = false) {

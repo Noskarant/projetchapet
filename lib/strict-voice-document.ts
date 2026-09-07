@@ -26,6 +26,19 @@ const TITLES = new Set([
 const STOPWORDS = new Set(["le", "la", "les", "l", "de", "du", "des", "d", "un", "une"]);
 const CORRECTION_TEST = /\b(?:non|attends?|plutot|plutôt|en fait|finalement|je corrige|remplace(?:r)?)\b/iu;
 const CANCELLATION_TEST = /\b(?:non\s+oublie|oublie|annule|supprime|retire|enleve|enlève)\b/iu;
+const SPOKEN_NUMBERS = new Map([
+  ["un", 1],
+  ["une", 1],
+  ["deux", 2],
+  ["trois", 3],
+  ["quatre", 4],
+  ["cinq", 5],
+  ["six", 6],
+  ["sept", 7],
+  ["huit", 8],
+  ["neuf", 9],
+  ["dix", 10],
+]);
 
 function text(value: unknown, max = 500) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -242,8 +255,19 @@ function segments(value: string) {
 }
 
 function quantityFrom(segment: string) {
-  const match = segment.match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|mètres?\s+carrés?|ml|mètres?\s+linéaires?|mètres?|m|litres?|l|heures?|h|unités?|u|forfaits?)/iu);
-  return match ? { value: number(match[1]), unit: unit(match[2]), raw: match[0] } : null;
+  const numeric = segment.match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|mètres?\s+carrés?|ml|mètres?\s+linéaires?|mètres?|m|litres?|l|heures?|h|unités?|u|forfaits?)/iu);
+  if (numeric) return { value: number(numeric[1]), unit: unit(numeric[2]), raw: numeric[0] };
+  const correction = normalizeSpokenText(segment).match(/\bqu\s+(un|une)\b/);
+  if (correction) return { value: SPOKEN_NUMBERS.get(correction[1]) ?? 1, unit: "unite" as const, raw: correction[0] };
+  const spoken = segment.match(/\b(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s+(portes?|unités?|unites?|couches?|forfaits?|heures?)\b/iu);
+  if (!spoken) return null;
+  const normalizedNumber = normalizeSpokenText(spoken[1]);
+  const normalizedUnit = normalizeSpokenText(spoken[2]);
+  return {
+    value: SPOKEN_NUMBERS.get(normalizedNumber) ?? null,
+    unit: /^forfait/.test(normalizedUnit) ? "forfait" as const : /^heure/.test(normalizedUnit) ? "h" as const : "unite" as const,
+    raw: spoken[1],
+  };
 }
 
 function priceFrom(segment: string) {
@@ -293,7 +317,11 @@ function lastClient(spokenSegments: string[], contextClients: string[]) {
   let current = "";
   for (const segment of spokenSegments) {
     const explicit = [...segment.matchAll(/\b(?:client(?:e)?|avec|pour)\s+(.+?)(?=\s+(?:ajoute|mets|peinture|pose|fourniture|depose|dépose|tva|\d)|[,.;]|$)/giu)].at(-1)?.[1]?.trim();
-    if (explicit) current = explicit;
+    if (!explicit) continue;
+    if (/\btva\b/iu.test(explicit)) continue;
+    const tokens = identityTokens(explicit);
+    const hasTitle = TITLES.has(normalizeSpokenText(explicit).split(" ").filter(Boolean)[0] ?? "");
+    if (tokens.length >= 2 || (hasTitle && tokens.length >= 1)) current = explicit;
   }
   const resolution = resolveContextClient(contextClients, current);
   return resolution.status === "matched" ? resolution.name : current;
@@ -303,14 +331,22 @@ export function fallbackStrictVoiceDocument(transcript: string, contextClients: 
   const spokenSegments = segments(transcript);
   const prestations: StrictVoiceService[] = [];
   let tax = number([...transcript.matchAll(/tva\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*%?/giu)].at(-1)?.[1] ?? 0);
+  let pendingCorrectionTarget = "";
 
   for (const segment of spokenSegments) {
     tax = taxFrom(segment, tax);
     const quantity = quantityFrom(segment);
     const price = priceFrom(segment);
-    const designation = designationFrom(segment, quantity?.raw, price?.raw);
     const cancellation = CANCELLATION_TEST.test(segment);
     const correction = CORRECTION_TEST.test(segment);
+    const targetMention = segment.match(/\bpour\s+les?\s+([^,.;]+?)(?=[,.;]|$)/iu)?.[1]?.trim() ?? "";
+    let designation = designationFrom(segment, quantity?.raw, price?.raw);
+    if (!quantity && !price && targetMention) {
+      pendingCorrectionTarget = targetMention;
+      continue;
+    }
+    const correctionTarget = correction && (targetMention || pendingCorrectionTarget);
+    if (correctionTarget) designation = correctionTarget;
 
     if (cancellation) {
       const index = closestIndex(prestations, designation);
@@ -330,6 +366,7 @@ export function fallbackStrictVoiceDocument(transcript: string, contextClients: 
         prix_unitaire_ht: price?.value ?? previous.prix_unitaire_ht,
         taux_tva: tax || previous.taux_tva,
       };
+      pendingCorrectionTarget = "";
       continue;
     }
 

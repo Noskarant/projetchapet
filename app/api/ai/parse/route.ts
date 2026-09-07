@@ -228,15 +228,16 @@ Schéma exact :
   "items":[{
     "label":"",
     "description":"",
-    "quantity":0,
-    "unit":"u|m²|ml|h|forfait",
-    "unit_price":0,
-    "tax_rate":0,
+    "quantity":null,
+    "unit":null,
+    "unit_price":null,
+    "tax_rate":null,
     "price_type":"ht|ttc|unknown",
     "confidence":0
   }],
   "warnings":[""]
 }
+Utilise null pour toute quantité, unité, TVA ou prix absent. N'utilise jamais 0, 1, "u" ou "forfait" comme valeur de compatibilité quand l'artisan ne l'a pas dit explicitement.
 confidence est entre 0 et 1. Signale toute ambiguïté dans warnings. Réponds uniquement avec le JSON.`;
 }
 

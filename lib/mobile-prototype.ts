@@ -13,6 +13,7 @@ export type LineItem = {
   unitPrice: number | null;
   taxRate: number | null;
   incomplete?: boolean;
+  provenance?: "user_explicit" | "company_pricebook" | "company_history" | "metier_database" | "unknown";
 };
 
 export type MobileCustomer = {
