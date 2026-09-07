@@ -180,11 +180,11 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(20, 42, 65);
     pdf.setFontSize(8.5);
-    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
+    pdf.text(`${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
     if (!withoutPrices) {
-      pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" });
+      pdf.text(money(item.unitPrice), 148, y, { align: "right" });
       pdf.text(`${item.taxRate} %`, 165, y, { align: "right" });
-      pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
+      pdf.text(money(item.quantity * item.unitPrice), 192, y, { align: "right" });
     }
     y += rowHeight;
     pdf.setDrawColor(229, 235, 241);

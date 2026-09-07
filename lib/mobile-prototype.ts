@@ -8,11 +8,10 @@ export type LineItem = {
   id: string;
   label: string;
   description: string;
-  quantity: number | null;
-  unit: string | null;
-  unitPrice: number | null;
-  taxRate: number | null;
-  incomplete?: boolean;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  taxRate: number;
 };
 
 export type MobileCustomer = {
@@ -92,13 +91,12 @@ export function makeId(prefix: string) {
 }
 
 export function calculateLineTotal(item: LineItem) {
-  if (item.incomplete || item.quantity === null || item.unitPrice === null) return 0;
-  return round(item.quantity * item.unitPrice);
+  return round(Number(item.quantity || 0) * Number(item.unitPrice || 0));
 }
 
 export function calculateTotals(items: LineItem[]) {
   const subtotal = round(items.reduce((sum, item) => sum + calculateLineTotal(item), 0));
-  const taxTotal = round(items.reduce((sum, item) => sum + calculateLineTotal(item) * Number(item.taxRate ?? 0) / 100, 0));
+  const taxTotal = round(items.reduce((sum, item) => sum + calculateLineTotal(item) * Number(item.taxRate || 0) / 100, 0));
   return { subtotal, taxTotal, total: round(subtotal + taxTotal) };
 }
 
@@ -184,7 +182,7 @@ export function createCreditNote(workspace: MobileWorkspace, invoice: MobileInvo
     id: makeId("credit"),
     number: nextNumber(workspace.invoices, "A"),
     status: "Avoir",
-    items: invoice.items.map((item) => ({ ...item, id: makeId("line"), quantity: item.quantity === null ? null : -Math.abs(item.quantity) })),
+    items: invoice.items.map((item) => ({ ...item, id: makeId("line"), quantity: -Math.abs(item.quantity) })),
     paidTotal: 0,
     accountantSent: false,
     sourceQuoteId: undefined,

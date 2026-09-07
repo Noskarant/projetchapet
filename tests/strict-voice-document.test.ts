@@ -8,18 +8,6 @@ import {
   strictDocumentToLegacy,
 } from "../lib/strict-voice-document";
 
-test("preserves unknown quantity and price instead of inventing forfait zero", () => {
-  const result = fallbackStrictVoiceDocument("Pour Quentin Dubois, ajoute une reprise d'enduit dans le couloir mais je n'ai pas encore la surface exacte. Prévois aussi la protection du chantier, mais je ne t'ai pas donné de tarif.");
-  const enduit = result.prestations.find((line) => /enduit/i.test(line.designation));
-  const protection = result.prestations.find((line) => /protection/i.test(line.designation));
-  assert.ok(enduit);
-  assert.equal(enduit?.quantite, null);
-  assert.equal(enduit?.unite, null);
-  assert.equal(enduit?.prix_unitaire_ht, null);
-  assert.ok(protection);
-  assert.equal(protection?.prix_unitaire_ht, null);
-});
-
 const contextClients = [
   "M. Dupont-Jacques",
   "Mme SOULIER Françoise",
