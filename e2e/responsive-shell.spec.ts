@@ -1,6 +1,16 @@
 import { expect, test } from "@playwright/test";
 
 test("monte uniquement l’interface adaptée à l’écran", async ({ page }, testInfo) => {
+  if (testInfo.project.name !== "iphone-webkit") {
+    await page.route("https://mdpmpuurdhdmeupqsmal.supabase.co/rest/v1/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "[]",
+      }),
+    );
+  }
+
   await page.goto("/");
 
   if (testInfo.project.name === "iphone-webkit") {
@@ -19,6 +29,7 @@ test("monte uniquement l’interface adaptée à l’écran", async ({ page }, t
   await expect(page.locator(".pc-shell")).toBeVisible();
   await expect(page.locator(".rm-shell")).toHaveCount(0);
   await expect(page.locator(".pc-sidebar nav").getByRole("button", { name: "Tableau de bord" })).toBeVisible();
+  await expect(page.locator(".pc-content h1")).toHaveText("Tableau de bord");
 
   await page.locator(".pc-sidebar nav").getByRole("button", { name: "Devis" }).click();
   await expect(page.locator(".pc-content h1")).toHaveText("Devis");

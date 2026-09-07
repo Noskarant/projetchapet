@@ -8,7 +8,7 @@ import { appendSuggestionsWithoutInventing, suggestRappidosExtras, type Rappidos
 
 type ApplyDetail = {
   target?: string;
-  data?: { items?: Array<{ label?: string; quantity?: number; unit?: string; unit_price?: number; tax_rate?: number }> };
+  data?: { items?: Array<{ label?: string; quantity?: number | null; unit?: string | null; unit_price?: number | null; tax_rate?: number | null }> };
 };
 
 type LookupCompany = { companyName: string; siret: string; vatNumber: string; address: string; postalCode: string; city: string };

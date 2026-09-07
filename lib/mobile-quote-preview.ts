@@ -18,6 +18,7 @@ export type QuotePreviewTotals = {
 
 type StorageReader = Pick<Storage, "getItem">;
 type StorageWriter = Pick<Storage, "getItem" | "setItem">;
+type PricedLineItem = LineItem & { quantity: number; unitPrice: number };
 
 const round = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -33,18 +34,22 @@ export function calculateQuotePreviewTotals(
 ): QuotePreviewTotals {
   const normalizedDiscount = normalizeDiscountPercent(discountPercent);
   const multiplier = 1 - normalizedDiscount / 100;
+  const pricedItems = items.filter(
+    (item): item is PricedLineItem =>
+      !item.incomplete && item.quantity !== null && item.unitPrice !== null,
+  );
   const grossSubtotal = round(
-    items.reduce(
-      (sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0),
+    pricedItems.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
       0,
     ),
   );
   const grossTax = round(
-    items.reduce(
+    pricedItems.reduce(
       (sum, item) =>
         sum +
-        Number(item.quantity || 0) *
-          Number(item.unitPrice || 0) *
+        item.quantity *
+          item.unitPrice *
           (Number(item.taxRate || 0) / 100),
       0,
     ),

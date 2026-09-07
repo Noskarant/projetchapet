@@ -74,7 +74,7 @@ export function suggestRappidosExtras(transcript: string, limit = 3): RappidosSu
   return suggestions;
 }
 
-export function appendSuggestionsWithoutInventing<T extends { label?: string; quantity?: number; unit?: string; unit_price?: number; tax_rate?: number }>(
+export function appendSuggestionsWithoutInventing<T extends { label?: string; quantity?: number | null; unit?: string | null; unit_price?: number | null; tax_rate?: number | null }>(
   items: T[] | undefined,
   suggestions: RappidosSuggestion[],
 ): T[] {
@@ -85,10 +85,10 @@ export function appendSuggestionsWithoutInventing<T extends { label?: string; qu
     if (labels.some((label) => label.includes(suggestion.label.toLowerCase()))) continue;
     current.push({
       label: suggestion.label,
-      quantity: 0,
-      unit: suggestion.unit,
-      unit_price: 0,
-      tax_rate: 0,
+      quantity: null,
+      unit: null,
+      unit_price: null,
+      tax_rate: null,
     } as T);
   }
   return current;

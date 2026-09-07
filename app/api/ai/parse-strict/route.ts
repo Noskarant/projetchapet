@@ -40,11 +40,13 @@ Tu dois appliquer ces règles dans cet ordre, sans exception.
 
 4. DONNÉES MÉTIER
 - N’invente aucune prestation, quantité, unité, valeur, TVA ou client.
-- Les prix sont des prix unitaires HT. Si une valeur TTC est prononcée sans information suffisante pour la convertir, mets 0.
+- Les prix sont des prix unitaires HT. Si une valeur TTC est prononcée sans information suffisante pour la convertir, mets null.
+- Une valeur inconnue reste null. N'utilise jamais 0, 1, "unite" ou "forfait" comme valeur de compatibilité.
+- Un prix explicitement dicté à 0 euro, offert ou gratuit est une vraie valeur et doit rester 0.
 - Convertis les unités exclusivement vers : m2, m, l, h, forfait ou unite.
 - Chaque prestation finale distincte apparaît une seule fois.
 - Une TVA globale s’applique à toutes les lignes sauf lorsqu’une exception explicite vise une prestation précise.
-- Pour un forfait annoncé pour plusieurs portes, conserve une quantité de 1, l’unité forfait et mentionne le nombre de portes dans la désignation.
+- Pour des portes annoncées à un prix unitaire, conserve le nombre final de portes en quantité, l'unité unite, et le prix unitaire dicté. Une correction de quantité ne modifie jamais le prix unitaire.
 
 FORMAT DE SORTIE OBLIGATOIRE
 Réponds uniquement avec cet objet JSON, sans markdown, sans commentaire et sans propriété supplémentaire :
@@ -53,10 +55,10 @@ Réponds uniquement avec cet objet JSON, sans markdown, sans commentaire et sans
   "prestations": [
     {
       "designation": "string",
-      "quantite": 0,
-      "unite": "m2|m|l|h|forfait|unite",
-      "prix_unitaire_ht": 0,
-      "taux_tva": 0
+      "quantite": null,
+      "unite": null,
+      "prix_unitaire_ht": null,
+      "taux_tva": null
     }
   ]
 }

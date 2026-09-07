@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { appendSuggestionsWithoutInventing, suggestRappidosExtras } from "../lib/rappidos-suggestions";
 
-type TestLine = { label?: string; quantity?: number; unit?: string; unit_price?: number; tax_rate?: number };
+type TestLine = { label?: string; quantity?: number | null; unit?: string | null; unit_price?: number | null; tax_rate?: number | null };
 
 test("propose au moins une précaution pertinente pour une peinture", () => {
   const suggestions = suggestRappidosExtras("Peindre 42 m² de murs et le plafond du séjour avec deux couches");
@@ -26,7 +26,8 @@ test("les suggestions ajoutées n'inventent ni quantité ni prix ni TVA", () => 
   assert.ok(suggestion);
   const lines = appendSuggestionsWithoutInventing<TestLine>([], [suggestion!]);
   assert.equal(lines.length, 1);
-  assert.equal(lines[0].quantity, 0);
-  assert.equal(lines[0].unit_price, 0);
-  assert.equal(lines[0].tax_rate, 0);
+  assert.equal(lines[0].quantity, null);
+  assert.equal(lines[0].unit, null);
+  assert.equal(lines[0].unit_price, null);
+  assert.equal(lines[0].tax_rate, null);
 });

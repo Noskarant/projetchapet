@@ -36,7 +36,7 @@ const money = (value: number) => new Intl.NumberFormat("fr-FR", { style: "curren
 const dateFr = (value: string) => value ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(`${value}T12:00:00`)) : "—";
 const isQuote = (value: BusinessDocument): value is MobileQuote => "expiryDate" in value;
 const cloneLines = (items: LineItem[]) => items.map((item) => ({ ...item, id: makeId("line") }));
-const emptyLine = (): LineItem => ({ id: makeId("line"), label: "", description: "", quantity: 1, unit: "u", unitPrice: 0, taxRate: 20 });
+const emptyLine = (): LineItem => ({ id: makeId("line"), label: "", description: "", quantity: null, unit: null, unitPrice: null, taxRate: null, incomplete: true, provenance: "unknown" });
 const incompleteLines = (documentData: BusinessDocument) => documentData.items.filter((item) => item.incomplete || item.quantity === null || item.unitPrice === null);
 
 function StatusPill({ status }: { status: QuoteStatus | InvoiceStatus }) {
@@ -142,17 +142,21 @@ export default function RappidosMobileShellV2() {
   function newQuote(prefill?: Partial<MobileQuote>) {
     const issueDate = todayIso();
     const customerId = prefill?.customerId || workspace.customers[0]?.id || "";
+    const items = prefill?.items?.length ? prefill.items : [emptyLine()];
+    const totals = calculateTotals(items);
     setEditor({ kind: "quote", isNew: true, value: {
       id: makeId("quote"), number: nextNumber(workspace.quotes, "D"), customerId, customerName: findCustomerName(customerId), title: "Travaux",
-      issueDate, expiryDate: addDays(issueDate, 60), status: "En attente", items: [emptyLine()], notes: "", subtotal: 0, taxTotal: 0, total: 0, ...prefill,
+      issueDate, expiryDate: addDays(issueDate, 60), status: "En attente", notes: "", ...prefill, items, ...totals,
     }});
   }
   function newInvoice(prefill?: Partial<MobileInvoice>) {
     const issueDate = todayIso(); const customerId = prefill?.customerId || workspace.customers[0]?.id || "";
+    const items = prefill?.items?.length ? prefill.items : [emptyLine()];
+    const totals = calculateTotals(items);
     setEditor({ kind: "invoice", isNew: true, value: {
       id: makeId("invoice"), number: nextNumber(workspace.invoices, "F"), customerId, customerName: findCustomerName(customerId), title: "Travaux réalisés",
-      issueDate, dueDate: addDays(issueDate, 30), status: "Brouillon", items: [emptyLine()], notes: "", subtotal: 0, taxTotal: 0, total: 0,
-      paidTotal: 0, accountantSent: false, ...prefill,
+      issueDate, dueDate: addDays(issueDate, 30), status: "Brouillon", notes: "",
+      paidTotal: 0, accountantSent: false, ...prefill, items, ...totals,
     }});
   }
   function newCustomer(prefill?: Partial<MobileCustomer>) {

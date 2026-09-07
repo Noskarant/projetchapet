@@ -116,14 +116,16 @@ function applyLineOperations(items: LineItem[], operations: VoiceLineOperation[]
     if (operation.action === "add") {
       const designation = String(operation.designation || operation.match || "").trim();
       if (!designation) continue;
+      const incomplete = operation.quantite === undefined || operation.unite === undefined || operation.prix_unitaire_ht === undefined;
       result.push({
         id: makeId("line"),
         label: designation,
         description: String(operation.description || ""),
-        quantity: finite(operation.quantite) ?? 1,
-        unit: String(operation.unite || "u"),
-        unitPrice: finite(operation.prix_unitaire_ht) ?? 0,
-        taxRate: finite(operation.taux_tva) ?? 20,
+        quantity: finite(operation.quantite) ?? null,
+        unit: operation.unite === undefined ? null : String(operation.unite),
+        unitPrice: finite(operation.prix_unitaire_ht) ?? null,
+        taxRate: finite(operation.taux_tva) ?? null,
+        ...(incomplete ? { incomplete: true, provenance: "unknown" as const } : {}),
       });
       continue;
     }
@@ -327,8 +329,8 @@ export function fallbackMobileVoiceCommand(
     operations.push({
       action: "add",
       designation: addMatch[3].trim(),
-      quantite: Number((addMatch[1] || "1").replace(",", ".")),
-      unite: addMatch[2] || "u",
+      quantite: addMatch[1] ? Number(addMatch[1].replace(",", ".")) : undefined,
+      unite: addMatch[2] || undefined,
       prix_unitaire_ht: Number(addMatch[4].replace(",", ".")),
       taux_tva: moneyValue(text, /tva\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*%/i),
     });

@@ -30,6 +30,18 @@ function numberValue(value: unknown, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function nullableNumberValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function nullableStringValue(value: unknown) {
+  if (value === null || value === undefined) return null;
+  const text = stringValue(value).trim();
+  return text || null;
+}
+
 function booleanValue(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -40,14 +52,22 @@ function stringArray(value: unknown, fallback: string[] = []) {
 
 function normalizeLine(value: unknown, index: number): LineItem | null {
   if (!isRecord(value)) return null;
+  const quantity = nullableNumberValue(value.quantity);
+  const unit = nullableStringValue(value.unit);
+  const unitPrice = nullableNumberValue(value.unitPrice);
+  const taxRate = nullableNumberValue(value.taxRate);
   return {
     id: stringValue(value.id, `line-recovered-${index}`),
     label: stringValue(value.label),
     description: stringValue(value.description),
-    quantity: numberValue(value.quantity, 1),
-    unit: stringValue(value.unit, "u"),
-    unitPrice: numberValue(value.unitPrice),
-    taxRate: numberValue(value.taxRate, 20),
+    quantity,
+    unit,
+    unitPrice,
+    taxRate,
+    incomplete: Boolean(value.incomplete) || quantity === null || unit === null || unitPrice === null,
+    provenance: typeof value.provenance === "string" && ["user_explicit", "company_pricebook", "company_history", "metier_database", "unknown"].includes(value.provenance)
+      ? value.provenance as LineItem["provenance"]
+      : quantity === null || unit === null || unitPrice === null ? "unknown" : "user_explicit",
   };
 }
 

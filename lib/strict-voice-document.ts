@@ -44,19 +44,22 @@ function text(value: unknown, max = 500) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-function number(value: unknown) {
+function parsedNumber(value: unknown) {
   const parsed = typeof value === "number"
     ? value
     : typeof value === "string"
       ? Number(value.replace(/\s/g, "").replace(",", "."))
       : Number.NaN;
-  return Number.isFinite(parsed) ? Math.min(1_000_000_000, Math.max(0, parsed)) : 0;
+  return Number.isFinite(parsed) ? Math.min(1_000_000_000, Math.max(0, parsed)) : null;
+}
+
+function number(value: unknown) {
+  return parsedNumber(value) ?? 0;
 }
 
 function optionalNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
-  const parsed = number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  return parsedNumber(value);
 }
 
 export function normalizeSpokenText(value: string) {
@@ -167,7 +170,8 @@ function unit(value: unknown): StrictVoiceUnit | null {
   if (/^(?:l|litre|litres)$/.test(normalized)) return "l";
   if (/^(?:h|heure|heures)$/.test(normalized)) return "h";
   if (/^forfait/.test(normalized)) return "forfait";
-  return "unite";
+  if (/^(?:u|unite|unites|piece|pieces)$/.test(normalized)) return "unite";
+  return null;
 }
 
 function serviceKey(value: string) {
