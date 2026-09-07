@@ -53,8 +53,13 @@ async function addQuentinDuboisCustomer(page: import("@playwright/test").Page) {
 test("flux IA devis Quentin Dubois conserve les inconnues et bloque le PDF final incomplet", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
 
+  // Le premier chargement laisse le fresh-start mobile s'initialiser. On ajoute ensuite
+  // Quentin dans le workspace persistant puis on recharge afin que l'état React lise
+  // exactement le même workspace que le test vient de préparer.
   await page.goto("/");
   await addQuentinDuboisCustomer(page);
+  await page.reload();
+
   await page.locator(".rm-bottom-nav button").filter({ hasText: "Devis" }).click();
   await page.getByRole("button", { name: /Créer avec l.*IA/i }).click();
 
@@ -71,7 +76,7 @@ test("flux IA devis Quentin Dubois conserve les inconnues et bloque le PDF final
   }, { timeout: 12_000 }).not.toBe("pending");
 
   if (await assistant.getByText(/Préparation des murs et deux couches de peinture/i).isVisible().catch(() => false)) {
-    await expect(assistant.getByText("Quentin Dubois")).toBeVisible();
+    await expect(assistant.getByText("Quentin Dubois", { exact: true })).toBeVisible();
     await expect(assistant.getByText(/Peinture de une porte/i)).toBeVisible();
     expect(await assistant.getByText("À préciser").count()).toBeGreaterThanOrEqual(3);
     await expect(assistant).not.toContainText("1 forfait");
