@@ -23,9 +23,9 @@ type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | 
 type ParsedLine = {
   label?: string;
   description?: string;
-  quantity?: number;
-  unit?: string;
-  unit_price?: number;
+  quantity?: number | null;
+  unit?: string | null;
+  unit_price?: number | null;
   tax_rate?: number;
 };
 type ParsedDocument = {
@@ -102,6 +102,16 @@ function euro(value: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
 }
 
+function lineQuantityLabel(item: ParsedLine) {
+  if (item.quantity == null) return "À préciser";
+  return [item.quantity, item.unit].filter(Boolean).join(" ");
+}
+
+function lineTotalLabel(item: ParsedLine) {
+  if (item.quantity == null || item.unit_price == null) return "À préciser";
+  return euro(item.quantity * item.unit_price);
+}
+
 function dateFr(value: string) {
   if (!value) return "Date à compléter";
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "full" }).format(new Date(`${value}T12:00:00`));
@@ -149,8 +159,8 @@ function localDocument(text: string): ParsedDocument {
   const items = chunks.map((chunk): ParsedLine | null => {
     const quantityMatch = chunk.match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|mètres?\s+carrés?|ml|mètres?\s+linéaires?|heures?|h|unités?|u|forfaits?)/i);
     const priceMatch = chunk.match(/(?:à|pour|prix|de)\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)\s*(HT|TTC)?/i);
-    if (!quantityMatch && !priceMatch) return null;
-    const unitText = quantityMatch?.[2]?.toLowerCase() ?? "u";
+    if (!quantityMatch && !priceMatch && !/protection|enduit|peinture|papier|préparer|repeindre/i.test(chunk)) return null;
+    const unitText = quantityMatch?.[2]?.toLowerCase() ?? "";
     const unit = /m2|m²|carr/.test(unitText)
       ? "m²"
       : /ml|lin/.test(unitText)
@@ -160,10 +170,10 @@ function localDocument(text: string): ParsedDocument {
           : /forfait/.test(unitText)
             ? "forfait"
             : "u";
-    const quantity = parseNumber(quantityMatch?.[1], 1);
-    const spokenPrice = parseNumber(priceMatch?.[1], 0);
+    const quantity = quantityMatch ? parseNumber(quantityMatch[1], 0) : null;
+    const spokenPrice = priceMatch ? parseNumber(priceMatch[1], 0) : null;
     const isTtc = priceMatch?.[2]?.toLowerCase() === "ttc";
-    const unitPrice = isTtc && tax > 0 ? Math.round((spokenPrice / (1 + tax / 100)) * 100) / 100 : spokenPrice;
+    const unitPrice = isTtc && tax > 0 && spokenPrice !== null ? Math.round((spokenPrice / (1 + tax / 100)) * 100) / 100 : spokenPrice;
     const label = chunk
       .replace(quantityMatch?.[0] ?? "", "")
       .replace(priceMatch?.[0] ?? "", "")
@@ -175,7 +185,7 @@ function localDocument(text: string): ParsedDocument {
       label: label || "Prestation dictée",
       description: "",
       quantity,
-      unit,
+      unit: quantityMatch ? unit : null,
       unit_price: unitPrice,
       tax_rate: tax,
     };
@@ -185,9 +195,9 @@ function localDocument(text: string): ParsedDocument {
     items.push({
       label: text.slice(0, 220) || "Prestation à compléter",
       description: "",
-      quantity: 1,
-      unit: "u",
-      unit_price: 0,
+      quantity: null,
+      unit: null,
+      unit_price: null,
       tax_rate: tax,
     });
   }
@@ -609,8 +619,8 @@ export default function MobileAiAssistantV6() {
                 <span>{documentData.customer_hint || "Client à sélectionner"}</span>
                 {(documentData.items ?? []).map((item, index) => (
                   <div key={`${item.label}-${index}`}>
-                    <span><b>{item.label || "Ligne à compléter"}</b><small>{item.quantity ?? 1} {item.unit || "u"} · TVA {item.tax_rate ?? 20} %</small></span>
-                    <strong>{euro(Number(item.quantity ?? 1) * Number(item.unit_price ?? 0))}</strong>
+                    <span><b>{item.label || "Ligne à compléter"}</b><small>{lineQuantityLabel(item)} · TVA {item.tax_rate ?? 20} %</small></span>
+                    <strong>{lineTotalLabel(item)}</strong>
                   </div>
                 ))}
               </div>

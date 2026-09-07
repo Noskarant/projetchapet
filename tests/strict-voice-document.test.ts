@@ -20,6 +20,44 @@ test("preserves unknown quantity and price instead of inventing forfait zero", (
   assert.equal(protection?.prix_unitaire_ht, null);
 });
 
+test("Quentin Dubois conserve les valeurs explicites et laisse les inconnues à compléter", () => {
+  const result = fallbackStrictVoiceDocument(
+    "Fais-moi un devis pour Quentin Dubois. " +
+    "Dans le salon, il faut protéger le sol et les meubles, préparer les murs puis faire deux couches de peinture. " +
+    "Il y a 46 mètres carrés de murs, non attends, 42 mètres carrés, à 32 euros le mètre carré avec TVA à 10 %. " +
+    "Pour le plafond, compte 18 mètres carrés à 29 euros le mètre carré, TVA 10 %. " +
+    "Ajoute aussi la peinture des plinthes, 14 mètres linéaires à 9 euros le mètre. " +
+    "Il y a deux portes à repeindre à 85 euros l'unité. " +
+    "Dans la chambre, il faut enlever l'ancien papier peint sur 24 mètres carrés à 12 euros le mètre carré, " +
+    "puis préparer et repeindre ces 24 mètres carrés à 30 euros le mètre carré. " +
+    "Ah et pour les portes, finalement n'en mets qu'une, pas deux. " +
+    "Ajoute aussi une reprise d'enduit dans le couloir mais je n'ai pas encore la surface exacte. " +
+    "Et prévois la protection du chantier, mais je ne t'ai pas donné de tarif pour ça.",
+  );
+  const legacy = strictDocumentToLegacy(result);
+  const knownSubtotal = legacy.items.reduce((sum, item) => (
+    item.quantity === null || item.unit_price === null ? sum : sum + item.quantity * item.unit_price
+  ), 0);
+  const knownTax = legacy.items.reduce((sum, item) => (
+    item.quantity === null || item.unit_price === null ? sum : sum + item.quantity * item.unit_price * ((item.tax_rate ?? 0) / 100)
+  ), 0);
+  const door = legacy.items.find((item) => /porte/i.test(item.label));
+  const enduit = legacy.items.find((item) => /enduit/i.test(item.label));
+  const chantierProtection = legacy.items.find((item) => /protection du chantier/i.test(item.label));
+  const floorProtection = legacy.items.find((item) => /protéger le sol|proteger le sol|protection.*sol/i.test(item.label));
+
+  assert.equal(legacy.customer_hint, "Quentin Dubois");
+  assert.equal(door?.quantity, 1);
+  assert.equal(door?.unit_price, 85);
+  assert.equal(knownSubtotal, 3085);
+  assert.equal(Math.round((knownSubtotal + knownTax) * 100) / 100, 3393.5);
+  for (const item of [floorProtection, enduit, chantierProtection]) {
+    assert.ok(item);
+    assert.equal(item.quantity, null);
+    assert.equal(item.unit_price, null);
+  }
+});
+
 const contextClients = [
   "M. Dupont-Jacques",
   "Mme SOULIER Françoise",
