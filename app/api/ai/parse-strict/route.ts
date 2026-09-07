@@ -70,7 +70,7 @@ function reconcileDeterministicSemantics(
         && /\b(?:deux|2)\s+couches?\b/u.test(label)
         && /\bpeinture\b/u.test(label);
     });
-    if (deterministicWalls?.quantite !== null && deterministicWalls?.prix_unitaire_ht !== null) {
+    if (deterministicWalls && deterministicWalls.quantite !== null && deterministicWalls.prix_unitaire_ht !== null) {
       prestations = replaceServices(
         prestations,
         (label) => {
