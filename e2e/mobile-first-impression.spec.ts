@@ -77,7 +77,10 @@ test("préremplit un devis par dictée IA sans exposer la transcription", async 
   await expect(page.locator(".rm-v2-lines article").first().locator('input[placeholder="Désignation"]')).not.toHaveValue("");
 });
 
-test("l'orbe suit le PCM puis ouvre le brouillon sans bloquer le navigateur", async ({ page }) => {
+for (const unknownCustomer of [false, true]) {
+test(unknownCustomer
+  ? "après arrêt vocal un client inconnu affiche une erreur et permet de réessayer"
+  : "l'orbe suit le PCM puis ouvre le brouillon sans bloquer le navigateur", async ({ page }) => {
   await page.setViewportSize(mobile);
   await page.addInitScript(() => {
     const scope = window as typeof window & {
@@ -120,7 +123,7 @@ test("l'orbe suit le PCM puis ouvre le brouillon sans bloquer le navigateur", as
   const transcriptionGate = new Promise<void>((resolve) => { releaseTranscription = resolve; });
   await page.route("**/api/transcribe", async (route) => {
     await transcriptionGate;
-    await route.fulfill({ json: { text: "Client SCI Bellevue, peinture 18 m² à 32 euros, TVA 10 %." } });
+    await route.fulfill({ json: { text: `Client ${unknownCustomer ? "Entreprise Zorbalux" : "SCI Bellevue"}, peinture 18 m² à 32 euros, TVA 10 %.` } });
   });
   await page.goto("/");
   await page.getByLabel("Créer avec l’IA").click();
@@ -151,9 +154,19 @@ test("l'orbe suit le PCM puis ouvre le brouillon sans bloquer le navigateur", as
   await expect(magic).toContainText("FORGEO prépare votre devis");
   await expect(assistant.getByLabel("Demande à analyser")).toBeHidden();
   releaseTranscription();
+  if (unknownCustomer) {
+    await expect(assistant.locator(".mai-message")).toContainText("n’existe pas");
+    await expect(assistant.locator(".mai-message")).toBeVisible();
+    await expect(page.locator(".rm-v2-editor")).toHaveCount(0);
+    await assistant.getByRole("button", { name: "Corriger la dictée" }).click();
+    await expect(assistant.getByLabel("Commencer la dictée")).toBeVisible();
+    await expect(assistant.getByLabel("Demande à analyser")).toBeHidden();
+    return;
+  }
   await expect(page.locator(".rm-v2-editor")).toBeVisible();
   await expect(assistant).toBeHidden();
   const line = page.locator(".rm-v2-lines article");
   await expect(line).toHaveCount(1);
   await expect(line.locator('input[placeholder="Désignation"]')).not.toHaveValue("");
 });
+}
