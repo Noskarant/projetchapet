@@ -57,7 +57,7 @@ function semanticServiceFamily(value: string) {
   if (/\benduit\b/u.test(label) && /\bcouloir\b/u.test(label)) return "corridor-plaster";
   if (/\bpapier\s+peint\b/u.test(label)) return "wallpaper";
   if (/\bplafond\b/u.test(label)) return "ceiling";
-  if (/\bplinthes?\b/u.test(label)) return "plinths";
+  if (/\b(?:plinthes?|plaintes?)\b/u.test(label)) return "plinths";
   if (/\bportes?\b/u.test(label)) return "doors";
   if (/\bchambre\b/u.test(label) && /\b(?:preparation|peinture|repeinture|repeindre)\b/u.test(label)) return "bedroom-walls";
   if (/\bmurs?\b/u.test(label) && /\b(?:preparation|peinture|murale)\b/u.test(label)) return "main-walls";
@@ -116,8 +116,10 @@ function applyFinalTranscriptGuards(
   data: StrictDocument,
   contextClients: string[],
 ) {
+  const spoken = normalizeSemanticText(transcript);
   const correctedDoorQuantity = finalDoorQuantityCorrection(transcript);
   const sharedTax = repeatedSharedTax(transcript);
+  const explicitlyMentionsSiteProtection = /\bprotection\s+(?:du\s+)?chantier\b/u.test(spoken);
   let changed = false;
 
   const prestations = data.prestations.map((service) => {
@@ -133,6 +135,11 @@ function applyFinalTranscriptGuards(
       changed = changed || service.quantite !== correctedDoorQuantity;
     }
 
+    if (family === "plinths" && /\bplaintes?\b/u.test(normalizeSemanticText(next.designation))) {
+      next = { ...next, designation: "Peinture des plinthes" };
+      changed = true;
+    }
+
     if (family === "plinths" && next.taux_tva === null && sharedTax !== null) {
       next = { ...next, taux_tva: sharedTax };
       changed = true;
@@ -140,6 +147,17 @@ function applyFinalTranscriptGuards(
 
     return next;
   });
+
+  if (explicitlyMentionsSiteProtection && !prestations.some((service) => semanticServiceFamily(service.designation) === "site-protection")) {
+    prestations.push({
+      designation: "Protection du chantier",
+      quantite: null,
+      unite: null,
+      prix_unitaire_ht: null,
+      taux_tva: sharedTax,
+    });
+    changed = true;
+  }
 
   if (!changed) return data;
   return normalizeStrictVoiceDocument({
