@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { flushSync } from "react-dom";
 
 type AiTarget = "quote" | "invoice" | "customer" | "agenda";
 
@@ -151,7 +152,16 @@ function openPreparedDraftDirectly() {
   review.style.visibility = "hidden";
   review.style.pointerEvents = "none";
   window.setTimeout(() => {
-    if (primary.isConnected) primary.click();
+    if (!primary.isConnected) return;
+    try {
+      // Commit validation before deciding whether the review was replaced by a draft.
+      flushSync(() => primary.click());
+    } finally {
+      if (review.isConnected) {
+        review.style.removeProperty("visibility");
+        review.style.removeProperty("pointer-events");
+      }
+    }
   }, 0);
 }
 
