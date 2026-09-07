@@ -12,6 +12,20 @@ export const maxDuration = 300;
 
 type StrictDocument = ReturnType<typeof robustArtisanDictation>;
 
+const SPOKEN_QUANTITIES = new Map<string, number>([
+  ["un", 1],
+  ["une", 1],
+  ["deux", 2],
+  ["trois", 3],
+  ["quatre", 4],
+  ["cinq", 5],
+  ["six", 6],
+  ["sept", 7],
+  ["huit", 8],
+  ["neuf", 9],
+  ["dix", 10],
+]);
+
 function normalizeSemanticText(value: string) {
   return value
     .normalize("NFD")
@@ -62,6 +76,76 @@ function sameDeterministicService(
   const rightFamily = semanticServiceFamily(right.designation);
   if (leftFamily && rightFamily) return leftFamily === rightFamily;
   return normalizeSemanticText(left.designation) === normalizeSemanticText(right.designation);
+}
+
+function spokenQuantity(value: string | undefined) {
+  if (!value) return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return Math.max(0, numeric);
+  return SPOKEN_QUANTITIES.get(value) ?? null;
+}
+
+function finalDoorQuantityCorrection(transcript: string) {
+  const spoken = normalizeSemanticText(transcript);
+  const number = "(\\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)";
+  const patterns = [
+    new RegExp(`\\bportes?\\b.{0,140}\\bfinalement\\b.{0,90}\\bn\\s+en\\s+met(?:s)?\\s+qu\\s+${number}\\b`, "u"),
+    new RegExp(`\\bfinalement\\b.{0,90}\\bn\\s+en\\s+met(?:s)?\\s+qu\\s+${number}\\b`, "u"),
+    new RegExp(`\\bfinalement\\b.{0,90}\\b${number}\\s+portes?\\b`, "u"),
+  ];
+
+  for (const pattern of patterns) {
+    const corrected = spokenQuantity(spoken.match(pattern)?.[1]);
+    if (corrected !== null) return corrected;
+  }
+
+  if (/\bfinalement\b.{0,90}\b(?:une\s+seule|un\s+seul)\b/u.test(spoken)) return 1;
+  return null;
+}
+
+function repeatedSharedTax(transcript: string) {
+  const matches = [...transcript.matchAll(/\btva\s*(?:à|a|de)?\s*(5(?:[,.]5)?|10|20|0)\s*%?/giu)]
+    .map((match) => Number(match[1].replace(",", ".")))
+    .filter((value) => [0, 5.5, 10, 20].includes(value));
+  if (matches.length < 2) return null;
+  return matches.every((value) => value === matches[0]) ? matches[0] : null;
+}
+
+function applyFinalTranscriptGuards(
+  transcript: string,
+  data: StrictDocument,
+  contextClients: string[],
+) {
+  const correctedDoorQuantity = finalDoorQuantityCorrection(transcript);
+  const sharedTax = repeatedSharedTax(transcript);
+  let changed = false;
+
+  const prestations = data.prestations.map((service) => {
+    const family = semanticServiceFamily(service.designation);
+    let next = service;
+
+    if (family === "doors" && service.unite === "unite" && correctedDoorQuantity !== null && correctedDoorQuantity > 0) {
+      next = {
+        ...next,
+        designation: correctedDoorQuantity === 1 ? "Peinture d'une porte" : `Peinture de ${correctedDoorQuantity} portes`,
+        quantite: correctedDoorQuantity,
+      };
+      changed = changed || service.quantite !== correctedDoorQuantity;
+    }
+
+    if (family === "plinths" && next.taux_tva === null && sharedTax !== null) {
+      next = { ...next, taux_tva: sharedTax };
+      changed = true;
+    }
+
+    return next;
+  });
+
+  if (!changed) return data;
+  return normalizeStrictVoiceDocument({
+    client: data.client,
+    prestations,
+  }, contextClients);
 }
 
 function reconcileDeterministicSemantics(
@@ -191,7 +275,11 @@ ${clientContext}`;
 }
 
 function fallbackPayload(transcript: string, contextClients: string[], reason?: string) {
-  const strictData = robustArtisanDictation(transcript, contextClients);
+  const strictData = applyFinalTranscriptGuards(
+    transcript,
+    robustArtisanDictation(transcript, contextClients),
+    contextClients,
+  );
   return NextResponse.json({
     provider: reason ? "local-recovery-strict" : "local-fallback-strict",
     strict_data: strictData,
@@ -261,7 +349,8 @@ export async function POST(request: Request) {
 
       const strictData = normalizeStrictVoiceDocument(raw, contextClients);
       const fallback = robustArtisanDictation(transcript, contextClients);
-      const finalData = reconcileDeterministicSemantics(transcript, strictData, fallback, contextClients);
+      const reconciledData = reconcileDeterministicSemantics(transcript, strictData, fallback, contextClients);
+      const finalData = applyFinalTranscriptGuards(transcript, reconciledData, contextClients);
 
       return NextResponse.json({
         provider: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
