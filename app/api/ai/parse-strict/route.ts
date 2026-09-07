@@ -10,6 +10,88 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+type StrictDocument = ReturnType<typeof robustArtisanDictation>;
+
+function normalizeSemanticText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR")
+    .replace(/[’']/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function replaceServices(
+  services: StrictDocument["prestations"],
+  matches: (label: string) => boolean,
+  replacement: StrictDocument["prestations"][number],
+) {
+  const firstIndex = services.findIndex((service) => matches(normalizeSemanticText(service.designation)));
+  const filtered = services.filter((service) => !matches(normalizeSemanticText(service.designation)));
+  const insertionIndex = firstIndex >= 0 ? Math.min(firstIndex, filtered.length) : filtered.length;
+  filtered.splice(insertionIndex, 0, replacement);
+  return filtered;
+}
+
+function reconcileDeterministicSemantics(
+  transcript: string,
+  aiData: StrictDocument,
+  deterministicData: StrictDocument,
+  contextClients: string[],
+) {
+  if (!aiData.prestations.length) return deterministicData;
+
+  const spoken = normalizeSemanticText(transcript);
+  let prestations = [...aiData.prestations];
+
+  const explicitlyRemovesWallpaper = /\b(?:enlever|deposer|retirer)\b.{0,80}\b(?:ancien\s+)?papier\s+peint\b/u.test(spoken);
+  if (explicitlyRemovesWallpaper) {
+    const deterministicWallpaper = deterministicData.prestations.find((service) => {
+      const label = normalizeSemanticText(service.designation);
+      return /\bpapier\s+peint\b/u.test(label) && /\b(?:depose|enlevement|retrait)\b/u.test(label);
+    });
+    if (deterministicWallpaper) {
+      prestations = replaceServices(
+        prestations,
+        (label) => /\bpapier\s+peint\b/u.test(label),
+        deterministicWallpaper,
+      );
+    }
+  }
+
+  const explicitlyPricesPreparationAndTwoCoatsTogether = /\bprepar(?:er|ation)\b.{0,100}\bmurs?\b.{0,140}\b(?:deux|2)\s+couches?\b.{0,80}\bpeinture\b/u.test(spoken);
+  if (explicitlyPricesPreparationAndTwoCoatsTogether) {
+    const deterministicWalls = deterministicData.prestations.find((service) => {
+      const label = normalizeSemanticText(service.designation);
+      return /\bpreparation\b/u.test(label)
+        && /\bmurs?\b/u.test(label)
+        && /\b(?:deux|2)\s+couches?\b/u.test(label)
+        && /\bpeinture\b/u.test(label);
+    });
+    if (deterministicWalls?.quantite !== null && deterministicWalls?.prix_unitaire_ht !== null) {
+      prestations = replaceServices(
+        prestations,
+        (label) => {
+          if (/\bchambre\b|\bcouloir\b/u.test(label)) return false;
+          const standalonePreparation = /\bpreparation\b/u.test(label) && /\bmurs?\b/u.test(label);
+          const wallPainting = /\bpeinture\b/u.test(label)
+            && /\bmurs?\b/u.test(label)
+            && (/\b(?:deux|2)\s+couches?\b/u.test(label) || /\bsalon\b/u.test(label));
+          return standalonePreparation || wallPainting;
+        },
+        deterministicWalls,
+      );
+    }
+  }
+
+  return normalizeStrictVoiceDocument({
+    client: aiData.client,
+    prestations,
+  }, contextClients);
+}
+
 function systemPrompt(contextClients: string[]) {
   const clientContext = contextClients.length
     ? `\ncontext_clients disponibles (recopie exactement le nom canonique uniquement en cas de correspondance unique et sûre) :\n${JSON.stringify(contextClients)}`
@@ -45,6 +127,8 @@ Tu dois appliquer ces règles dans cet ordre, sans exception.
 - Un prix explicitement dicté à 0 euro, offert ou gratuit est une vraie valeur et doit rester 0.
 - Convertis les unités exclusivement vers : m2, m, l, h, forfait ou unite.
 - Chaque prestation finale distincte apparaît une seule fois.
+- Respecte strictement le sens du verbe dicté : « enlever », « déposer » ou « retirer » un ancien papier peint signifie une DÉPOSE/UN ENLÈVEMENT, jamais une pose de papier peint.
+- Lorsque l’artisan enchaîne plusieurs opérations comme « préparer les murs puis faire deux couches de peinture » et donne ensuite une seule quantité et un seul prix pour cet ensemble, crée UNE SEULE ligne combinée couvrant les opérations. Ne crée pas une ligne de préparation séparée à prix inconnu ou nul.
 - Une TVA globale s’applique à toutes les lignes sauf lorsqu’une exception explicite vise une prestation précise.
 - Pour des portes annoncées à un prix unitaire, conserve le nombre final de portes en quantité, l'unité unite, et le prix unitaire dicté. Une correction de quantité ne modifie jamais le prix unitaire.
 
@@ -136,7 +220,7 @@ export async function POST(request: Request) {
 
       const strictData = normalizeStrictVoiceDocument(raw, contextClients);
       const fallback = robustArtisanDictation(transcript, contextClients);
-      const finalData = strictData.prestations.length ? strictData : fallback;
+      const finalData = reconcileDeterministicSemantics(transcript, strictData, fallback, contextClients);
 
       return NextResponse.json({
         provider: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
