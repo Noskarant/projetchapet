@@ -29,11 +29,21 @@ function knownSubtotal(services: StrictService[]) {
   ), 0);
 }
 
-test("le pipeline en ligne corrige la dérive pose/dépose et regroupe préparation + deux couches", async () => {
+function knownTax(services: StrictService[]) {
+  return services.reduce((sum, service) => (
+    service.quantite === null || service.prix_unitaire_ht === null || service.taux_tva === null
+      ? sum
+      : sum + service.quantite * service.prix_unitaire_ht * service.taux_tva / 100
+  ), 0);
+}
+
+test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les données explicites", async () => {
   const previousApiKey = process.env.DEEPSEEK_API_KEY;
   const previousFetch = globalThis.fetch;
   process.env.DEEPSEEK_API_KEY = "test-key";
 
+  // Reproduit les dérives réellement observées sur mobile : mauvaise sémantique,
+  // prix de porte altéré, TVA perdue, prestation chambre et protection chantier omises.
   const aiDrift = {
     client: { nom: "Quentin Dubois" },
     prestations: [
@@ -41,12 +51,10 @@ test("le pipeline en ligne corrige la dérive pose/dépose et regroupe préparat
       { designation: "Préparation des murs", quantite: null, unite: null, prix_unitaire_ht: null, taux_tva: null },
       { designation: "Peinture des murs (2 couches)", quantite: 42, unite: "m2", prix_unitaire_ht: 32, taux_tva: 10 },
       { designation: "Peinture du plafond", quantite: 18, unite: "m2", prix_unitaire_ht: 29, taux_tva: 10 },
-      { designation: "Peinture des plinthes", quantite: 14, unite: "m", prix_unitaire_ht: 9, taux_tva: 10 },
-      { designation: "Repeinture de porte", quantite: 1, unite: "unite", prix_unitaire_ht: 85, taux_tva: 10 },
+      { designation: "Peinture des plinthes", quantite: 14, unite: "m", prix_unitaire_ht: 9, taux_tva: null },
+      { designation: "Repeinture de porte", quantite: 1, unite: "unite", prix_unitaire_ht: 45, taux_tva: null },
       { designation: "Pose de papier peint", quantite: 24, unite: "m2", prix_unitaire_ht: 12, taux_tva: 10 },
-      { designation: "Préparation et peinture des murs (chambre)", quantite: 24, unite: "m2", prix_unitaire_ht: 30, taux_tva: 10 },
       { designation: "Reprise d'enduit dans le couloir", quantite: null, unite: null, prix_unitaire_ht: null, taux_tva: null },
-      { designation: "Protection du chantier", quantite: null, unite: null, prix_unitaire_ht: null, taux_tva: null },
     ],
   };
 
@@ -76,11 +84,19 @@ test("le pipeline en ligne corrige la dérive pose/dépose et regroupe préparat
     const combinedWalls = services.filter((service) => /préparation.*murs.*deux couches|preparation.*murs.*deux couches/i.test(service.designation));
     const standalonePreparation = services.filter((service) => /^préparation des murs$|^preparation des murs$/i.test(service.designation));
     const wallpaper = services.find((service) => /papier peint/i.test(service.designation));
+    const bedroom = services.find((service) => /chambre/i.test(service.designation) && /peinture|repeinture/i.test(service.designation));
+    const door = services.find((service) => /porte/i.test(service.designation));
+    const plinths = services.find((service) => /plinthe/i.test(service.designation));
+    const siteProtection = services.find((service) => /protection du chantier/i.test(service.designation));
+    const corridorPlaster = services.find((service) => /enduit/i.test(service.designation) && /couloir/i.test(service.designation));
+    const floorProtection = services.find((service) => /protection/i.test(service.designation) && /sol/i.test(service.designation));
 
     assert.equal(payload.strict_data.client.nom, "Quentin Dubois");
+
     assert.equal(combinedWalls.length, 1);
     assert.equal(combinedWalls[0]?.quantite, 42);
     assert.equal(combinedWalls[0]?.prix_unitaire_ht, 32);
+    assert.equal(combinedWalls[0]?.taux_tva, 10);
     assert.equal(standalonePreparation.length, 0);
 
     assert.ok(wallpaper);
@@ -88,8 +104,33 @@ test("le pipeline en ligne corrige la dérive pose/dépose et regroupe préparat
     assert.doesNotMatch(wallpaper?.designation ?? "", /^pose de papier peint$/i);
     assert.equal(wallpaper?.quantite, 24);
     assert.equal(wallpaper?.prix_unitaire_ht, 12);
+    assert.equal(wallpaper?.taux_tva, 10);
+
+    assert.ok(bedroom, "La prestation chambre ne doit jamais disparaître si elle est explicitement dictée.");
+    assert.equal(bedroom?.quantite, 24);
+    assert.equal(bedroom?.prix_unitaire_ht, 30);
+    assert.equal(bedroom?.taux_tva, 10);
+
+    assert.ok(door);
+    assert.equal(door?.quantite, 1);
+    assert.equal(door?.unite, "unite");
+    assert.equal(door?.prix_unitaire_ht, 85, "Une correction de quantité ne doit jamais transformer 85 € en 45 €.");
+    assert.equal(door?.taux_tva, 10);
+
+    assert.ok(plinths);
+    assert.equal(plinths?.quantite, 14);
+    assert.equal(plinths?.prix_unitaire_ht, 9);
+    assert.equal(plinths?.taux_tva, 10);
+
+    for (const incomplete of [floorProtection, corridorPlaster, siteProtection]) {
+      assert.ok(incomplete);
+      assert.equal(incomplete?.quantite, null);
+      assert.equal(incomplete?.unite, null);
+      assert.equal(incomplete?.prix_unitaire_ht, null);
+    }
 
     assert.equal(knownSubtotal(services), 3085);
+    assert.equal(knownTax(services), 308.5);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousApiKey === undefined) delete process.env.DEEPSEEK_API_KEY;
