@@ -35,6 +35,35 @@ function replaceServices(
   return filtered;
 }
 
+function semanticServiceFamily(value: string) {
+  const label = normalizeSemanticText(value);
+
+  if (/\bprotection\b/u.test(label) && /\bchantier\b/u.test(label)) return "site-protection";
+  if (/\bprotection\b/u.test(label) && /\bsol\b/u.test(label)) return "floor-protection";
+  if (/\benduit\b/u.test(label) && /\bcouloir\b/u.test(label)) return "corridor-plaster";
+  if (/\bpapier\s+peint\b/u.test(label)) return "wallpaper";
+  if (/\bplafond\b/u.test(label)) return "ceiling";
+  if (/\bplinthes?\b/u.test(label)) return "plinths";
+  if (/\bportes?\b/u.test(label)) return "doors";
+  if (/\bchambre\b/u.test(label) && /\b(?:preparation|peinture|repeinture|repeindre)\b/u.test(label)) return "bedroom-walls";
+  if (/\bmurs?\b/u.test(label) && /\b(?:preparation|peinture|murale)\b/u.test(label)) return "main-walls";
+  if (/\bsous\s+couche\b/u.test(label)) return "undercoat";
+  if (/\bfinition\b/u.test(label)) return "finishing";
+  if (/\bmain\s+d\s+oeuvre\b|\bmo\b/u.test(label)) return "labour";
+
+  return "";
+}
+
+function sameDeterministicService(
+  left: StrictDocument["prestations"][number],
+  right: StrictDocument["prestations"][number],
+) {
+  const leftFamily = semanticServiceFamily(left.designation);
+  const rightFamily = semanticServiceFamily(right.designation);
+  if (leftFamily && rightFamily) return leftFamily === rightFamily;
+  return normalizeSemanticText(left.designation) === normalizeSemanticText(right.designation);
+}
+
 function reconcileDeterministicSemantics(
   transcript: string,
   aiData: StrictDocument,
@@ -86,9 +115,21 @@ function reconcileDeterministicSemantics(
     }
   }
 
+  // Le parseur local ne devine rien : lorsqu'il a réussi à extraire une prestation,
+  // ses valeurs proviennent directement de la dictée. Il devient donc la source de
+  // vérité pour cette famille de prestation. L'IA peut enrichir les métiers que le
+  // parseur local ne reconnaît pas, mais elle ne peut ni supprimer une ligne locale,
+  // ni remplacer un prix/une quantité/une TVA explicites par une autre valeur.
+  const aiOnlyServices = prestations.filter((aiService) => (
+    !deterministicData.prestations.some((deterministicService) => (
+      sameDeterministicService(aiService, deterministicService)
+    ))
+  ));
+
+  const clientName = deterministicData.client.nom || aiData.client.nom;
   return normalizeStrictVoiceDocument({
-    client: aiData.client,
-    prestations,
+    client: { nom: clientName },
+    prestations: [...deterministicData.prestations, ...aiOnlyServices],
   }, contextClients);
 }
 
