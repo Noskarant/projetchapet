@@ -73,6 +73,11 @@ function voiceMagicMarkup() {
   ].join("");
 }
 
+function updateVoiceText(node: HTMLElement | null, text: string) {
+  // Replacing identical text would retrigger the body childList observer.
+  if (node && node.textContent !== text) node.textContent = text;
+}
+
 function ensureVoiceMagic() {
   const capture = document.querySelector<HTMLElement>(".mai-capture");
   if (!capture) return;
@@ -110,24 +115,20 @@ function ensureVoiceMagic() {
     magic.dataset.state = "recording";
     magic.disabled = false;
     magic.setAttribute("aria-label", "Arrêter la dictée");
-    if (title) title.textContent = "Je vous écoute…";
-    if (detail) detail.textContent = "Parlez naturellement · touchez pour terminer";
+    updateVoiceText(title, "Je vous écoute…");
+    updateVoiceText(detail, "Parlez naturellement · touchez pour terminer");
     return;
   }
 
   magic.dataset.state = activating ? "activating" : "processing";
   magic.disabled = true;
   magic.setAttribute("aria-label", activating ? "Activation du microphone" : "Préparation en cours");
-  if (title) {
-    title.textContent = activating
-      ? "Ouverture du micro…"
-      : `FORGEO prépare ${voicePreparationLabel(capture)}…`;
-  }
-  if (detail) {
-    detail.textContent = activating
-      ? "Un instant, je me prépare à vous écouter"
-      : "Votre demande est structurée directement dans le brouillon";
-  }
+  updateVoiceText(title, activating
+    ? "Ouverture du micro…"
+    : `FORGEO prépare ${voicePreparationLabel(capture)}…`);
+  updateVoiceText(detail, activating
+    ? "Un instant, je me prépare à vous écouter"
+    : "Votre demande est structurée directement dans le brouillon");
 }
 
 function hideTranscriptFallbacks() {

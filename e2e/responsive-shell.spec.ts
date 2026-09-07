@@ -31,6 +31,8 @@ test("ne sélectionne jamais le premier client par défaut avec l’IA", async (
   test.skip(testInfo.project.name !== "iphone-webkit", "Parcours propre à l’interface mobile");
   await page.goto("/");
   await expect(page.locator(".rm-shell")).toBeVisible();
+  // The shell can paint before the effects install the AI event listeners.
+  await expect(page.getByLabel("Créer avec l’IA", { exact: true })).toBeVisible();
 
   await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent("projetchapet:ai-apply", {
@@ -60,6 +62,7 @@ test("reconnaît Madame comme la civilité Mme lors d’une création IA", async
   test.skip(testInfo.project.name !== "iphone-webkit", "Parcours propre à l’interface mobile");
   await page.goto("/");
   await expect(page.locator(".rm-shell")).toBeVisible();
+  await expect(page.getByLabel("Créer avec l’IA", { exact: true })).toBeVisible();
 
   await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent("projetchapet:ai-apply", {
