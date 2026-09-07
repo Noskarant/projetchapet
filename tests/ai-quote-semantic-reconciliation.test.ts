@@ -1,0 +1,98 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { POST as parseStrictPost } from "../app/api/ai/parse-strict/route";
+
+const QUENTIN_DUBOIS_FIXTURE = `Fais-moi un devis pour Quentin Dubois.
+Dans le salon, il faut protéger le sol et les meubles, préparer les murs puis faire deux couches de peinture.
+Il y a 46 mètres carrés de murs… non attends, 42 mètres carrés, à 32 euros le mètre carré avec TVA à 10 %.
+Pour le plafond, compte 18 mètres carrés à 29 euros le mètre carré, TVA 10 %.
+Ajoute aussi la peinture des plinthes, 14 mètres linéaires à 9 euros le mètre.
+Il y a deux portes à repeindre à 85 euros l’unité.
+Dans la chambre, il faut enlever l’ancien papier peint sur 24 mètres carrés à 12 euros le mètre carré, puis préparer et repeindre ces 24 mètres carrés à 30 euros le mètre carré.
+Ah et pour les portes, finalement n’en mets qu’une, pas deux.
+Ajoute aussi une reprise d’enduit dans le couloir mais je n’ai pas encore la surface exacte.
+Et prévois la protection du chantier, mais je ne t’ai pas donné de tarif pour ça.`;
+
+type StrictService = {
+  designation: string;
+  quantite: number | null;
+  unite: string | null;
+  prix_unitaire_ht: number | null;
+  taux_tva: number | null;
+};
+
+function knownSubtotal(services: StrictService[]) {
+  return services.reduce((sum, service) => (
+    service.quantite === null || service.prix_unitaire_ht === null
+      ? sum
+      : sum + service.quantite * service.prix_unitaire_ht
+  ), 0);
+}
+
+test("le pipeline en ligne corrige la dérive pose/dépose et regroupe préparation + deux couches", async () => {
+  const previousApiKey = process.env.DEEPSEEK_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.DEEPSEEK_API_KEY = "test-key";
+
+  const aiDrift = {
+    client: { nom: "Quentin Dubois" },
+    prestations: [
+      { designation: "Protection du sol et des meubles", quantite: null, unite: null, prix_unitaire_ht: null, taux_tva: null },
+      { designation: "Préparation des murs", quantite: null, unite: null, prix_unitaire_ht: null, taux_tva: null },
+      { designation: "Peinture des murs (2 couches)", quantite: 42, unite: "m2", prix_unitaire_ht: 32, taux_tva: 10 },
+      { designation: "Peinture du plafond", quantite: 18, unite: "m2", prix_unitaire_ht: 29, taux_tva: 10 },
+      { designation: "Peinture des plinthes", quantite: 14, unite: "m", prix_unitaire_ht: 9, taux_tva: 10 },
+      { designation: "Repeinture de porte", quantite: 1, unite: "unite", prix_unitaire_ht: 85, taux_tva: 10 },
+      { designation: "Pose de papier peint", quantite: 24, unite: "m2", prix_unitaire_ht: 12, taux_tva: 10 },
+      { designation: "Préparation et peinture des murs (chambre)", quantite: 24, unite: "m2", prix_unitaire_ht: 30, taux_tva: 10 },
+      { designation: "Reprise d'enduit dans le couloir", quantite: null, unite: null, prix_unitaire_ht: null, taux_tva: null },
+      { designation: "Protection du chantier", quantite: null, unite: null, prix_unitaire_ht: null, taux_tva: null },
+    ],
+  };
+
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(aiDrift) } }],
+    usage: { prompt_tokens: 1, completion_tokens: 1 },
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+
+  try {
+    const response = await parseStrictPost(new Request("http://localhost/api/ai/parse-strict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcript: QUENTIN_DUBOIS_FIXTURE,
+        target: "quote",
+        context_clients: ["Quentin Dubois"],
+      }),
+    }));
+
+    assert.equal(response.ok, true);
+    const payload = await response.json() as { strict_data: { client: { nom: string }; prestations: StrictService[] } };
+    const services = payload.strict_data.prestations;
+
+    const combinedWalls = services.filter((service) => /préparation.*murs.*deux couches|preparation.*murs.*deux couches/i.test(service.designation));
+    const standalonePreparation = services.filter((service) => /^préparation des murs$|^preparation des murs$/i.test(service.designation));
+    const wallpaper = services.find((service) => /papier peint/i.test(service.designation));
+
+    assert.equal(payload.strict_data.client.nom, "Quentin Dubois");
+    assert.equal(combinedWalls.length, 1);
+    assert.equal(combinedWalls[0]?.quantite, 42);
+    assert.equal(combinedWalls[0]?.prix_unitaire_ht, 32);
+    assert.equal(standalonePreparation.length, 0);
+
+    assert.ok(wallpaper);
+    assert.match(wallpaper?.designation ?? "", /dépose|depose|enlèvement|enlevement/i);
+    assert.doesNotMatch(wallpaper?.designation ?? "", /^pose de papier peint$/i);
+    assert.equal(wallpaper?.quantite, 24);
+    assert.equal(wallpaper?.prix_unitaire_ht, 12);
+
+    assert.equal(knownSubtotal(services), 3085);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousApiKey;
+  }
+});
