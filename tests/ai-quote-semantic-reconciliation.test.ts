@@ -30,11 +30,12 @@ function knownSubtotal(services: StrictService[]) {
 }
 
 function knownTax(services: StrictService[]) {
-  return services.reduce((sum, service) => (
+  const raw = services.reduce((sum, service) => (
     service.quantite === null || service.prix_unitaire_ht === null || service.taux_tva === null
       ? sum
       : sum + service.quantite * service.prix_unitaire_ht * service.taux_tva / 100
   ), 0);
+  return Math.round(raw * 100) / 100;
 }
 
 test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les données explicites", async () => {
@@ -42,8 +43,6 @@ test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les 
   const previousFetch = globalThis.fetch;
   process.env.DEEPSEEK_API_KEY = "test-key";
 
-  // Reproduit les dérives réellement observées sur mobile : mauvaise sémantique,
-  // prix de porte altéré, TVA perdue, prestation chambre et protection chantier omises.
   const aiDrift = {
     client: { nom: "Quentin Dubois" },
     prestations: [
@@ -92,7 +91,6 @@ test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les 
     const floorProtection = services.find((service) => /protection/i.test(service.designation) && /sol/i.test(service.designation));
 
     assert.equal(payload.strict_data.client.nom, "Quentin Dubois");
-
     assert.equal(combinedWalls.length, 1);
     assert.equal(combinedWalls[0]?.quantite, 42);
     assert.equal(combinedWalls[0]?.prix_unitaire_ht, 32);
