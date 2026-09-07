@@ -30,11 +30,12 @@ function knownSubtotal(services: StrictService[]) {
 }
 
 function knownTax(services: StrictService[]) {
-  return services.reduce((sum, service) => (
+  const raw = services.reduce((sum, service) => (
     service.quantite === null || service.prix_unitaire_ht === null || service.taux_tva === null
       ? sum
       : sum + service.quantite * service.prix_unitaire_ht * service.taux_tva / 100
   ), 0);
+  return Math.round(raw * 100) / 100;
 }
 
 test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les données explicites", async () => {
@@ -42,8 +43,6 @@ test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les 
   const previousFetch = globalThis.fetch;
   process.env.DEEPSEEK_API_KEY = "test-key";
 
-  // Reproduit les dérives réellement observées sur mobile : mauvaise sémantique,
-  // prix de porte altéré, TVA perdue, prestation chambre et protection chantier omises.
   const aiDrift = {
     client: { nom: "Quentin Dubois" },
     prestations: [
@@ -92,7 +91,6 @@ test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les 
     const floorProtection = services.find((service) => /protection/i.test(service.designation) && /sol/i.test(service.designation));
 
     assert.equal(payload.strict_data.client.nom, "Quentin Dubois");
-
     assert.equal(combinedWalls.length, 1);
     assert.equal(combinedWalls[0]?.quantite, 42);
     assert.equal(combinedWalls[0]?.prix_unitaire_ht, 32);
@@ -128,6 +126,67 @@ test("le garde-fou déterministe empêche DeepSeek de supprimer ou modifier les 
       assert.equal(incomplete?.unite, null);
       assert.equal(incomplete?.prix_unitaire_ht, null);
     }
+
+    assert.equal(knownSubtotal(services), 3085);
+    assert.equal(knownTax(services), 308.5);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousApiKey;
+  }
+});
+
+test("tolère les variantes de transcription qui avaient laissé 2 portes et la TVA des plinthes vide", async () => {
+  const previousApiKey = process.env.DEEPSEEK_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.DEEPSEEK_API_KEY = "test-key";
+
+  const sttVariant = QUENTIN_DUBOIS_FIXTURE
+    .replace("peinture des plinthes", "peinture des plaintes")
+    .replace("n’en mets qu’une", "n’en met qu’une");
+
+  const aiDrift = {
+    client: { nom: "Quentin Dubois" },
+    prestations: [
+      { designation: "Peinture des plinthes dans le salon", quantite: 14, unite: "m", prix_unitaire_ht: 9, taux_tva: null },
+      { designation: "Peinture de 2 portes", quantite: 2, unite: "unite", prix_unitaire_ht: 85, taux_tva: 10 },
+    ],
+  };
+
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(aiDrift) } }],
+    usage: { prompt_tokens: 1, completion_tokens: 1 },
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+
+  try {
+    const response = await parseStrictPost(new Request("http://localhost/api/ai/parse-strict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcript: sttVariant,
+        target: "quote",
+        context_clients: ["Quentin Dubois"],
+      }),
+    }));
+
+    assert.equal(response.ok, true);
+    const payload = await response.json() as { strict_data: { prestations: StrictService[] } };
+    const services = payload.strict_data.prestations;
+    const door = services.find((service) => /porte/i.test(service.designation));
+    const plinths = services.find((service) => /plinthe/i.test(service.designation));
+
+    assert.ok(door);
+    assert.equal(door?.quantite, 1);
+    assert.equal(door?.prix_unitaire_ht, 85);
+    assert.equal(door?.taux_tva, 10);
+
+    assert.ok(plinths);
+    assert.equal(plinths?.quantite, 14);
+    assert.equal(plinths?.prix_unitaire_ht, 9);
+    assert.equal(plinths?.taux_tva, 10);
 
     assert.equal(knownSubtotal(services), 3085);
     assert.equal(knownTax(services), 308.5);
