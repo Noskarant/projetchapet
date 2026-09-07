@@ -39,17 +39,14 @@ export default function MobileAiApplyGuard() {
         return;
       }
 
-      // Un client nommé mais absent du répertoire n'est plus bloquant pour un devis
-      // ou une facture. Le document conserve son nom sans customerId et pourra être
-      // rattaché à une fiche client plus tard.
-      if (result.status === "not_found") return;
-
       event.preventDefault();
       event.stopImmediatePropagation();
       if (result.status === "missing") {
         show("Indiquez le nom du client dans la dictée avant de créer le document.");
-      } else {
+      } else if (result.status === "ambiguous") {
         show("Plusieurs clients correspondent. Dictez un nom plus précis.");
+      } else {
+        show(`Client « ${detail.data?.customer_hint || "inconnu"} » introuvable. Créez-le d’abord dans Clients.`);
       }
     };
 
