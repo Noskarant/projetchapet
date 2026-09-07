@@ -37,6 +37,7 @@ const dateFr = (value: string) => value ? new Intl.DateTimeFormat("fr-FR", { dat
 const isQuote = (value: BusinessDocument): value is MobileQuote => "expiryDate" in value;
 const cloneLines = (items: LineItem[]) => items.map((item) => ({ ...item, id: makeId("line") }));
 const emptyLine = (): LineItem => ({ id: makeId("line"), label: "", description: "", quantity: 1, unit: "u", unitPrice: 0, taxRate: 20 });
+const incompleteLines = (documentData: BusinessDocument) => documentData.items.filter((item) => item.incomplete || item.quantity === null || item.unitPrice === null);
 
 function StatusPill({ status }: { status: QuoteStatus | InvoiceStatus }) {
   const slug = status.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replaceAll(" ", "-");
@@ -63,8 +64,8 @@ async function buildPdf(documentData: BusinessDocument, withoutPrices = false) {
   for (const item of documentData.items) {
     if (y > 255) { pdf.addPage(); y = 18; }
     const lines = pdf.splitTextToSize(item.label || "Prestation", 90); pdf.text(lines, 18, y);
-    pdf.text(`${item.quantity} ${item.unit}`.trim(), 120, y, { align: "right" });
-    if (!withoutPrices) { pdf.text(money(item.unitPrice), 148, y, { align: "right" }); pdf.text(`${item.taxRate} %`, 165, y, { align: "right" }); pdf.text(money(item.quantity * item.unitPrice), 192, y, { align: "right" }); }
+    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
+    if (!withoutPrices) { pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" }); pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, y, { align: "right" }); pdf.text(item.incomplete || item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" }); }
     if (item.description) { pdf.setTextColor(95, 108, 124); pdf.setFontSize(7.5); pdf.text(pdf.splitTextToSize(item.description, 90), 18, y + 5); pdf.setTextColor(0, 0, 0); pdf.setFontSize(8.5); }
     y += Math.max(11, lines.length * 4.5 + (item.description ? 5 : 0)); pdf.setDrawColor(235, 239, 244); pdf.line(16, y - 4, 194, y - 4);
   }
@@ -174,7 +175,7 @@ export default function RappidosMobileShellV2() {
       }
       const data = detail.data as { customer_hint?: string; title?: string; notes?: string; items?: Array<{ label?: string; description?: string; quantity?: number; unit?: string; unit_price?: number; tax_rate?: number }> };
       const matched = workspace.customers.find((customer) => customerDisplayName(customer).toLowerCase().includes((data.customer_hint || "").toLowerCase()) || (data.customer_hint || "").toLowerCase().includes(customerDisplayName(customer).toLowerCase()));
-      const items = (data.items || []).map((item) => ({ id: makeId("line"), label: item.label || "Prestation", description: item.description || "", quantity: Number(item.quantity ?? 1), unit: item.unit || "u", unitPrice: Number(item.unit_price ?? 0), taxRate: Number(item.tax_rate ?? 20) }));
+      const items = (data.items || []).map((item) => ({ id: makeId("line"), label: item.label || "Prestation", description: item.description || "", quantity: item.quantity ?? null, unit: item.unit ?? null, unitPrice: item.unit_price ?? null, taxRate: item.tax_rate ?? null, incomplete: item.quantity == null || item.unit_price == null }));
       const prefill = { customerId: matched?.id || workspace.customers[0]?.id || "", customerName: matched ? customerDisplayName(matched) : data.customer_hint || "Client à sélectionner", title: data.title || "Travaux", notes: data.notes || "", items: items.length ? items : [emptyLine()] };
       if (detail.target === "invoice") newInvoice(prefill); else newQuote(prefill);
     };
@@ -195,6 +196,7 @@ export default function RappidosMobileShellV2() {
   }
 
   async function openPreview(documentData: BusinessDocument, withoutPrices = false) {
+    if (!withoutPrices && incompleteLines(documentData).length) { notify("Complétez les lignes marquées À préciser avant de générer le PDF final."); return; }
     setPreviewBusy(true);
     try {
       const blob = await buildPdf(documentData, withoutPrices); const url = URL.createObjectURL(blob);
@@ -203,6 +205,7 @@ export default function RappidosMobileShellV2() {
     finally { setPreviewBusy(false); }
   }
   function openEmail(documentData: BusinessDocument, withoutPrices: boolean) {
+    if (!withoutPrices && incompleteLines(documentData).length) { notify("Ce document est incomplet : complétez les quantités et tarifs avant l’envoi."); return; }
     const customer = workspace.customers.find((item) => item.id === documentData.customerId);
     setEmail({ document: documentData, withoutPrices, recipient: customer?.emails.find(Boolean) || "", subject: `${isQuote(documentData) ? "Votre devis" : "Votre facture"} ${documentData.number}`, message: `Bonjour,\n\nVeuillez trouver votre ${isQuote(documentData) ? "devis" : "facture"} ${documentData.number} en pièce jointe.\n\nCordialement,\nCHAPET SAS` });
   }
@@ -313,7 +316,7 @@ export default function RappidosMobileShellV2() {
             <label>Notes<textarea value={editor.value.notes} onChange={(event) => updateEditorDocument((value) => ({ ...value, notes: event.target.value }))} /></label>
           </div>
           <div className="rm-products-title"><span>Produits et services</span><button onClick={() => updateEditorDocument((value) => ({ ...value, items: [...value.items, emptyLine()] }))}><Plus size={21} /></button></div>
-          <div className="rm-v2-lines">{editor.value.items.map((item, index) => <article key={item.id}><header><strong>Ligne {index + 1}</strong><button onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={item.unit} onChange={(event) => updateLine(index, "unit", event.target.value)} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
+          <div className="rm-v2-lines">{editor.value.items.map((item, index) => <article key={item.id}><header><strong>Ligne {index + 1}</strong><button onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity ?? ""} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={item.unit ?? ""} onChange={(event) => updateLine(index, "unit", event.target.value)} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice ?? ""} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate ?? ""} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{item.incomplete || item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
           <div className="rm-ai-create-row"><button className="rm-ai-create-text" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><span>Créer avec l’IA</span><small>Dicter et préremplir toutes les lignes</small></button><button className="rm-voice-button" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><Mic size={25} /><small>IA</small></button></div>
           <footer><div><small>Total HT</small><strong>{money(editor.value.subtotal)}</strong><small>TVA : {money(editor.value.taxTotal)} · TTC : {money(editor.value.total)}</small></div><div><button className="rm-outline-button" onClick={() => void openPreview(editor.value, false)} disabled={previewBusy}>{previewBusy ? "Génération…" : "Aperçu PDF"}</button><button className="rm-save-button" onClick={saveEditor}>Enregistrer</button></div></footer>
         </>}

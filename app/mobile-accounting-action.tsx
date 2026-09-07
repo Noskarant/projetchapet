@@ -93,10 +93,10 @@ async function buildAccountingPdf(invoice: MobileInvoice) {
     }
     const lines = pdf.splitTextToSize(item.label || "Prestation", 90);
     pdf.text(lines, 18, y);
-    pdf.text(`${item.quantity} ${item.unit}`.trim(), 120, y, { align: "right" });
-    pdf.text(money(item.unitPrice), 148, y, { align: "right" });
+    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
+    pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" });
     pdf.text(`${item.taxRate} %`, 165, y, { align: "right" });
-    pdf.text(money(item.quantity * item.unitPrice), 192, y, { align: "right" });
+    pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
     if (item.description) {
       pdf.setTextColor(95, 108, 124);
       pdf.setFontSize(7.5);

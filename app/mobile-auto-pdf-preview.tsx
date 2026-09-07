@@ -274,12 +274,12 @@ async function buildQuotePdf(
       pdf.setTextColor(16, 42, 67);
       pdf.setFontSize(8.5);
     }
-    pdf.text(`${item.quantity} ${item.unit || ""}`.trim(), 118, y, {
+    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 118, y, {
       align: "right",
     });
-    pdf.text(money(item.unitPrice), 145, y, { align: "right" });
+    pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 145, y, { align: "right" });
     pdf.text(`${item.taxRate} %`, 162, y, { align: "right" });
-    pdf.text(money(item.quantity * item.unitPrice), 192, y, { align: "right" });
+    pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
     y += Math.max(12, labelLines.length * 4.5 + (item.description ? 6 : 0));
     pdf.setDrawColor(235, 239, 244);
     pdf.line(margin, y - 4, 194, y - 4);
@@ -529,15 +529,15 @@ export default function MobileAutoPdfPreview() {
                     <div className="rm-philippe-line-prices">
                       <div>
                         <small>Quantité</small>
-                        <strong>{item.quantity} {item.unit}</strong>
+                        <strong>{item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`}</strong>
                       </div>
                       <div>
                         <small>Prix unitaire HT</small>
-                        <strong>{money(item.unitPrice)}</strong>
+                        <strong>{item.unitPrice === null ? "À préciser" : money(item.unitPrice)}</strong>
                       </div>
                       <div>
                         <small>Total HT</small>
-                        <strong>{money(item.quantity * item.unitPrice)}</strong>
+                        <strong>{item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong>
                       </div>
                     </div>
                     <div className="rm-philippe-line-tax">TVA {item.taxRate} %</div>

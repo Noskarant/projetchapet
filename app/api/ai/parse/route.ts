@@ -29,6 +29,11 @@ function cleanNumber(value: unknown) {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
+function optionalNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  return cleanNumber(value);
+}
+
 function cleanTax(value: unknown) {
   const parsed = cleanNumber(value);
   return [0, 5.5, 10, 20].includes(parsed) ? parsed : 0;
@@ -76,17 +81,17 @@ function normalizeLine(value: unknown, index: number) {
   const line = (value && typeof value === "object" ? value : {}) as RawLine;
   const taxRate = cleanTax(line.tax_rate);
   const priceType = cleanPriceType(line.price_type);
-  const spokenPrice = cleanNumber(line.unit_price);
+  const spokenPrice = optionalNumber(line.unit_price);
   const warnings: string[] = [];
 
   let unitPrice = spokenPrice;
   if (priceType === "ttc") {
-    if (taxRate > 0) unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
+    if (taxRate > 0 && spokenPrice !== null) unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
     else warnings.push(`Ligne ${index + 1} : prix TTC détecté mais taux de TVA absent, conversion HT impossible.`);
   }
 
   const label = cleanText(line.label, 240);
-  const quantity = cleanNumber(line.quantity);
+  const quantity = optionalNumber(line.quantity);
   if (!label) warnings.push(`Ligne ${index + 1} : désignation manquante.`);
   if (quantity === 0) warnings.push(`Ligne ${index + 1} : quantité absente ou nulle.`);
   if (spokenPrice === 0) warnings.push(`Ligne ${index + 1} : prix unitaire absent ou nul.`);
@@ -97,7 +102,7 @@ function normalizeLine(value: unknown, index: number) {
       label,
       description: cleanText(line.description, 500),
       quantity,
-      unit: cleanText(line.unit, 30) || "u",
+      unit: cleanText(line.unit, 30) || null,
       unit_price: unitPrice,
       tax_rate: taxRate,
       price_type: priceType,
@@ -159,16 +164,16 @@ function fallbackDocument(text: string) {
   const items = chunks.map((chunk) => {
     const quantityMatch = chunk.match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|mètres?\s+carrés?|ml|mètres?\s+linéaires?|heures?|h|unités?|u|forfaits?)/i);
     const priceMatch = chunk.match(/(?:à|pour|prix)\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)\s*(HT|TTC)?/i);
-    if (!quantityMatch && !priceMatch) return null;
-    const unitText = quantityMatch?.[2]?.toLowerCase() ?? "u";
+    if (!quantityMatch && !priceMatch && !/protection|enduit|peinture|papier|préparer|repeindre/i.test(chunk)) return null;
+    const unitText = quantityMatch?.[2]?.toLowerCase() ?? "";
     const unit = /m2|m²|carr/.test(unitText) ? "m²" : /ml|lin/.test(unitText) ? "ml" : /heure|\bh\b/.test(unitText) ? "h" : /forfait/.test(unitText) ? "forfait" : "u";
     const label = chunk.replace(quantityMatch?.[0] ?? "", "").replace(priceMatch?.[0] ?? "", "").replace(/^(client|chantier|travaux|ajoute|ligne|prestation)\s+/i, "").trim().replace(/^[-,:]\s*/, "").slice(0, 220);
     return {
       label: label || "Prestation dictée",
       description: "",
-      quantity: Number(quantityMatch?.[1]?.replace(",", ".") ?? 1),
-      unit,
-      unit_price: Number(priceMatch?.[1]?.replace(",", ".") ?? 0),
+      quantity: quantityMatch ? Number(quantityMatch[1].replace(",", ".")) : null,
+      unit: quantityMatch ? unit : null,
+      unit_price: priceMatch ? Number(priceMatch[1].replace(",", ".")) : null,
       tax_rate: tax,
       price_type: priceMatch?.[2]?.toLowerCase() === "ttc" ? "ttc" : priceMatch?.[2]?.toLowerCase() === "ht" ? "ht" : "unknown",
       confidence: 0.45,
