@@ -8,6 +8,11 @@ test("le mobile garde des barres compactes, sombres et une dictée sans transcri
   test.skip(testInfo.project.name !== "iphone-webkit", "Polish mobile uniquement.");
 
   await page.goto("/");
+  await Promise.all([
+    expect(page.locator(".rm-header")).toBeVisible(),
+    expect(page.locator(".rm-bottom-nav")).toBeVisible(),
+    expect(page.locator(".rm-create-dock")).toBeVisible(),
+  ]);
 
   // Le gate d'auth pilote peut retarder légèrement le montage du shell mobile.
   // On attend les éléments réellement testés au lieu de les lire avant leur création.
