@@ -27,6 +27,7 @@ test("la landing FORGEO parle métier et contrôle sans promesse inventée", () 
   assert.match(html, /reste clairement « À préciser »/);
   assert.match(html, /Créer mon espace/);
   assert.doesNotMatch(html, /21 000|4\.9\/5|N°1|conforme à la facturation électronique/i);
+  assert.doesNotMatch(html, /intelligence artificielle|IA magique/i);
 });
 
 test("la création de compte reste courte et orientée entreprise", () => {
