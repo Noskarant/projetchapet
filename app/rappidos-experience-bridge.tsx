@@ -129,8 +129,8 @@ export default function RappidosExperienceBridge() {
       const review = document.querySelector<HTMLElement>(".mai-review");
       setReviewHost((current) => current === review ? current : review);
 
-      const drawerEyebrows = Array.from(document.querySelectorAll<HTMLElement>(".rm-side-drawer header small"));
-      drawerEyebrows.forEach((node) => {
+      const identityEyebrows = Array.from(document.querySelectorAll<HTMLElement>(".rm-side-drawer header small, .rm-commercial-header small"));
+      identityEyebrows.forEach((node) => {
         if (/PROJET CHAPET/i.test(node.textContent || "")) node.textContent = "FORGEO";
       });
       setSettingsCardValue(document, "Raison sociale", profile.legalName || displayName);
@@ -182,6 +182,15 @@ export default function RappidosExperienceBridge() {
         const isInvoice = /facture/i.test(emailTextarea.value);
         setReactInput(emailTextarea, buildDocumentEmailMessage(profile, isInvoice ? "Facture" : "Devis", number));
         emailTextarea.dataset.rapProfileApplied = "true";
+      }
+
+      const commercialEmail = document.querySelector<HTMLElement>(".rm-commercial-email");
+      const commercialTextarea = commercialEmail?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
+      if (commercialTextarea && !commercialTextarea.dataset.rapProfileApplied) {
+        const number = commercialEmail.querySelector(".rm-commercial-intro strong")?.textContent?.trim() || "";
+        const isInvoice = /^F-|facture/i.test(number) || /facture/i.test(commercialTextarea.value);
+        setReactInput(commercialTextarea, buildDocumentEmailMessage(profile, isInvoice ? "Facture" : "Devis", number));
+        commercialTextarea.dataset.rapProfileApplied = "true";
       }
     };
 
