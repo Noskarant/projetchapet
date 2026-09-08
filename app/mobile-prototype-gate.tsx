@@ -35,7 +35,7 @@ export default function MobilePrototypeGate() {
       prepareFreshArtisanStart(window.localStorage);
       prepareMobileWorkspaceStorage(window.localStorage, EMPTY_MOBILE_WORKSPACE);
     } catch (error) {
-      console.warn("[Projet Chapet] Préparation du stockage mobile impossible", error);
+      console.warn("[FORGEO] Préparation du stockage mobile impossible", error);
     } finally {
       setReady(true);
     }
@@ -55,7 +55,7 @@ export default function MobilePrototypeGate() {
           fontWeight: 800,
         }}
       >
-        Projet Chapet
+        FORGEO
       </main>
     );
   }
