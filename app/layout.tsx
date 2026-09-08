@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import MarketPricingExperience from "./market-pricing-experience";
 import "./globals.css";
 import "./prototype.css";
 import "./crud.css";
@@ -47,7 +48,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>{children}<MarketPricingExperience /></body>
     </html>
   );
 }
