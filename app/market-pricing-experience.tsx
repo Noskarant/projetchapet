@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { applyMarketPriceToQuoteItems, type MarketPriceSelection } from "@/lib/forgeo-market-pricing";
 import MarketPricingPanel from "./market-pricing-panel";
 
@@ -27,6 +27,13 @@ export default function MarketPricingExperience() {
   const [transcript, setTranscript] = useState("");
   const [reviewHost, setReviewHost] = useState<HTMLElement | null>(null);
   const [selection, setSelection] = useState<MarketPriceSelection | null>(null);
+  const transcriptRef = useRef("");
+  const selectionRef = useRef<MarketPriceSelection | null>(null);
+
+  const updateSelection = useCallback((nextSelection: MarketPriceSelection | null) => {
+    selectionRef.current = nextSelection;
+    setSelection(nextSelection);
+  }, []);
 
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
@@ -36,8 +43,9 @@ export default function MarketPricingExperience() {
         try {
           const body = JSON.parse(init.body) as { transcript?: string };
           if (body.transcript) {
+            transcriptRef.current = body.transcript;
             setTranscript(body.transcript);
-            setSelection(null);
+            updateSelection(null);
           }
         } catch {}
       }
@@ -47,21 +55,22 @@ export default function MarketPricingExperience() {
     return () => {
       if (window.fetch === wrappedFetch) window.fetch = originalFetch;
     };
-  }, []);
+  }, [updateSelection]);
 
   useEffect(() => {
     const apply = (event: Event) => {
-      if (!selection) return;
+      const activeSelection = selectionRef.current;
+      if (!activeSelection) return;
       const detail = (event as CustomEvent<ApplyDetail>).detail;
       if (detail?.target !== "quote" || !detail.data) return;
-      const result = applyMarketPriceToQuoteItems(detail.data.items, selection, transcript);
+      const result = applyMarketPriceToQuoteItems(detail.data.items, activeSelection, transcriptRef.current);
       if (!result.applied) return;
       detail.data.items = result.items;
-      setSelection(null);
+      updateSelection(null);
     };
     window.addEventListener("projetchapet:ai-apply", apply, { capture: true });
     return () => window.removeEventListener("projetchapet:ai-apply", apply, { capture: true });
-  }, [selection, transcript]);
+  }, [updateSelection]);
 
   useEffect(() => {
     const locateReview = () => {
@@ -74,5 +83,5 @@ export default function MarketPricingExperience() {
     return () => observer.disconnect();
   }, []);
 
-  return <MarketPricingPanel transcript={transcript} host={reviewHost} selection={selection} onSelect={setSelection} />;
+  return <MarketPricingPanel transcript={transcript} host={reviewHost} selection={selection} onSelect={updateSelection} />;
 }
