@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import AuthSelfServiceBridge from "./auth-self-service-bridge";
 import MarketPricingExperience from "./market-pricing-experience";
 import "./globals.css";
 import "./prototype.css";
@@ -48,7 +49,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr">
-      <body>{children}<MarketPricingExperience /></body>
+      <body>{children}<AuthSelfServiceBridge /><MarketPricingExperience /></body>
     </html>
   );
 }
