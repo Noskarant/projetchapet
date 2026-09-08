@@ -4,6 +4,7 @@ import { Check, Lightbulb } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { buildDocumentEmailMessage, companyProfileDisplayName, readCompanyProfile } from "@/lib/company-profile";
+import { polishQuoteItems } from "@/lib/quote-language-polish";
 import { appendSuggestionsWithoutInventing, suggestRappidosExtras, type RappidosSuggestion } from "@/lib/rappidos-suggestions";
 
 type ApplyDetail = {
@@ -93,6 +94,7 @@ export default function RappidosExperienceBridge() {
     const apply = (event: Event) => {
       const detail = (event as CustomEvent<ApplyDetail>).detail;
       if (!detail?.data || (detail.target !== "quote" && detail.target !== "invoice")) return;
+      detail.data.items = polishQuoteItems(detail.data.items);
       const accepted = suggestions.filter((item) => selectedIds.includes(item.id));
       if (!accepted.length) return;
       detail.data.items = appendSuggestionsWithoutInventing(detail.data.items, accepted);
