@@ -36,7 +36,7 @@ const RULES: PricingRule[] = [
     sourceName: "Travaux.com · Prix pose peinture 2026",
     sourceUrl: "https://www.travaux.com/peinture/guide-des-prix/prix-pose-peinture",
     methodology: "Bas et haut = fourchette publiée pour murs en bon état ; Marché = moyenne publiée (~28 €/m²).",
-    matcher: /(?:peint\w*|peinture)[^.!?]{0,80}(?:mur|murs)|(?:mur|murs)[^.!?]{0,80}(?:peint\w*|peinture)/i,
+    matcher: /(?:pein(?:t|d)\w*|peinture)[^.!?]{0,80}(?:mur|murs)|(?:mur|murs)[^.!?]{0,80}(?:pein(?:t|d)\w*|peinture)/i,
     exclusion: /fa[cç]ade/i,
   },
   {
@@ -52,7 +52,7 @@ const RULES: PricingRule[] = [
     sourceName: "Travaux.com · Prix pose peinture 2026",
     sourceUrl: "https://www.travaux.com/peinture/guide-des-prix/prix-pose-peinture",
     methodology: "Bas et haut = fourchette publiée plafond ; Marché = milieu arithmétique de la fourchette, pas une moyenne observée.",
-    matcher: /(?:peint\w*|peinture)[^.!?]{0,80}plafond|plafond[^.!?]{0,80}(?:peint\w*|peinture)/i,
+    matcher: /(?:pein(?:t|d)\w*|peinture)[^.!?]{0,80}plafond|plafond[^.!?]{0,80}(?:pein(?:t|d)\w*|peinture)/i,
   },
   {
     id: "placo_doubling_standard_2026",
