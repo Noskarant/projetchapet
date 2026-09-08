@@ -24,9 +24,9 @@ import "./mobile-commercial-demo.css";
 import "./mobile-premium-polish.css";
 
 export const metadata: Metadata = {
-  title: "Projet Chapet — gestion bâtiment",
-  description: "Prototype professionnel de devis, factures et pilotage pour les entreprises du bâtiment.",
-  applicationName: "Projet Chapet",
+  title: "FORGEO — gestion simple pour artisans du bâtiment",
+  description: "Devis, factures, clients et suivi de chantier dans un outil pensé pour les artisans du bâtiment.",
+  applicationName: "FORGEO",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon-192.svg",
@@ -35,14 +35,14 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Projet Chapet",
+    title: "FORGEO",
   },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#030919",
+  themeColor: "#102922",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
