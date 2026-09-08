@@ -1,6 +1,7 @@
 import type { MobileCustomer, MobileInvoice, MobileQuote } from "./mobile-prototype";
 import { calculateQuotePreviewTotals, type QuoteInternalMeta } from "./mobile-quote-preview";
 import type { CommercialCompanySettings } from "./mobile-commercial-demo";
+import { companyProfileDisplayName, readCompanyProfile, type CompanyProfile } from "./company-profile";
 
 export type MobileBusinessDocument = MobileQuote | MobileInvoice;
 
@@ -25,6 +26,15 @@ const dateFr = (value: string) =>
       )
     : "—";
 
+function activeCompanyProfile(): CompanyProfile | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return readCompanyProfile(window.localStorage);
+  } catch {
+    return null;
+  }
+}
+
 export function isMobileQuote(document: MobileBusinessDocument): document is MobileQuote {
   return "expiryDate" in document;
 }
@@ -42,6 +52,19 @@ export async function buildBusinessDocumentPdf({
 }: BusinessDocumentPdfOptions) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const profile = activeCompanyProfile();
+  const identityName = profile
+    ? companyProfileDisplayName(profile, company.displayName || company.legalName || "Votre entreprise")
+    : company.displayName || company.legalName || "Votre entreprise";
+  const legalName = profile?.legalName || company.legalName || identityName;
+  const siret = profile?.siret || company.siret;
+  const vat = profile?.vatNumber || company.vat;
+  const address = profile?.address || company.address;
+  const postalCode = profile?.postalCode || company.postalCode;
+  const city = profile?.city || company.city;
+  const phone = profile?.phone || company.phone;
+  const email = profile?.email || company.email;
+  const logoDataUrl = profile?.logoDataUrl || "";
   const margin = 15;
   const right = 195;
   let y = 16;
@@ -54,18 +77,32 @@ export async function buildBusinessDocumentPdf({
   const total = quoteTotals?.total ?? document.total;
 
   const drawPageHeader = (continuation = false) => {
+    const hasLogo = Boolean(logoDataUrl);
+    if (hasLogo) {
+      try {
+        const format = logoDataUrl.startsWith("data:image/png")
+          ? "PNG"
+          : logoDataUrl.startsWith("data:image/webp")
+            ? "WEBP"
+            : "JPEG";
+        pdf.addImage(logoDataUrl, format, margin, y - 6, 31, 14, undefined, "FAST");
+      } catch {
+        // La génération du document reste prioritaire si le logo est incompatible.
+      }
+    }
+    const identityX = hasLogo ? 50 : margin;
     pdf.setTextColor(17, 46, 72);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(15);
-    pdf.text(company.displayName || company.legalName, margin, y);
+    pdf.text(identityName, identityX, y);
     pdf.setFontSize(8.5);
     pdf.setFont("helvetica", "normal");
-    const companyLine = [company.address, company.postalCode, company.city]
+    const companyLine = [address, postalCode, city]
       .filter(Boolean)
       .join(" · ");
-    if (companyLine) pdf.text(companyLine, margin, y + 5);
-    const contactLine = [company.phone, company.email].filter(Boolean).join(" · ");
-    if (contactLine) pdf.text(contactLine, margin, y + 10);
+    if (companyLine) pdf.text(companyLine, identityX, y + 5, { maxWidth: 78 });
+    const contactLine = [phone, email].filter(Boolean).join(" · ");
+    if (contactLine) pdf.text(contactLine, identityX, y + 10, { maxWidth: 78 });
 
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(18);
@@ -183,7 +220,7 @@ export async function buildBusinessDocumentPdf({
     pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
     if (!withoutPrices) {
       pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" });
-      pdf.text(`${item.taxRate} %`, 165, y, { align: "right" });
+      pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, y, { align: "right" });
       pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
     }
     y += rowHeight;
@@ -262,12 +299,14 @@ export async function buildBusinessDocumentPdf({
     });
   }
 
-  const footer = `${company.legalName} · SIRET ${company.siret} · TVA ${company.vat}`;
+  const footer = [legalName, siret ? `SIRET ${siret}` : "", vat ? `TVA ${vat}` : ""]
+    .filter(Boolean)
+    .join(" · ");
   pdf.setFont("helvetica", "normal");
   pdf.setTextColor(105, 118, 132);
   pdf.setFontSize(7);
-  pdf.text(footer, 105, 286, { align: "center", maxWidth: 180 });
-  pdf.text("Les notes personnelles internes sont exclues de ce document.", 105, 290, {
+  if (footer) pdf.text(footer, 105, 285, { align: "center", maxWidth: 180 });
+  pdf.text("Généré via FORGEO · les notes personnelles internes sont exclues.", 105, 290, {
     align: "center",
   });
 
