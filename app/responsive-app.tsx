@@ -41,7 +41,7 @@ export default function ResponsiveApp() {
           fontWeight: 800,
         }}
       >
-        Projet Chapet
+        FORGEO
       </main>
     );
   }
