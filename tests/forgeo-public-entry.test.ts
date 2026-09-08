@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createElement } from "react";
+import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ForgeoPublicEntry from "../app/forgeo-public-entry";
+
+(globalThis as typeof globalThis & { React?: typeof React }).React = React;
 
 const baseProps = {
   companyName: "",
@@ -18,7 +20,7 @@ const baseProps = {
 };
 
 test("la landing FORGEO parle métier et contrôle sans promesse inventée", () => {
-  const html = renderToStaticMarkup(createElement(ForgeoPublicEntry, { ...baseProps, view: "landing" }));
+  const html = renderToStaticMarkup(React.createElement(ForgeoPublicEntry, { ...baseProps, view: "landing" }));
   assert.match(html, /Le bureau de votre entreprise, sans y passer vos soirées/);
   assert.match(html, /Pas de chiffre inventé/);
   assert.match(html, /Données isolées par entreprise/);
@@ -28,7 +30,7 @@ test("la landing FORGEO parle métier et contrôle sans promesse inventée", () 
 });
 
 test("la création de compte reste courte et orientée entreprise", () => {
-  const html = renderToStaticMarkup(createElement(ForgeoPublicEntry, { ...baseProps, view: "signup" }));
+  const html = renderToStaticMarkup(React.createElement(ForgeoPublicEntry, { ...baseProps, view: "signup" }));
   assert.match(html, /Créez votre espace FORGEO/);
   assert.match(html, /Nom de l’entreprise/);
   assert.match(html, /Adresse e-mail/);
@@ -38,7 +40,7 @@ test("la création de compte reste courte et orientée entreprise", () => {
 });
 
 test("la connexion ne redemande pas le nom de l’entreprise", () => {
-  const html = renderToStaticMarkup(createElement(ForgeoPublicEntry, { ...baseProps, view: "login" }));
+  const html = renderToStaticMarkup(React.createElement(ForgeoPublicEntry, { ...baseProps, view: "login" }));
   assert.match(html, /Bon retour sur FORGEO/);
   assert.match(html, /Se connecter/);
   assert.doesNotMatch(html, /Nom de l’entreprise/);
