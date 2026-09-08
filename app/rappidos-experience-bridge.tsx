@@ -187,7 +187,7 @@ export default function RappidosExperienceBridge() {
       const commercialEmail = document.querySelector<HTMLElement>(".rm-commercial-email");
       const commercialTextarea = commercialEmail?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
       if (commercialTextarea && !commercialTextarea.dataset.rapProfileApplied) {
-        const number = commercialEmail.querySelector(".rm-commercial-intro strong")?.textContent?.trim() || "";
+        const number = commercialEmail?.querySelector(".rm-commercial-intro strong")?.textContent?.trim() || "";
         const isInvoice = /^F-|facture/i.test(number) || /facture/i.test(commercialTextarea.value);
         setReactInput(commercialTextarea, buildDocumentEmailMessage(profile, isInvoice ? "Facture" : "Devis", number));
         commercialTextarea.dataset.rapProfileApplied = "true";
