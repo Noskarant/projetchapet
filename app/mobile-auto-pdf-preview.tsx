@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { companyProfileDisplayName, readCompanyProfile } from "@/lib/company-profile";
 import {
   calculateQuotePreviewTotals,
   findQuoteByNumber,
@@ -222,20 +223,43 @@ async function buildQuotePdf(
 ) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const profile = readCompanyProfile(window.localStorage);
+  const displayName = companyProfileDisplayName(profile, "Votre entreprise");
+  const companyAddress = [profile.address, profile.postalCode, profile.city].filter(Boolean).join(" · ");
+  const companyContact = [profile.phone, profile.email].filter(Boolean).join(" · ");
   const totals = calculateQuotePreviewTotals(quote.items, meta.discountPercent);
   const margin = 16;
   let y = 18;
 
   const drawHeader = () => {
+    const hasLogo = Boolean(profile.logoDataUrl);
+    if (hasLogo) {
+      try {
+        const format = profile.logoDataUrl.startsWith("data:image/png")
+          ? "PNG"
+          : profile.logoDataUrl.startsWith("data:image/webp")
+            ? "WEBP"
+            : "JPEG";
+        pdf.addImage(profile.logoDataUrl, format, margin, y - 7, 31, 14, undefined, "FAST");
+      } catch {
+        // Un logo incompatible ne doit jamais empêcher la génération du devis.
+      }
+    }
+    const identityX = hasLogo ? 51 : margin;
     pdf.setTextColor(16, 42, 67);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(16);
-    pdf.text("CHAPET SAS", margin, y);
+    pdf.setFontSize(15);
+    pdf.text(displayName, identityX, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.8);
+    if (companyAddress) pdf.text(companyAddress, identityX, y + 5, { maxWidth: 80 });
+    if (companyContact) pdf.text(companyContact, identityX, y + 10, { maxWidth: 80 });
+    pdf.setFont("helvetica", "bold");
     pdf.setFontSize(18);
     pdf.text("DEVIS", 194, y, { align: "right" });
     pdf.setFontSize(10);
     pdf.text(quote.number, 194, y + 7, { align: "right" });
-    y += 24;
+    y += 27;
     pdf.setDrawColor(210, 220, 232);
     pdf.line(margin, y, 194, y);
     y += 9;
@@ -332,9 +356,14 @@ async function buildQuotePdf(
     pdf.text(pdf.splitTextToSize(quote.notes, 176), margin, y + 6);
   }
 
-  pdf.setFontSize(7.5);
+  const legalIdentity = [profile.legalName || displayName, profile.siret ? `SIRET ${profile.siret}` : "", profile.vatNumber ? `TVA ${profile.vatNumber}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7);
   pdf.setTextColor(100, 110, 124);
-  pdf.text("Document client — les notes personnelles internes sont exclues.", 105, 288, {
+  if (legalIdentity) pdf.text(legalIdentity, 105, 285, { align: "center", maxWidth: 176 });
+  pdf.text("Généré via FORGEO · les notes personnelles internes sont exclues.", 105, 290, {
     align: "center",
   });
   return pdf.output("blob");

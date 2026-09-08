@@ -3,8 +3,12 @@ export const COMPANY_PROFILE_STORAGE_KEY = "projetchapet:company-profile:v1";
 export type CompanyProfile = {
   version: 1;
   legalName: string;
+  displayName: string;
   siret: string;
   vatNumber: string;
+  email: string;
+  accountingEmail: string;
+  phone: string;
   address: string;
   postalCode: string;
   city: string;
@@ -22,8 +26,12 @@ export function defaultCompanyProfile(): CompanyProfile {
   return {
     version: 1,
     legalName: "",
+    displayName: "",
     siret: "",
     vatNumber: "",
+    email: "",
+    accountingEmail: "",
+    phone: "",
     address: "",
     postalCode: "",
     city: "",
@@ -53,8 +61,12 @@ export function normalizeCompanyProfile(value: unknown): CompanyProfile {
   return {
     version: 1,
     legalName: text(raw.legalName, 180),
+    displayName: text(raw.displayName, 180),
     siret: text(raw.siret, 20).replace(/\D/g, "").slice(0, 14),
     vatNumber: text(raw.vatNumber, 30).replace(/\s/g, "").toUpperCase(),
+    email: text(raw.email, 254).toLowerCase(),
+    accountingEmail: text(raw.accountingEmail, 254).toLowerCase(),
+    phone: text(raw.phone, 40),
     address: text(raw.address, 240),
     postalCode: text(raw.postalCode, 10),
     city: text(raw.city, 120),
@@ -83,6 +95,10 @@ export function writeCompanyProfile(storage: StorageLike, profile: CompanyProfil
   return normalized;
 }
 
+export function companyProfileDisplayName(profile: CompanyProfile, fallback = "Votre entreprise") {
+  return profile.displayName || profile.legalName || fallback;
+}
+
 export function accountingExerciseLabel(profile: CompanyProfile, year = new Date().getFullYear()) {
   const start = profile.accountingStart.split("-");
   const end = profile.accountingEnd.split("-");
@@ -91,6 +107,6 @@ export function accountingExerciseLabel(profile: CompanyProfile, year = new Date
 }
 
 export function buildDocumentEmailMessage(profile: CompanyProfile, documentLabel: string, number: string) {
-  const identity = profile.legalName ? `\n${profile.legalName}` : "";
-  return `Bonjour,\n\n${profile.emailIntro}\n\n${documentLabel} ${number}.\n\n${profile.emailSignature}${identity}`.trim();
+  const identity = companyProfileDisplayName(profile, "");
+  return `Bonjour,\n\n${profile.emailIntro}\n\n${documentLabel} ${number}.\n\n${profile.emailSignature}${identity ? `\n${identity}` : ""}`.trim();
 }

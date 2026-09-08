@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Lightbulb, Loader2, Search } from "lucide-react";
+import { Check, Lightbulb } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { buildDocumentEmailMessage, readCompanyProfile } from "@/lib/company-profile";
+import { buildDocumentEmailMessage, companyProfileDisplayName, readCompanyProfile } from "@/lib/company-profile";
 import { appendSuggestionsWithoutInventing, suggestRappidosExtras, type RappidosSuggestion } from "@/lib/rappidos-suggestions";
 
 type ApplyDetail = {
@@ -19,6 +19,15 @@ function requestUrl(input: RequestInfo | URL) {
   return input.url;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function setReactInput(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
   const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
@@ -31,6 +40,13 @@ function fieldByLabel(root: ParentNode, labelText: string) {
   const labels = Array.from(root.querySelectorAll("label"));
   const label = labels.find((candidate) => candidate.textContent?.trim().toLowerCase().startsWith(labelText.toLowerCase()));
   return label?.querySelector<HTMLInputElement>("input") ?? null;
+}
+
+function setSettingsCardValue(root: ParentNode, labelText: string, value: string) {
+  const cards = Array.from(root.querySelectorAll<HTMLElement>(".rm-settings-cards > div"));
+  const card = cards.find((candidate) => candidate.querySelector("span")?.textContent?.trim() === labelText);
+  const strong = card?.querySelector<HTMLElement>("strong");
+  if (strong && value && strong.textContent !== value) strong.textContent = value;
 }
 
 export default function RappidosExperienceBridge() {
@@ -57,10 +73,13 @@ export default function RappidosExperienceBridge() {
         try {
           const body = JSON.parse(init.body) as Record<string, unknown>;
           const profile = readCompanyProfile(window.localStorage);
-          const identity = profile.legalName ? `<div style="margin-top:18px;font-weight:700">${profile.legalName}</div>` : "";
+          const displayName = companyProfileDisplayName(profile, "Votre entreprise");
+          const identity = `<div style="margin-top:18px;font-weight:700">${escapeHtml(displayName)}</div>`;
           const logo = profile.logoDataUrl ? `<img src="${profile.logoDataUrl}" alt="Logo" style="display:block;max-width:150px;max-height:70px;margin:0 0 16px">` : "";
-          const html = typeof body.html === "string" ? body.html.replaceAll("CHAPET SAS", profile.legalName || "Votre entreprise") : "";
-          body.html = `${logo}${html}${identity}<div style="margin-top:22px;font-size:11px;color:#718096">Envoyé via l’application de gestion de l’artisan.</div>`;
+          const html = typeof body.html === "string"
+            ? body.html.replaceAll("CHAPET SAS", escapeHtml(displayName)).replaceAll("CHAPET Père & Fils", escapeHtml(displayName))
+            : "";
+          body.html = `${logo}${html}${identity}<div style="margin-top:22px;font-size:11px;color:#718096">Envoyé via FORGEO.</div>`;
           return originalFetch(input, { ...init, body: JSON.stringify(body) });
         } catch {}
       }
@@ -84,6 +103,8 @@ export default function RappidosExperienceBridge() {
 
   useEffect(() => {
     const enhance = () => {
+      const profile = readCompanyProfile(window.localStorage);
+      const displayName = companyProfileDisplayName(profile, "Votre entreprise");
       const capture = document.querySelector<HTMLElement>(".mai-capture");
       const textarea = capture?.querySelector<HTMLTextAreaElement>("textarea[aria-label='Demande à analyser']") ?? null;
       if (capture && textarea && !capture.querySelector(".rap-keyboard-toggle")) {
@@ -107,6 +128,15 @@ export default function RappidosExperienceBridge() {
 
       const review = document.querySelector<HTMLElement>(".mai-review");
       setReviewHost((current) => current === review ? current : review);
+
+      const identityEyebrows = Array.from(document.querySelectorAll<HTMLElement>(".rm-side-drawer header small, .rm-commercial-header small"));
+      identityEyebrows.forEach((node) => {
+        if (/PROJET CHAPET/i.test(node.textContent || "")) node.textContent = "FORGEO";
+      });
+      setSettingsCardValue(document, "Raison sociale", profile.legalName || displayName);
+      setSettingsCardValue(document, "SIRET", profile.siret || "À renseigner");
+      setSettingsCardValue(document, "Copie automatique au comptable", profile.accountingEmail || "À renseigner");
+      setSettingsCardValue(document, "Logo", profile.logoDataUrl ? "Logo entreprise configuré" : "Aucun logo configuré");
 
       const customerEditor = Array.from(document.querySelectorAll<HTMLElement>(".rm-v2-editor"))
         .find((node) => /client/i.test(node.querySelector("h2")?.textContent ?? ""));
@@ -147,12 +177,20 @@ export default function RappidosExperienceBridge() {
 
       const emailSheet = document.querySelector<HTMLElement>(".rm-v2-email");
       const emailTextarea = emailSheet?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
-      if (emailTextarea && !emailTextarea.dataset.rapProfileApplied && emailTextarea.value.includes("CHAPET SAS")) {
-        const profile = readCompanyProfile(window.localStorage);
+      if (emailTextarea && !emailTextarea.dataset.rapProfileApplied) {
         const number = emailSheet?.querySelector("footer strong")?.textContent?.replace(/\.pdf$/i, "") || "";
         const isInvoice = /facture/i.test(emailTextarea.value);
         setReactInput(emailTextarea, buildDocumentEmailMessage(profile, isInvoice ? "Facture" : "Devis", number));
         emailTextarea.dataset.rapProfileApplied = "true";
+      }
+
+      const commercialEmail = document.querySelector<HTMLElement>(".rm-commercial-email");
+      const commercialTextarea = commercialEmail?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
+      if (commercialTextarea && !commercialTextarea.dataset.rapProfileApplied) {
+        const number = commercialEmail?.querySelector(".rm-commercial-intro strong")?.textContent?.trim() || "";
+        const isInvoice = /^F-|facture/i.test(number) || /facture/i.test(commercialTextarea.value);
+        setReactInput(commercialTextarea, buildDocumentEmailMessage(profile, isInvoice ? "Facture" : "Devis", number));
+        commercialTextarea.dataset.rapProfileApplied = "true";
       }
     };
 
@@ -166,10 +204,15 @@ export default function RappidosExperienceBridge() {
       }
     };
     document.addEventListener("click", click, true);
+    window.addEventListener("projetchapet:company-profile-updated", enhance);
     const observer = new MutationObserver(enhance);
     observer.observe(document.body, { subtree: true, childList: true });
     enhance();
-    return () => { observer.disconnect(); document.removeEventListener("click", click, true); };
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", click, true);
+      window.removeEventListener("projetchapet:company-profile-updated", enhance);
+    };
   }, []);
 
   const portal = reviewHost && suggestions.length > 0 ? createPortal(

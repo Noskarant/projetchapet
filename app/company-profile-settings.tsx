@@ -65,6 +65,7 @@ export default function CompanyProfileSettings() {
       setProfile((current) => ({
         ...current,
         legalName: data.company!.companyName || current.legalName,
+        displayName: current.displayName || data.company!.companyName || current.displayName,
         siret: data.company!.siret,
         vatNumber: data.company!.vatNumber || current.vatNumber,
         address: data.company!.address || current.address,
@@ -116,16 +117,18 @@ export default function CompanyProfileSettings() {
         </header>
         <div className="cps-scroll">
           <section className="cps-card">
-            <div className="cps-title"><Building2 size={20} /><div><strong>Identité légale</strong><small>Utilisée pour les documents et les e-mails.</small></div></div>
+            <div className="cps-title"><Building2 size={20} /><div><strong>Identité légale</strong><small>Source unique utilisée pour les documents et les e-mails.</small></div></div>
             <label>Raison sociale<input value={profile.legalName} onChange={(event) => setProfile({ ...profile, legalName: event.target.value })} placeholder="Ex. Atelier Martin SARL" /></label>
+            <label>Nom commercial<input value={profile.displayName} onChange={(event) => setProfile({ ...profile, displayName: event.target.value })} placeholder="Ex. Atelier Martin" /></label>
             <div className="cps-siret"><label>SIRET<input inputMode="numeric" value={profile.siret} onChange={(event) => setProfile({ ...profile, siret: event.target.value.replace(/\D/g, "").slice(0, 14) })} placeholder="14 chiffres" /></label><button type="button" onClick={() => void lookup()} disabled={lookupBusy}>{lookupBusy ? <Loader2 size={17} className="cps-spin" /> : <Search size={17} />} Rechercher</button></div>
             <label>TVA intracommunautaire<input value={profile.vatNumber} onChange={(event) => setProfile({ ...profile, vatNumber: event.target.value })} /></label>
+            <div className="cps-two"><label>E-mail entreprise<input type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} placeholder="contact@entreprise.fr" /></label><label>Téléphone<input value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} placeholder="04 00 00 00 00" /></label></div>
             <label>Adresse<input value={profile.address} onChange={(event) => setProfile({ ...profile, address: event.target.value })} /></label>
             <div className="cps-two"><label>Code postal<input value={profile.postalCode} onChange={(event) => setProfile({ ...profile, postalCode: event.target.value })} /></label><label>Ville<input value={profile.city} onChange={(event) => setProfile({ ...profile, city: event.target.value })} /></label></div>
           </section>
 
           <section className="cps-card">
-            <div className="cps-title"><ImagePlus size={20} /><div><strong>Logo</strong><small>Préparé pour l’identité des documents et messages.</small></div></div>
+            <div className="cps-title"><ImagePlus size={20} /><div><strong>Logo</strong><small>Utilisé dans les messages et les documents compatibles.</small></div></div>
             <div className="cps-logo-row">{profile.logoDataUrl ? <img src={profile.logoDataUrl} alt="Logo de l’entreprise" /> : <div className="cps-logo-empty">Aucun logo</div>}<label className="cps-file">Choisir un fichier<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void chooseLogo(event.target.files?.[0] ?? null)} /></label>{profile.logoDataUrl && <button type="button" className="cps-link" onClick={() => setProfile({ ...profile, logoDataUrl: "" })}>Retirer</button>}</div>
           </section>
 
@@ -133,6 +136,7 @@ export default function CompanyProfileSettings() {
             <strong>Exercice comptable</strong>
             <p>Définissez le premier et le dernier jour de votre exercice.</p>
             <div className="cps-two"><label>Début (MM-JJ)<input value={profile.accountingStart} onChange={(event) => setProfile({ ...profile, accountingStart: event.target.value })} placeholder="01-01" /></label><label>Fin (MM-JJ)<input value={profile.accountingEnd} onChange={(event) => setProfile({ ...profile, accountingEnd: event.target.value })} placeholder="12-31" /></label></div>
+            <label>E-mail du comptable<input type="email" value={profile.accountingEmail} onChange={(event) => setProfile({ ...profile, accountingEmail: event.target.value })} placeholder="compta@cabinet.fr" /></label>
           </section>
 
           <section className="cps-card">
