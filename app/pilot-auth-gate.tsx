@@ -20,16 +20,21 @@ import {
   shouldPreferLocalPilotSnapshot,
   writePilotLocalSnapshot,
 } from "@/lib/pilot-cloud-workspace";
+import ForgeoPublicEntry from "./forgeo-public-entry";
 
 const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
 
 type SyncStatus = "saved" | "saving" | "error";
 type AuthMode = "login" | "signup";
+type PublicView = "landing" | "auth";
 
 function LoadingScreen({ label = "Sécurisation de votre espace…" }: { label?: string }) {
   return (
     <main className="forgeo-auth-screen" aria-label="Chargement sécurisé FORGEO">
-      <div className="forgeo-auth-loading"><span>FORGEO</span><strong>{label}</strong></div>
+      <div className="forgeo-auth-loading">
+        <span className="forgeo-auth-loading-mark">F</span>
+        <strong>{label}</strong>
+      </div>
       <AuthStyles />
     </main>
   );
@@ -45,7 +50,7 @@ function friendlyAuthError(message: string) {
 
 function AuthStyles() {
   return <style>{`
-    .forgeo-auth-screen{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 80% 0%,rgba(86,49,190,.24),transparent 30%),linear-gradient(180deg,#070a12,#02040a 62%,#010207);color:#f8fafc;font-family:Arial,sans-serif}.forgeo-auth-card{width:min(430px,100%);padding:26px;border:1px solid rgba(255,255,255,.1);border-radius:24px;background:rgba(10,15,28,.94);box-shadow:0 26px 80px rgba(0,0,0,.42);display:grid;gap:18px}.forgeo-auth-brand{display:grid;gap:5px}.forgeo-auth-brand span{font-size:11px;font-weight:900;letter-spacing:.16em;color:#a8b4c7}.forgeo-auth-brand h1{margin:0;font-size:30px}.forgeo-auth-brand p{margin:0;color:#9aa8bc;font-size:13px;line-height:1.5}.forgeo-auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border-radius:13px;background:rgba(255,255,255,.055)}.forgeo-auth-tabs button{height:38px;border:0;border-radius:10px;background:transparent;color:#9aa8bc;font-weight:850}.forgeo-auth-tabs button.active{background:#fff;color:#0a1020}.forgeo-auth-form{display:grid;gap:12px}.forgeo-auth-form label{display:grid;gap:6px;font-size:11px;font-weight:850;color:#b8c2d2}.forgeo-auth-form input{box-sizing:border-box;width:100%;height:46px;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:0 13px;background:rgba(255,255,255,.055);color:#fff;font:600 14px Arial,sans-serif;outline:none}.forgeo-auth-form input:focus{border-color:rgba(147,107,255,.8);box-shadow:0 0 0 3px rgba(126,83,255,.15)}.forgeo-auth-primary{min-height:48px;border:0;border-radius:13px;background:linear-gradient(100deg,#6f20ff,#ff3e75 58%,#ff7b3d);color:#fff;font-weight:900;font-size:14px;box-shadow:0 12px 28px rgba(111,32,255,.25)}.forgeo-auth-primary:disabled{opacity:.55}.forgeo-auth-message{margin:0;padding:10px 12px;border-radius:11px;background:rgba(255,255,255,.06);color:#d8e0ec;font-size:12px;line-height:1.45}.forgeo-auth-loading{display:grid;gap:8px;text-align:center}.forgeo-auth-loading span{font-size:25px;font-weight:950;letter-spacing:.12em}.forgeo-auth-loading strong{font-size:12px;color:#9ba9bb}.forgeo-auth-error{width:min(460px,100%);display:grid;gap:14px;padding:24px;border:1px solid rgba(255,129,129,.22);border-radius:20px;background:rgba(40,12,18,.72)}.forgeo-auth-error h2{margin:0;font-size:20px}.forgeo-auth-error p{margin:0;color:#e2b7bf;font-size:13px;line-height:1.5}.forgeo-account-fallback{position:fixed;z-index:11900;right:16px;top:16px;height:36px;padding:0 12px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(6,10,20,.9);color:#fff;font-weight:850;box-shadow:0 8px 22px rgba(0,0,0,.24)}.forgeo-account-backdrop{position:fixed;inset:0;z-index:15000;display:grid;place-items:center;padding:18px;background:rgba(0,3,10,.68);backdrop-filter:blur(8px)}.forgeo-account-panel{width:min(410px,100%);display:grid;gap:14px;padding:20px;border:1px solid rgba(255,255,255,.11);border-radius:21px;background:#090f1d;color:#f8fafc;box-shadow:0 28px 80px rgba(0,0,0,.45)}.forgeo-account-panel header{display:flex;justify-content:space-between;gap:12px;align-items:start}.forgeo-account-panel header div{display:grid;gap:3px}.forgeo-account-panel header small{color:#8f9db2;font-size:10px;font-weight:900;letter-spacing:.12em}.forgeo-account-panel header strong{font-size:19px}.forgeo-account-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:rgba(255,255,255,.08);color:#fff;font-size:20px}.forgeo-account-meta{display:grid;gap:7px;padding:12px;border-radius:13px;background:rgba(255,255,255,.055)}.forgeo-account-meta span{font-size:11px;color:#9cabbf}.forgeo-account-meta strong{font-size:13px;overflow-wrap:anywhere}.forgeo-account-sync{font-size:11px;font-weight:850}.forgeo-account-sync.saved{color:#75d6a3}.forgeo-account-sync.saving{color:#f4c76c}.forgeo-account-sync.error{color:#ff9b9b}.forgeo-account-signout{min-height:44px;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:rgba(255,255,255,.065);color:#fff;font-weight:900}.forgeo-account-signout:disabled{opacity:.55}@media(max-width:820px){.forgeo-auth-screen{padding:18px}.forgeo-auth-card{padding:21px;border-radius:21px}.forgeo-account-fallback{display:none}.forgeo-account-backdrop{place-items:end center;padding:0}.forgeo-account-panel{width:100%;box-sizing:border-box;border-radius:22px 22px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom))}}
+    .forgeo-auth-screen{min-height:100dvh;display:grid;place-items:center;padding:34px;background:#f7f3e9;color:#142721;font-family:Arial,Helvetica,sans-serif}.forgeo-auth-layout{width:min(1040px,100%);display:grid;grid-template-columns:minmax(0,.92fr) minmax(390px,.72fr);border:1px solid #d9d2c3;border-radius:24px;background:#fff;box-shadow:0 30px 80px rgba(32,45,39,.12);overflow:hidden}.forgeo-auth-aside{min-height:570px;padding:48px;display:flex;flex-direction:column;justify-content:space-between;background:#102922;color:#f8f2e5}.forgeo-auth-aside-top{display:grid;gap:12px}.forgeo-auth-logo{display:inline-flex;align-items:center;gap:10px;font-size:20px;font-weight:950;letter-spacing:.08em}.forgeo-auth-logo-mark{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#f4eedf;color:#102922;font-size:18px;font-weight:950}.forgeo-auth-aside h1{max-width:520px;margin:28px 0 0;font-size:43px;line-height:1.02;letter-spacing:-.045em}.forgeo-auth-aside p{max-width:480px;margin:15px 0 0;color:#becdc6;font-size:13px;line-height:1.6}.forgeo-auth-aside-points{display:grid;gap:10px}.forgeo-auth-aside-points span{display:flex;gap:9px;align-items:center;color:#dce5e1;font-size:11px;font-weight:750}.forgeo-auth-aside-points b{color:#ef7b48}.forgeo-auth-panel{padding:38px 40px;display:flex;flex-direction:column;justify-content:center}.forgeo-auth-back{align-self:flex-start;margin:0 0 24px;padding:0;border:0;background:transparent;color:#6a756f;font:800 10px Arial,sans-serif;cursor:pointer}.forgeo-auth-brand{display:grid;gap:7px}.forgeo-auth-brand span{font-size:9px;font-weight:950;letter-spacing:.15em;color:#e66b37}.forgeo-auth-brand h2{margin:0;font-size:28px;line-height:1.08;letter-spacing:-.035em;color:#102922}.forgeo-auth-brand p{margin:0;color:#6b7671;font-size:11px;line-height:1.5}.forgeo-auth-tabs{margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border:1px solid #ded8cc;border-radius:11px;background:#f6f2e9}.forgeo-auth-tabs button{height:38px;border:0;border-radius:8px;background:transparent;color:#78817e;font-weight:850;cursor:pointer}.forgeo-auth-tabs button.active{background:#fff;color:#102922;box-shadow:0 1px 5px rgba(30,43,37,.08)}.forgeo-auth-form{display:grid;gap:13px;margin-top:20px}.forgeo-auth-form label{display:grid;gap:6px;font-size:10px;font-weight:850;color:#40514a}.forgeo-auth-form input{box-sizing:border-box;width:100%;height:47px;border:1px solid #d8d2c6;border-radius:10px;padding:0 13px;background:#fff;color:#142721;font:650 14px Arial,sans-serif;outline:none}.forgeo-auth-form input::placeholder{color:#a0a7a3}.forgeo-auth-form input:focus{border-color:#527267;box-shadow:0 0 0 3px rgba(52,96,81,.1)}.forgeo-auth-primary{min-height:49px;border:0;border-radius:10px;background:#102922;color:#fff;font-weight:900;font-size:13px;cursor:pointer;box-shadow:0 12px 26px rgba(16,41,34,.15)}.forgeo-auth-primary:disabled{opacity:.55;cursor:default}.forgeo-auth-message{margin:13px 0 0;padding:10px 12px;border-radius:9px;background:#f3f6f2;color:#43574f;font-size:10.5px;line-height:1.45}.forgeo-auth-trust{margin:15px 0 0;padding-top:14px;border-top:1px solid #ece7dc;display:flex;gap:12px;flex-wrap:wrap;color:#7b8580;font-size:9px;font-weight:750}.forgeo-auth-loading{display:grid;gap:12px;justify-items:center;text-align:center}.forgeo-auth-loading-mark{width:52px;height:52px;display:grid;place-items:center;border-radius:15px;background:#102922;color:#f4eedf;font-size:25px;font-weight:950}.forgeo-auth-loading strong{font-size:11px;color:#6c7772}.forgeo-auth-error{width:min(460px,100%);display:grid;gap:14px;padding:26px;border:1px solid #e0c8c0;border-radius:18px;background:#fff}.forgeo-auth-error h2{margin:0;color:#74341f;font-size:20px}.forgeo-auth-error p{margin:0;color:#75594f;font-size:12px;line-height:1.5}.forgeo-account-fallback{position:fixed;z-index:11900;right:16px;top:16px;height:36px;padding:0 12px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(6,10,20,.9);color:#fff;font-weight:850;box-shadow:0 8px 22px rgba(0,0,0,.24)}.forgeo-account-backdrop{position:fixed;inset:0;z-index:15000;display:grid;place-items:center;padding:18px;background:rgba(0,3,10,.68);backdrop-filter:blur(8px)}.forgeo-account-panel{width:min(410px,100%);display:grid;gap:14px;padding:20px;border:1px solid rgba(255,255,255,.11);border-radius:21px;background:#090f1d;color:#f8fafc;box-shadow:0 28px 80px rgba(0,0,0,.45)}.forgeo-account-panel header{display:flex;justify-content:space-between;gap:12px;align-items:start}.forgeo-account-panel header div{display:grid;gap:3px}.forgeo-account-panel header small{color:#8f9db2;font-size:10px;font-weight:900;letter-spacing:.12em}.forgeo-account-panel header strong{font-size:19px}.forgeo-account-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:rgba(255,255,255,.08);color:#fff;font-size:20px}.forgeo-account-meta{display:grid;gap:7px;padding:12px;border-radius:13px;background:rgba(255,255,255,.055)}.forgeo-account-meta span{font-size:11px;color:#9cabbf}.forgeo-account-meta strong{font-size:13px;overflow-wrap:anywhere}.forgeo-account-sync{font-size:11px;font-weight:850}.forgeo-account-sync.saved{color:#75d6a3}.forgeo-account-sync.saving{color:#f4c76c}.forgeo-account-sync.error{color:#ff9b9b}.forgeo-account-signout{min-height:44px;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:rgba(255,255,255,.065);color:#fff;font-weight:900}.forgeo-account-signout:disabled{opacity:.55}@media(max-width:820px){.forgeo-auth-screen{padding:17px}.forgeo-auth-layout{grid-template-columns:1fr;border-radius:19px}.forgeo-auth-aside{display:none}.forgeo-auth-panel{padding:27px 22px}.forgeo-auth-back{margin-bottom:20px}.forgeo-auth-brand h2{font-size:26px}.forgeo-account-fallback{display:none}.forgeo-account-backdrop{place-items:end center;padding:0}.forgeo-account-panel{width:100%;box-sizing:border-box;border-radius:22px 22px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom))}}
   `}</style>;
 }
 
@@ -57,6 +62,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
   const [bootstrapError, setBootstrapError] = useState("");
   const [bootstrapNonce, setBootstrapNonce] = useState(0);
   const [mode, setMode] = useState<AuthMode>("login");
+  const [publicView, setPublicView] = useState<PublicView>("landing");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -234,14 +240,23 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
     };
   }, [workspaceReady, organization?.id, organization?.name]);
 
+  function openAuth(nextMode: AuthMode) {
+    setMode(nextMode);
+    setAuthMessage("");
+    setPassword("");
+    setPublicView("auth");
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
   async function submitAuth(event: FormEvent) {
     event.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
     const cleanCompany = companyName.trim();
-    if (!cleanEmail || password.length < 8 || (mode === "signup" && cleanCompany.length < 2)) {
+    const invalidPassword = mode === "signup" ? password.length < 8 : password.length === 0;
+    if (!cleanEmail || invalidPassword || (mode === "signup" && cleanCompany.length < 2)) {
       setAuthMessage(mode === "signup"
         ? "Renseigne l’entreprise, un e-mail valide et un mot de passe d’au moins 8 caractères."
-        : "Renseigne ton e-mail et un mot de passe d’au moins 8 caractères.");
+        : "Renseigne ton e-mail et ton mot de passe.");
       return;
     }
 
@@ -257,7 +272,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
         if (error) throw error;
         if (data.session) {
           setSession(data.session);
-          setAuthMessage("Compte créé. Sécurisation de l’entreprise en cours…");
+          setAuthMessage("Compte créé. Préparation de l’espace entreprise…");
         } else {
           setAuthMessage("Compte créé. Confirme l’adresse e-mail reçue, puis connecte-toi.");
         }
@@ -291,6 +306,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
       setOrganization(null);
       setWorkspaceReady(false);
       setSyncStatus("saved");
+      setPublicView("landing");
     } catch (error) {
       console.error("[FORGEO] Déconnexion sécurisée impossible", error);
       setSyncStatus("error");
@@ -302,21 +318,45 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
   if (!authReady) return <LoadingScreen />;
 
   if (!session?.user) {
+    if (publicView === "landing") {
+      return <ForgeoPublicEntry onLogin={() => openAuth("login")} onSignup={() => openAuth("signup")} />;
+    }
+
     return (
       <main className="forgeo-auth-screen">
-        <section className="forgeo-auth-card" role="dialog" aria-label="Connexion FORGEO">
-          <div className="forgeo-auth-brand"><span>ESPACE ARTISAN SÉCURISÉ</span><h1>FORGEO</h1><p>Connecte-toi pour isoler les clients, devis et factures de ton entreprise.</p></div>
-          <div className="forgeo-auth-tabs">
-            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setAuthMessage(""); }}>Connexion</button>
-            <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setAuthMessage(""); }}>Créer un compte</button>
+        <section className="forgeo-auth-layout" role="dialog" aria-label={mode === "signup" ? "Création de compte FORGEO" : "Connexion FORGEO"}>
+          <aside className="forgeo-auth-aside">
+            <div className="forgeo-auth-aside-top">
+              <div className="forgeo-auth-logo"><span className="forgeo-auth-logo-mark">F</span><span>FORGEO</span></div>
+              <h1>{mode === "signup" ? "Votre entreprise, votre espace, vos données." : "Retrouvez le chantier là où vous l'avez laissé."}</h1>
+              <p>{mode === "signup" ? "Créez l’espace de votre entreprise. Vos clients, devis et factures seront rattachés à cet espace sécurisé." : "Connectez-vous pour retrouver vos clients, devis, factures et données de chantier synchronisés."}</p>
+            </div>
+            <div className="forgeo-auth-aside-points">
+              <span><b>✓</b> Données séparées par entreprise</span>
+              <span><b>✓</b> Vos prix ne sont jamais remplacés silencieusement</span>
+              <span><b>✓</b> Pensé pour mobile et ordinateur</span>
+            </div>
+          </aside>
+          <div className="forgeo-auth-panel">
+            <button type="button" className="forgeo-auth-back" onClick={() => { setPublicView("landing"); setAuthMessage(""); }}>← Retour à l’accueil</button>
+            <div className="forgeo-auth-brand">
+              <span>ESPACE ARTISAN SÉCURISÉ</span>
+              <h2>{mode === "signup" ? "Créer mon espace FORGEO" : "Bon retour sur FORGEO"}</h2>
+              <p>{mode === "signup" ? "Quelques informations suffisent pour démarrer." : "Connectez-vous avec l’adresse de votre entreprise."}</p>
+            </div>
+            <div className="forgeo-auth-tabs">
+              <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setAuthMessage(""); setPassword(""); }}>Connexion</button>
+              <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setAuthMessage(""); setPassword(""); }}>Créer un compte</button>
+            </div>
+            <form className="forgeo-auth-form" onSubmit={(event) => void submitAuth(event)}>
+              {mode === "signup" && <label>Nom de l’entreprise<input autoComplete="organization" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Ex. Martin Peinture" /></label>}
+              <label>Adresse e-mail<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="contact@entreprise.fr" /></label>
+              <label>Mot de passe<input type="password" minLength={mode === "signup" ? 8 : undefined} autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "signup" ? "8 caractères minimum" : "Votre mot de passe"} /></label>
+              <button className="forgeo-auth-primary" type="submit" disabled={authBusy}>{authBusy ? "Chargement…" : mode === "signup" ? "Créer mon espace entreprise" : "Se connecter"}</button>
+            </form>
+            {authMessage && <p className="forgeo-auth-message">{authMessage}</p>}
+            <div className="forgeo-auth-trust"><span>Connexion sécurisée</span><span>•</span><span>Espace séparé par entreprise</span></div>
           </div>
-          <form className="forgeo-auth-form" onSubmit={(event) => void submitAuth(event)}>
-            {mode === "signup" && <label>Entreprise<input autoComplete="organization" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Ex. Atelier Martin" /></label>}
-            <label>E-mail<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="contact@entreprise.fr" /></label>
-            <label>Mot de passe<input type="password" minLength={8} autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-            <button className="forgeo-auth-primary" type="submit" disabled={authBusy}>{authBusy ? "Connexion…" : mode === "signup" ? "Créer mon espace FORGEO" : "Se connecter"}</button>
-          </form>
-          {authMessage && <p className="forgeo-auth-message">{authMessage}</p>}
         </section>
         <AuthStyles />
       </main>
