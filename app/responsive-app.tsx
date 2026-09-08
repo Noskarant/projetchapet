@@ -9,6 +9,7 @@ import DashboardEnhancements from "./dashboard-enhancements";
 import DesktopExerciseBridge from "./desktop-exercise-bridge";
 import DocumentPreviewBridge from "./document-preview-bridge";
 import DocumentWorkflow from "./document-workflow";
+import ForgeoPublicGate from "./forgeo-public-gate";
 import FunctionalPrototype from "./functional-prototype";
 import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
@@ -29,44 +30,31 @@ export default function ResponsiveApp() {
   }, []);
 
   if (!mode) {
-    return (
-      <main
-        aria-label="Chargement du prototype"
-        style={{
-          minHeight: "100dvh",
-          display: "grid",
-          placeItems: "center",
-          background: "#f3f6f9",
-          color: "#102a43",
-          fontFamily: "Arial, sans-serif",
-          fontWeight: 800,
-        }}
-      >
-        FORGEO
-      </main>
-    );
+    return <main aria-label="Chargement de FORGEO" style={{minHeight:"100dvh",display:"grid",placeItems:"center",background:"#f3efe6",color:"#102a3d",fontFamily:"Inter,system-ui,sans-serif",fontWeight:900,letterSpacing:".08em"}}>FORGEO</main>;
   }
 
   return (
     <AppErrorBoundary>
       <PwaRegister />
-      <PilotAuthGate>
-        <CompanyProfileSettings />
-        <DesktopExerciseBridge />
-        {mode === "mobile" ? (
-          <MobilePrototypeGate />
-        ) : (
-          <>
-            <FunctionalPrototype />
-            <ProductEnhancements />
-            <AiChain />
-            <AiRecordingHotfix />
-            <DocumentWorkflow />
-            <DocumentPreviewBridge />
-            <DashboardEnhancements />
-          </>
-        )}
-      </PilotAuthGate>
+      <ForgeoPublicGate>
+        <PilotAuthGate>
+          <CompanyProfileSettings />
+          <DesktopExerciseBridge />
+          {mode === "mobile" ? (
+            <MobilePrototypeGate />
+          ) : (
+            <>
+              <FunctionalPrototype />
+              <ProductEnhancements />
+              <AiChain />
+              <AiRecordingHotfix />
+              <DocumentWorkflow />
+              <DocumentPreviewBridge />
+              <DashboardEnhancements />
+            </>
+          )}
+        </PilotAuthGate>
+      </ForgeoPublicGate>
     </AppErrorBoundary>
   );
 }
