@@ -11,6 +11,7 @@ import DocumentPreviewBridge from "./document-preview-bridge";
 import DocumentWorkflow from "./document-workflow";
 import FunctionalPrototype from "./functional-prototype";
 import MobilePrototypeGate from "./mobile-prototype-gate";
+import PilotAuthGate from "./pilot-auth-gate";
 import ProductEnhancements from "./product-enhancements";
 import PwaRegister from "./pwa-register";
 
@@ -49,21 +50,23 @@ export default function ResponsiveApp() {
   return (
     <AppErrorBoundary>
       <PwaRegister />
-      <CompanyProfileSettings />
-      <DesktopExerciseBridge />
-      {mode === "mobile" ? (
-        <MobilePrototypeGate />
-      ) : (
-        <>
-          <FunctionalPrototype />
-          <ProductEnhancements />
-          <AiChain />
-          <AiRecordingHotfix />
-          <DocumentWorkflow />
-          <DocumentPreviewBridge />
-          <DashboardEnhancements />
-        </>
-      )}
+      <PilotAuthGate>
+        <CompanyProfileSettings />
+        <DesktopExerciseBridge />
+        {mode === "mobile" ? (
+          <MobilePrototypeGate />
+        ) : (
+          <>
+            <FunctionalPrototype />
+            <ProductEnhancements />
+            <AiChain />
+            <AiRecordingHotfix />
+            <DocumentWorkflow />
+            <DocumentPreviewBridge />
+            <DashboardEnhancements />
+          </>
+        )}
+      </PilotAuthGate>
     </AppErrorBoundary>
   );
 }
