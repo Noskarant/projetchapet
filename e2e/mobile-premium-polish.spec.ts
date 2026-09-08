@@ -9,6 +9,12 @@ test("le mobile garde des barres compactes, sombres et une dictée sans transcri
 
   await page.goto("/");
 
+  // Le gate d'auth pilote peut retarder légèrement le montage du shell mobile.
+  // On attend les éléments réellement testés au lieu de les lire avant leur création.
+  await expect(page.locator(".rm-header")).toBeVisible();
+  await expect(page.locator(".rm-bottom-nav")).toBeVisible();
+  await expect(page.locator(".rm-create-dock")).toBeVisible();
+
   const chrome = await page.evaluate(() => {
     const header = document.querySelector<HTMLElement>(".rm-header")!;
     const nav = document.querySelector<HTMLElement>(".rm-bottom-nav")!;
