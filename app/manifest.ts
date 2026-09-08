@@ -2,16 +2,16 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Projet Chapet",
-    short_name: "Chapet",
-    description: "Gestion de devis, factures, clients et activité pour les entreprises du bâtiment.",
+    name: "FORGEO",
+    short_name: "FORGEO",
+    description: "Gestion de devis, factures, clients et chantiers pour les artisans du bâtiment.",
     id: "/",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait-primary",
-    background_color: "#f3f6f9",
-    theme_color: "#102a43",
+    background_color: "#fbf8f1",
+    theme_color: "#102922",
     lang: "fr-FR",
     icons: [
       { src: "/icon-192.svg", sizes: "192x192", type: "image/svg+xml", purpose: "maskable" },
