@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">Deux artisans du bâtiment sur un chantier</title>
+  <desc id="desc">Illustration éditoriale claire avec deux artisans en casque blanc devant une structure de chantier.</desc>
+  <defs>
+    <linearGradient id="sky" x1="87" y1="22" x2="1034" y2="882" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#eaf5ff"/>
+      <stop offset=".55" stop-color="#c7e4fb"/>
+      <stop offset="1" stop-color="#f6e5d5"/>
+    </linearGradient>
+    <linearGradient id="navy" x1="690" y1="455" x2="976" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#244b67"/>
+      <stop offset="1" stop-color="#0a2237"/>
+    </linearGradient>
+    <linearGradient id="navy2" x1="920" y1="533" x2="1110" y2="891" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#315f79"/>
+      <stop offset="1" stop-color="#0e283a"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="744" y1="278" x2="850" y2="474" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#dba07d"/>
+      <stop offset="1" stop-color="#ad6e56"/>
+    </linearGradient>
+    <linearGradient id="skin2" x1="932" y1="401" x2="1012" y2="537" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d59876"/>
+      <stop offset="1" stop-color="#a96750"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#174263" flood-opacity=".18"/></filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7"/></filter>
+    <clipPath id="round"><rect x="0" y="0" width="1200" height="900" rx="44"/></clipPath>
+  </defs>
+  <g clip-path="url(#round)">
+    <rect width="1200" height="900" fill="url(#sky)"/>
+    <circle cx="970" cy="125" r="180" fill="#fff" opacity=".38"/>
+    <circle cx="180" cy="725" r="280" fill="#fff" opacity=".24"/>
+
+    <g opacity=".52">
+      <path d="M-70 680 250 96h78L11 680Z" fill="#c69161"/>
+      <path d="M52 680 370 96h61L114 680Z" fill="#b87e4e"/>
+      <path d="M-6 205h514v28H-6zm-24 154h493v26H-30zm-16 158h474v24H-46z" fill="#9b6d4b"/>
+      <path d="M230 78h25v592h-25zm170 0h24v592h-24z" fill="#976947"/>
+      <path d="m275 78 203 432-27 13L249 92Zm132 8L166 518l-26-14L380 74Z" fill="#b8845e"/>
+    </g>
+
+    <g opacity=".42">
+      <path d="M470 535 682 180l120 74-216 351Z" fill="#e7c39d"/>
+      <path d="m501 555 199-326 28 18-198 326Z" fill="#c89a70"/>
+      <rect x="493" y="510" width="355" height="28" rx="8" transform="rotate(-31 493 510)" fill="#ad7f58"/>
+      <path d="M686 177 984 348v66L650 222Z" fill="#dcb18a"/>
+    </g>
+
+    <g opacity=".3" filter="url(#soft)">
+      <rect x="110" y="640" width="520" height="100" rx="50" fill="#7497ae"/>
+      <rect x="530" y="686" width="550" height="96" rx="48" fill="#7899ad"/>
+    </g>
+
+    <g filter="url(#shadow)">
+      <path d="M564 900c7-163 46-273 119-341 56-52 124-79 197-61 75 19 119 76 145 164 18 60 24 137 26 238Z" fill="url(#navy)"/>
+      <path d="M680 570c54 42 114 61 178 57 61-4 108-25 141-61l35 74c-30 40-78 65-145 76-78 13-151-4-216-51Z" fill="#133550" opacity=".75"/>
+      <ellipse cx="802" cy="357" rx="101" ry="123" fill="url(#skin)"/>
+      <path d="M716 376c15 13 33 19 55 16 21-3 37-12 48-25 11 16 27 25 48 28 18 3 31 0 43-6-8 55-32 91-73 108-48 20-96 2-119-44-11-22-13-49-2-77Z" fill="#56372f" opacity=".95"/>
+      <path d="M760 420c30 14 58 14 84 0-8 33-26 51-46 52-20 0-34-18-38-52Z" fill="#2d2020" opacity=".82"/>
+      <path d="M770 360c9-7 19-9 31-6m34 0c10-4 20-2 28 5" fill="none" stroke="#49352f" stroke-width="8" stroke-linecap="round"/>
+      <path d="M690 325c7-67 56-119 121-125 65-6 125 35 143 98l-13 25-252 2Z" fill="#fdfefe"/>
+      <path d="M680 322c8-22 29-35 55-37l191-9c30-1 52 10 60 32-15 23-49 36-95 38l-133 6c-39 2-65-7-78-30Z" fill="#edf2f5"/>
+      <path d="M727 298c8-35 33-60 72-67 44-8 84 8 108 43l-15 3c-26-22-54-30-86-24-28 5-49 19-62 43Z" fill="#d7e0e6"/>
+      <path d="M641 792c41-61 93-91 156-90 53 1 100 24 141 70" fill="none" stroke="#315b76" stroke-width="34" stroke-linecap="round" opacity=".8"/>
+      <path d="M705 565c27 23 58 38 93 43 37 6 73 1 107-15l-17 73c-57 27-117 23-180-13Z" fill="#fff" opacity=".12"/>
+    </g>
+
+    <g filter="url(#shadow)">
+      <path d="M831 900c8-125 35-214 83-267 39-44 91-64 145-54 63 12 105 55 131 126 19 52 28 117 31 195Z" fill="url(#navy2)"/>
+      <ellipse cx="1005" cy="477" rx="74" ry="91" fill="url(#skin2)"/>
+      <path d="M944 492c13 14 28 20 46 20 21-1 38-9 51-25 8 11 19 18 33 20 8 1 15 1 21-1-7 40-26 67-57 80-35 15-70 2-88-31-10-18-12-40-6-63Z" fill="#4e332d"/>
+      <path d="M925 454c5-49 42-88 92-94 52-7 101 25 116 73l-12 22-196-1Z" fill="#fff"/>
+      <path d="M916 451c7-17 24-28 43-29l150-7c24-1 42 8 48 25-14 18-39 28-75 29l-105 5c-30 1-51-6-61-23Z" fill="#e9eef1"/>
+      <path d="M965 431c8-26 28-43 57-47 32-4 62 7 80 31l-18 2c-19-13-39-18-61-15-20 3-35 12-46 28Z" fill="#d8e0e5"/>
+      <path d="M941 704c31-39 70-59 116-58 43 1 79 19 109 55" fill="none" stroke="#47708a" stroke-width="27" stroke-linecap="round" opacity=".72"/>
+    </g>
+
+    <path d="M0 820c211-30 434-25 642 16 189 37 375 38 558 4v60H0Z" fill="#e8f0f4" opacity=".72"/>
+  </g>
+</svg>
