@@ -20,18 +20,19 @@ import {
 } from "@/lib/mobile-workspace-storage";
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import {
+  applyWorkspaceAliases,
   coreWorkspaceSignature,
   customerInputFromMobile,
   diffById,
+  emptyWorkspaceAliases,
   invoiceInputFromMobile,
-  invoiceStatusToMobile,
   mobileInvoiceStatusToDesktop,
   normalizedWorkspaceToMobile,
   quoteInputFromMobile,
   stableSignature,
+  type WorkspaceAliases,
 } from "@/lib/mobile-desktop-sync";
 
-const PULL_INTERVAL_MS = 5_000;
 const LOCAL_CHECK_MS = 850;
 
 function readWorkspace(): MobileWorkspace {
@@ -62,7 +63,11 @@ function invoiceEditableContent(invoice: MobileWorkspace["invoices"][number]) {
   };
 }
 
-async function synchronizeLocalChanges(baseline: MobileWorkspace, local: MobileWorkspace) {
+async function synchronizeLocalChanges(
+  baseline: MobileWorkspace,
+  local: MobileWorkspace,
+  aliases: WorkspaceAliases,
+) {
   const server = await fetchWorkspace();
   const customerDiff = diffById(baseline.customers, local.customers);
   const quoteDiff = diffById(baseline.quotes, local.quotes);
@@ -75,6 +80,7 @@ async function synchronizeLocalChanges(baseline: MobileWorkspace, local: MobileW
     const existing = server.customers.find((item) => item.id === customer.id);
     const saved = await saveCustomer(customerInputFromMobile(customer), existing?.id);
     customerIds.set(customer.id, saved.id);
+    if (customer.id !== saved.id) aliases.customers.set(customer.id, saved.id);
   }
   for (const customer of local.customers) {
     if (!customerIds.has(customer.id) && server.customers.some((item) => item.id === customer.id)) {
@@ -86,13 +92,14 @@ async function synchronizeLocalChanges(baseline: MobileWorkspace, local: MobileW
   server.quotes.forEach((quote) => quoteIds.set(quote.id, quote.id));
   for (const quote of [...quoteDiff.created, ...quoteDiff.updated]) {
     const previous = server.quotes.find((item) => item.id === quote.id);
-    const customerId = customerIds.get(quote.customerId) ?? quote.customerId;
+    const customerId = customerIds.get(quote.customerId) ?? aliases.customers.get(quote.customerId) ?? quote.customerId;
     const savedId = await saveQuote(
       quoteInputFromMobile(quote, customerId, previous?.status),
       server.quotes.map((item) => item.number),
       previous?.id,
     );
     quoteIds.set(quote.id, savedId);
+    if (quote.id !== savedId) aliases.quotes.set(quote.id, savedId);
   }
   for (const quote of local.quotes) {
     if (!quoteIds.has(quote.id) && server.quotes.some((item) => item.id === quote.id)) {
@@ -102,15 +109,18 @@ async function synchronizeLocalChanges(baseline: MobileWorkspace, local: MobileW
 
   for (const invoice of [...invoiceDiff.created, ...invoiceDiff.updated]) {
     const previous = server.invoices.find((item) => item.id === invoice.id);
-    const customerId = customerIds.get(invoice.customerId) ?? invoice.customerId;
-    const quoteId = invoice.sourceQuoteId ? quoteIds.get(invoice.sourceQuoteId) ?? invoice.sourceQuoteId : null;
+    const customerId = customerIds.get(invoice.customerId) ?? aliases.customers.get(invoice.customerId) ?? invoice.customerId;
+    const quoteId = invoice.sourceQuoteId
+      ? quoteIds.get(invoice.sourceQuoteId) ?? aliases.quotes.get(invoice.sourceQuoteId) ?? invoice.sourceQuoteId
+      : null;
 
     if (!previous || previous.status === "draft") {
-      await saveInvoice(
+      const savedId = await saveInvoice(
         invoiceInputFromMobile(invoice, customerId, quoteId, previous?.status),
         server.invoices.map((item) => item.number),
         previous?.id,
       );
+      if (invoice.id !== savedId) aliases.invoices.set(invoice.id, savedId);
       continue;
     }
 
@@ -146,9 +156,10 @@ export async function hydrateMobileCoreFromDesktop() {
   const server = await fetchWorkspace();
 
   if (!server.customers.length && !server.quotes.length && !server.invoices.length && hasCoreData(local)) {
-    await synchronizeLocalChanges(EMPTY_MOBILE_WORKSPACE, local);
+    const aliases = emptyWorkspaceAliases();
+    await synchronizeLocalChanges(EMPTY_MOBILE_WORKSPACE, local, aliases);
     const migrated = await fetchWorkspace();
-    const canonical = normalizedWorkspaceToMobile(migrated, local);
+    const canonical = normalizedWorkspaceToMobile(migrated, applyWorkspaceAliases(local, aliases));
     writeWorkspace(canonical);
     return canonical;
   }
@@ -160,17 +171,16 @@ export async function hydrateMobileCoreFromDesktop() {
 
 export default function MobileDesktopSyncBridge() {
   const baseline = useRef<MobileWorkspace | null>(null);
+  const aliases = useRef<WorkspaceAliases>(emptyWorkspaceAliases());
   const syncing = useRef(false);
-  const lastPull = useRef(0);
+  const failedSignature = useRef("");
 
   useEffect(() => {
     let disposed = false;
 
-    const initialize = async () => {
+    const initialize = () => {
       try {
-        const current = readWorkspace();
-        baseline.current = current;
-        lastPull.current = Date.now();
+        baseline.current = applyWorkspaceAliases(readWorkspace(), aliases.current);
       } catch (error) {
         console.error("[FORGEO] Initialisation de la synchronisation mobile impossible", error);
       }
@@ -178,39 +188,27 @@ export default function MobileDesktopSyncBridge() {
 
     const synchronize = async () => {
       if (disposed || syncing.current || !baseline.current) return;
-      const local = readWorkspace();
-      const localChanged = coreWorkspaceSignature(local) !== coreWorkspaceSignature(baseline.current);
+      const rawLocal = readWorkspace();
+      const local = applyWorkspaceAliases(rawLocal, aliases.current);
+      const localSignature = coreWorkspaceSignature(local);
+      if (localSignature === coreWorkspaceSignature(baseline.current) || localSignature === failedSignature.current) return;
 
       syncing.current = true;
       try {
-        if (localChanged) {
-          await synchronizeLocalChanges(baseline.current, local);
-          const server = await fetchWorkspace();
-          const canonical = normalizedWorkspaceToMobile(server, local);
-          writeWorkspace(canonical);
-          baseline.current = canonical;
-          lastPull.current = Date.now();
-          return;
-        }
-
-        if (Date.now() - lastPull.current >= PULL_INTERVAL_MS) {
-          const server = await fetchWorkspace();
-          const canonical = normalizedWorkspaceToMobile(server, local);
-          if (coreWorkspaceSignature(canonical) !== coreWorkspaceSignature(local)) {
-            writeWorkspace(canonical);
-            baseline.current = canonical;
-            // Le shell mobile relira automatiquement ces données au prochain chargement.
-            // Aucun rechargement forcé n'est déclenché afin de ne jamais interrompre une saisie.
-          }
-          lastPull.current = Date.now();
-        }
+        await synchronizeLocalChanges(baseline.current, local, aliases.current);
+        const server = await fetchWorkspace();
+        const aliasedLocal = applyWorkspaceAliases(rawLocal, aliases.current);
+        const canonical = normalizedWorkspaceToMobile(server, aliasedLocal);
+        writeWorkspace(canonical);
+        baseline.current = canonical;
+        failedSignature.current = "";
       } catch (error) {
+        failedSignature.current = localSignature;
         console.error("[FORGEO] Synchronisation mobile ↔ desktop impossible", error);
         try {
           const server = await fetchWorkspace();
-          const canonical = normalizedWorkspaceToMobile(server, local);
+          const canonical = normalizedWorkspaceToMobile(server, applyWorkspaceAliases(rawLocal, aliases.current));
           writeWorkspace(canonical);
-          baseline.current = canonical;
         } catch (reloadError) {
           console.error("[FORGEO] Récupération après erreur de synchronisation impossible", reloadError);
         }
@@ -219,7 +217,7 @@ export default function MobileDesktopSyncBridge() {
       }
     };
 
-    void initialize();
+    initialize();
     const interval = window.setInterval(() => void synchronize(), LOCAL_CHECK_MS);
     return () => {
       disposed = true;
