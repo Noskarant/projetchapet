@@ -2,6 +2,18 @@
 
 import { CheckCircle2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  COMMERCIAL_CLOUD_MIGRATION_KEY,
+  COMMERCIAL_FAILED_PUSH_RETRY_MS,
+  COMMERCIAL_PULL_INTERVAL_MS,
+  commercialCloudSignature,
+  fetchCommercialCloudState,
+  isCommercialCloudConflict,
+  mergeConcurrentCommercialState,
+  mergeInitialCommercialState,
+  saveCommercialCloudState,
+  type CommercialCloudSnapshot,
+} from "@/lib/commercial-cloud";
 import { blobToBase64 } from "@/lib/document-tools";
 import {
   COMMERCIAL_DEMO_STORAGE_KEY,
@@ -52,6 +64,8 @@ type Overlay =
   | "settings"
   | "email"
   | null;
+
+const COMMERCIAL_LOCAL_CHECK_MS = 850;
 
 const emptyFilters = (): DocumentFilters => ({
   customerId: "",
@@ -107,6 +121,11 @@ export default function MobileCommercialDemo() {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
   const workspaceSnapshot = useRef("");
+  const commercialBaseline = useRef<CommercialCloudSnapshot | null>(null);
+  const commercialSyncing = useRef(false);
+  const commercialFailedSignature = useRef("");
+  const commercialFailedAt = useRef(0);
+  const commercialLastPull = useRef(0);
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -130,11 +149,51 @@ export default function MobileCommercialDemo() {
 
   useEffect(() => {
     if (!window.matchMedia("(max-width: 820px)").matches) return;
+    let disposed = false;
     const initial = readCommercialDemoState(window.localStorage);
     setCommercial(initial);
     setCompanyDraft(initial.company);
     setCommercialLoaded(true);
     refreshWorkspace();
+
+    const hydrateCloud = async () => {
+      try {
+        let server = await fetchCommercialCloudState(initial);
+        if (disposed) return;
+        const migratedOrganization = window.localStorage.getItem(COMMERCIAL_CLOUD_MIGRATION_KEY);
+
+        if (migratedOrganization !== server.organizationId) {
+          const merged = mergeInitialCommercialState(server.state, initial);
+          if (commercialCloudSignature(merged) !== commercialCloudSignature(server.state)) {
+            try {
+              await saveCommercialCloudState(merged, server.revision);
+            } catch (error) {
+              if (!isCommercialCloudConflict(error)) throw error;
+              const latest = await fetchCommercialCloudState(initial);
+              const rebased = mergeConcurrentCommercialState(server.state, merged, latest.state);
+              await saveCommercialCloudState(rebased, latest.revision);
+            }
+          }
+          const latestLocal = readCommercialDemoState(window.localStorage);
+          server = await fetchCommercialCloudState(latestLocal);
+          window.localStorage.setItem(COMMERCIAL_CLOUD_MIGRATION_KEY, server.organizationId);
+        }
+
+        if (disposed) return;
+        commercialBaseline.current = server;
+        commercialLastPull.current = Date.now();
+        writeCommercialDemoState(window.localStorage, server.state);
+        setCommercial(server.state);
+        setCompanyDraft(server.state.company);
+      } catch (error) {
+        console.error("[FORGEO] Hydratation des chantiers cloud impossible, conservation locale", error);
+      }
+    };
+
+    void hydrateCloud();
+    return () => {
+      disposed = true;
+    };
   }, [refreshWorkspace]);
 
   useEffect(() => {
@@ -142,6 +201,76 @@ export default function MobileCommercialDemo() {
     writeCommercialDemoState(window.localStorage, commercial);
     document.documentElement.dataset.chapetAccent = commercial.company.accent;
   }, [commercial, commercialLoaded]);
+
+  useEffect(() => {
+    if (!commercialLoaded || !window.matchMedia("(max-width: 820px)").matches) return;
+    let disposed = false;
+
+    const synchronizeCommercialCloud = async () => {
+      const baseline = commercialBaseline.current;
+      if (!baseline || disposed || commercialSyncing.current) return;
+
+      const local = readCommercialDemoState(window.localStorage);
+      const localSignature = commercialCloudSignature(local);
+      const baselineSignature = commercialCloudSignature(baseline.state);
+      const localChanged = localSignature !== baselineSignature;
+      const pullDue = Date.now() - commercialLastPull.current >= COMMERCIAL_PULL_INTERVAL_MS;
+
+      if (!localChanged && !pullDue) return;
+      if (
+        localChanged &&
+        localSignature === commercialFailedSignature.current &&
+        Date.now() - commercialFailedAt.current < COMMERCIAL_FAILED_PUSH_RETRY_MS
+      ) return;
+
+      commercialSyncing.current = true;
+      try {
+        let next: CommercialCloudSnapshot;
+        if (localChanged) {
+          try {
+            next = await saveCommercialCloudState(local, baseline.revision);
+          } catch (error) {
+            if (!isCommercialCloudConflict(error)) throw error;
+            const server = await fetchCommercialCloudState(local);
+            const merged = mergeConcurrentCommercialState(baseline.state, local, server.state);
+            next = await saveCommercialCloudState(merged, server.revision);
+          }
+        } else {
+          next = await fetchCommercialCloudState(local);
+        }
+
+        if (disposed) return;
+        const currentLocal = readCommercialDemoState(window.localStorage);
+        const shouldApplyServer =
+          localChanged || commercialCloudSignature(next.state) !== commercialCloudSignature(currentLocal);
+        if (shouldApplyServer) {
+          writeCommercialDemoState(window.localStorage, next.state);
+          setCommercial(next.state);
+        }
+        commercialBaseline.current = next;
+        commercialLastPull.current = Date.now();
+        commercialFailedSignature.current = "";
+        commercialFailedAt.current = 0;
+      } catch (error) {
+        console.error("[FORGEO] Synchronisation des chantiers cloud impossible", error);
+        if (localChanged) {
+          commercialFailedSignature.current = localSignature;
+          commercialFailedAt.current = Date.now();
+        }
+      } finally {
+        commercialSyncing.current = false;
+      }
+    };
+
+    const interval = window.setInterval(
+      () => void synchronizeCommercialCloud(),
+      COMMERCIAL_LOCAL_CHECK_MS,
+    );
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+    };
+  }, [commercialLoaded]);
 
   const notifications = useMemo(
     () => workspace ? buildCommercialNotifications(workspace, commercial) : [],
@@ -504,15 +633,20 @@ export default function MobileCommercialDemo() {
         downloadBlob(blob, documentFileName(email.document, email.withoutPrices));
         window.location.href = `mailto:${encodeURIComponent(email.recipient)}?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(`${email.message}\n\nLe PDF a été téléchargé : ajoutez-le en pièce jointe.`)}`;
         notify("PDF téléchargé et application Mail ouverte.");
+        logActivity({
+          kind: "email",
+          message: `${email.document.number} préparé pour un envoi manuel à ${email.recipient}.`,
+          documentNumber: email.document.number,
+        });
       } else {
         notify(`Document envoyé à ${email.recipient}.`);
+        logActivity({
+          kind: "email",
+          message: `${email.document.number} envoyé à ${email.recipient}.`,
+          documentNumber: email.document.number,
+        });
       }
 
-      logActivity({
-        kind: "email",
-        message: `${email.document.number} envoyé à ${email.recipient}.`,
-        documentNumber: email.document.number,
-      });
       setEmail(null);
       setOverlay(null);
     } catch (error) {
