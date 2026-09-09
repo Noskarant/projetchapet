@@ -87,7 +87,6 @@ export function invoiceStatusToMobile(status: InvoiceStatus): MobileInvoice["sta
   if (status === "paid") return "Payée";
   if (status === "overdue") return "En retard";
   if (status === "draft") return "Brouillon";
-  if (status === "cancelled") return "Avoir";
   return "En cours";
 }
 
@@ -105,6 +104,14 @@ export function mobileInvoiceStatusToDesktop(status: MobileInvoice["status"], pr
   if (status === "Brouillon") return "draft";
   if (status === "Avoir") return "cancelled";
   return "issued";
+}
+
+export function isLocalOnlyInvoice(invoice: MobileInvoice) {
+  return invoice.status === "Avoir";
+}
+
+export function syncableInvoices(workspace: MobileWorkspace) {
+  return workspace.invoices.filter((invoice) => !isLocalOnlyInvoice(invoice));
 }
 
 function mobileLineFromDesktop(item: DocumentItem, previous?: LineItem): LineItem {
@@ -263,6 +270,13 @@ export function normalizedWorkspaceToMobile(
       .filter((invoice) => invoice.status === "paid" && invoice.quote_id)
       .map((invoice) => invoice.quote_id as string),
   );
+  const serverInvoices = workspace.invoices.map((invoice) =>
+    invoiceToMobile(invoice, previousInvoices.get(invoice.id), invoice.quote_id ? quoteTitles.get(invoice.quote_id) : undefined),
+  );
+  const serverInvoiceIds = new Set(serverInvoices.map((invoice) => invoice.id));
+  const localOnlyInvoices = previous.invoices.filter(
+    (invoice) => isLocalOnlyInvoice(invoice) && !serverInvoiceIds.has(invoice.id),
+  );
   return {
     customers: workspace.customers.map((customer) => customerToMobile(customer)),
     quotes: workspace.quotes.map((quote) => {
@@ -270,7 +284,7 @@ export function normalizedWorkspaceToMobile(
       if (quote.status === "accepted" && paidQuoteIds.has(quote.id)) return { ...mobile, status: "Terminé" as const };
       return mobile;
     }),
-    invoices: workspace.invoices.map((invoice) => invoiceToMobile(invoice, previousInvoices.get(invoice.id), invoice.quote_id ? quoteTitles.get(invoice.quote_id) : undefined)),
+    invoices: [...serverInvoices, ...localOnlyInvoices],
     agenda: previous.agenda,
   };
 }
@@ -319,6 +333,6 @@ export function coreWorkspaceSignature(workspace: MobileWorkspace) {
   return stableSignature({
     customers: workspace.customers,
     quotes: workspace.quotes,
-    invoices: workspace.invoices,
+    invoices: syncableInvoices(workspace),
   });
 }
