@@ -90,7 +90,7 @@ test("modifie un événement d’agenda à la voix", async ({ page }, testInfo) 
 
   await page.goto("/");
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await page.getByRole("button", { name: /08:30.*Commander peinture façade/ }).click();
+  await page.getByRole("button", { name: /08:30.*Commander des fournitures/ }).click();
 
   const voiceButton = page.getByRole("button", { name: "Modifier à la voix" });
   await expect(voiceButton).toBeVisible();
