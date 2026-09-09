@@ -3,25 +3,27 @@
 import { Download, Eye, Loader2, Mail, Send, Settings2, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { sendAuthenticatedDocumentEmail } from "@/lib/authenticated-email";
+import {
+  buildDocumentEmailMessage,
+  companyProfileDisplayName,
+  defaultCompanyProfile,
+  readCompanyProfile,
+  type CompanyProfile,
+} from "@/lib/company-profile";
 import { blobToBase64, buildDocumentPdf, downloadDocumentPdf } from "@/lib/document-tools";
 import { customerName, fetchWorkspace, type Invoice, type Quote } from "@/lib/project-chapet";
 
 type BusinessDocument = Quote | Invoice;
 type MailSettings = {
-  accountantEmail: string;
   copyInvoices: boolean;
   copyQuotes: boolean;
-  senderName: string;
-  defaultMessage: string;
 };
 
-const SETTINGS_KEY = "projetchapet.mail-settings.v1";
+const SETTINGS_KEY = "forgeo.mail-settings.v2";
 const defaults: MailSettings = {
-  accountantEmail: "",
   copyInvoices: true,
   copyQuotes: false,
-  senderName: "CHAPET SAS",
-  defaultMessage: "Bonjour,\n\nVeuillez trouver votre document en pièce jointe.\n\nCordialement,",
 };
 
 function loadSettings(): MailSettings {
@@ -33,13 +35,23 @@ function loadSettings(): MailSettings {
   }
 }
 
-function htmlMessage(settings: MailSettings, document: BusinessDocument) {
-  const escaped = settings.defaultMessage
+function escapeHtml(value: string) {
+  return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll("\n", "<br>");
-  return `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#17212f"><h2 style="color:#102a43">${document.number}</h2><p>Bonjour,</p><p>${escaped}</p><p><strong>${settings.senderName}</strong></p></div>`;
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function htmlMessage(profile: CompanyProfile, document: BusinessDocument) {
+  const label = document.number.startsWith("DEV-") ? "Devis" : "Facture";
+  const body = buildDocumentEmailMessage(profile, label, document.number)
+    .split("\n")
+    .map((line) => line ? `<p style="margin:0 0 10px">${escapeHtml(line)}</p>` : '<div style="height:8px"></div>')
+    .join("");
+  const company = escapeHtml(companyProfileDisplayName(profile));
+  return `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#17212f"><div style="font-size:12px;color:#5f7182;margin-bottom:16px">${company}</div><h2 style="color:#102a43;margin:0 0 18px">${escapeHtml(document.number)}</h2>${body}</div>`;
 }
 
 export default function DocumentWorkflow() {
@@ -54,6 +66,7 @@ export default function DocumentWorkflow() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [settings, setSettings] = useState<MailSettings>(defaults);
+  const [profile, setProfile] = useState<CompanyProfile>(() => defaultCompanyProfile());
 
   const notify = useCallback((value: string) => {
     setMessage(value);
@@ -65,13 +78,17 @@ export default function DocumentWorkflow() {
       const data = await fetchWorkspace();
       setDocuments([...data.quotes, ...data.invoices]);
     } catch {
-      // Le prototype principal affiche déjà les erreurs de connexion.
+      // L’interface principale affiche déjà les erreurs de connexion.
     }
   }, []);
 
   useEffect(() => {
     setSettings(loadSettings());
+    setProfile(readCompanyProfile(window.localStorage));
     void reload();
+    const onProfile = () => setProfile(readCompanyProfile(window.localStorage));
+    window.addEventListener("projetchapet:company-profile-updated", onProfile);
+    return () => window.removeEventListener("projetchapet:company-profile-updated", onProfile);
   }, [reload]);
 
   useEffect(() => {
@@ -111,8 +128,8 @@ export default function DocumentWorkflow() {
       setRecipient(document.customer.emails?.[0] ?? "");
       const isInvoice = document.number.startsWith("FAC-");
       setCc(
-        settings.accountantEmail && ((isInvoice && settings.copyInvoices) || (!isInvoice && settings.copyQuotes))
-          ? settings.accountantEmail
+        profile.accountingEmail && ((isInvoice && settings.copyInvoices) || (!isInvoice && settings.copyQuotes))
+          ? profile.accountingEmail
           : "",
       );
       if (mode === "send" && !document.customer.emails?.[0]) notify("Ajoutez l’e-mail du client avant l’envoi.");
@@ -128,20 +145,18 @@ export default function DocumentWorkflow() {
     setBusy(true);
     try {
       const blob = await buildDocumentPdf(selected);
-      const response = await fetch("/api/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: recipient.trim(),
-          cc: cc.split(/[;,]/).map((value) => value.trim()).filter(Boolean),
-          subject: `${selected.number.startsWith("DEV-") ? "Votre devis" : "Votre facture"} ${selected.number}`,
-          html: htmlMessage(settings, selected),
-          attachments: [{ filename: `${selected.number}.pdf`, content: await blobToBase64(blob) }],
-        }),
+      const response = await sendAuthenticatedDocumentEmail({
+        documentNumber: selected.number,
+        documentKind: selected.number.startsWith("DEV-") ? "quote" : "invoice",
+        to: recipient.trim(),
+        cc: cc.split(/[;,]/).map((value) => value.trim()).filter(Boolean),
+        subject: `${selected.number.startsWith("DEV-") ? "Votre devis" : "Votre facture"} ${selected.number}`,
+        html: htmlMessage(profile, selected),
+        attachments: [{ filename: `${selected.number}.pdf`, content: await blobToBase64(blob) }],
       });
-      const result = await response.json();
+      const result = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(result.error || "Envoi impossible.");
-      notify(`Document envoyé à ${recipient.trim()}${cc ? " avec copie" : ""}.`);
+      notify(`Document envoyé à ${recipient.trim()}${cc ? " avec copie à la comptabilité" : ""}.`);
       setSelected(null);
     } catch (error) {
       notify(error instanceof Error ? error.message : "Envoi impossible.");
@@ -169,15 +184,16 @@ export default function DocumentWorkflow() {
 
       {settingsTarget && createPortal(
         <section className="pc-panel pc-setting pc-mail-settings">
-          <div className="pc-setting-title"><Settings2 size={20} /><div><h2>Envoi des documents</h2><p>Destinataires automatiques et message des e-mails.</p></div></div>
+          <div className="pc-setting-title"><Settings2 size={20} /><div><h2>Envoi des documents</h2><p>Copies comptables et préférences d’envoi.</p></div></div>
           <div className="pc-form-grid">
-            <label>Nom affiché<input value={settings.senderName} onChange={(event) => setSettings((current) => ({ ...current, senderName: event.target.value }))} /></label>
-            <label>E-mail du comptable ou destinataire en copie<input type="email" value={settings.accountantEmail} onChange={(event) => setSettings((current) => ({ ...current, accountantEmail: event.target.value }))} placeholder="comptable@cabinet.fr" /></label>
+            <label className="pc-span-2">E-mail comptable<input type="email" value={profile.accountingEmail} readOnly placeholder="À renseigner dans Mon entreprise" /></label>
             <label className="pc-check-setting"><input type="checkbox" checked={settings.copyInvoices} onChange={(event) => setSettings((current) => ({ ...current, copyInvoices: event.target.checked }))} /> Mettre automatiquement le comptable en copie des factures</label>
             <label className="pc-check-setting"><input type="checkbox" checked={settings.copyQuotes} onChange={(event) => setSettings((current) => ({ ...current, copyQuotes: event.target.checked }))} /> Le mettre aussi en copie des devis</label>
-            <label className="pc-span-2">Message par défaut<textarea value={settings.defaultMessage} onChange={(event) => setSettings((current) => ({ ...current, defaultMessage: event.target.value }))} /></label>
           </div>
-          <button className="pc-primary" onClick={() => saveMailSettings(settings)}>Enregistrer ces réglages</button>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button className="pc-primary" onClick={() => saveMailSettings(settings)}>Enregistrer ces réglages</button>
+            <button className="pc-secondary" onClick={() => window.dispatchEvent(new Event("projetchapet:open-company-profile"))}>Modifier le profil entreprise</button>
+          </div>
         </section>,
         settingsTarget,
       )}
@@ -201,8 +217,8 @@ export default function DocumentWorkflow() {
               <aside>
                 <div className="pc-send-panel-title"><Mail size={18} /><div><strong>Envoyer ce PDF</strong><span>Le fichier affiché à gauche sera joint à l’e-mail.</span></div></div>
                 <label>E-mail du client<input type="email" value={recipient} onChange={(event) => setRecipient(event.target.value)} /></label>
-                <label>Copie à<input type="text" value={cc} onChange={(event) => setCc(event.target.value)} placeholder="comptable@cabinet.fr" onBlur={() => { if (cc.trim()) saveMailSettings({ ...settings, accountantEmail: cc.trim() }); }} /></label>
-                <p>Le document est envoyé en PDF. Le nom du logiciel n’apparaît pas dans l’e-mail.</p>
+                <label>Copie à<input type="text" value={cc} onChange={(event) => setCc(event.target.value)} placeholder="comptable@cabinet.fr" /></label>
+                <p>Pour votre sécurité, l’envoi est limité au client lié à ce document et à l’adresse comptable de votre entreprise.</p>
                 <button className="pc-primary" onClick={() => void sendDocument()} disabled={busy || !recipient.trim()}>{busy ? <Loader2 size={16} className="pc-spin" /> : <Mail size={16} />} Envoyer le PDF</button>
                 <button className="pc-secondary" onClick={() => void downloadDocumentPdf(selected)}><Download size={16} /> Télécharger le PDF</button>
               </aside>
