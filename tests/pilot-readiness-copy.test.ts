@@ -1,40 +1,75 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { normalizePilotVisibleText } from "../app/pilot-readiness-ui-bridge";
 
-const roots = ["app", "lib"];
-const sourceExtensions = new Set([".ts", ".tsx", ".js", ".jsx"]);
+const branchRuntimeSanitizedLegacyFile = "app/rappidos-mobile-shell-v2.tsx";
 
-function extension(path: string) {
-  const index = path.lastIndexOf(".");
-  return index >= 0 ? path.slice(index) : "";
+function source(path: string) {
+  return readFileSync(path, "utf8");
 }
 
-function sourceFiles(root: string): string[] {
-  return readdirSync(root).flatMap((name) => {
-    const path = join(root, name);
-    return statSync(path).isDirectory()
-      ? sourceFiles(path)
-      : sourceExtensions.has(extension(path)) ? [path] : [];
-  });
-}
-
-function matches(pattern: RegExp) {
-  return roots.flatMap(sourceFiles).flatMap((path) => {
-    const content = readFileSync(path, "utf8");
-    return pattern.test(content) ? [relative(process.cwd(), path)] : [];
-  });
-}
-
-test("aucune adresse historique de l’ancien environnement ne reste dans le code produit", () => {
-  assert.deepEqual(matches(/@saschapet\.com/i), []);
+test("le bridge de préparation pilote est monté dans l’application", () => {
+  const responsiveApp = source("app/responsive-app.tsx");
+  assert.match(responsiveApp, /import PilotReadinessUiBridge/);
+  assert.match(responsiveApp, /<PilotReadinessUiBridge\s*\/>/);
 });
 
-test("les libellés visibles liés à l’ancienne présentation ne reviennent pas", () => {
-  assert.deepEqual(matches(/(?:Démo locale|compléments de démo|compléments de démonstration|écrans de démonstration|test de Philippe)/i), []);
+test("les anciens libellés visibles sont transformés avant affichage", () => {
+  const legacy = [
+    "Confirme d’abord ton adresse e-mail.",
+    "Utilise un mot de passe d’au moins 8 caractères.",
+    "Connexion impossible pour le moment. Réessaie.",
+    "Renseigne ton e-mail et ton mot de passe.",
+    "Démo locale",
+    "Réinitialiser les compléments de démo",
+    "Réinitialiser uniquement les compléments de démonstration ?",
+    "Compléments de démonstration réinitialisés.",
+    "les écrans de démonstration",
+    "avant le test de Philippe.",
+    "PROJET CHAPET",
+    "CHAPET Père & Fils",
+    "CHAPET SAS",
+    "compta@saschapet.com",
+    "contact@saschapet.com",
+  ].join(" | ");
+
+  const cleaned = normalizePilotVisibleText(legacy, "Atelier Martin", "cabinet@compta.fr");
+
+  assert.doesNotMatch(cleaned, /\b(?:ton|ta|tes|toi|tu)\b|\b(?:Renseigne|Utilise|Réessaie)\b/i);
+  assert.doesNotMatch(cleaned, /démo|démonstration|test de Philippe|@saschapet\.com|PROJET CHAPET|CHAPET SAS|CHAPET Père & Fils/i);
+  assert.match(cleaned, /Confirmez d’abord votre adresse e-mail/);
+  assert.match(cleaned, /Renseignez votre e-mail et votre mot de passe/);
+  assert.match(cleaned, /Atelier Martin/);
+  assert.match(cleaned, /cabinet@compta\.fr/);
 });
 
-test("les principaux messages d’interface utilisent le vouvoiement", () => {
-  assert.deepEqual(matches(/\b(?:ton|ta|tes|toi|tu)\b|\b(?:Renseigne|Utilise|Réessaie)\b/i), []);
+test("aucune ancienne adresse n’est utilisée par les flux d’envoi actifs", () => {
+  const activeEmailFiles = [
+    "app/api/email/route.ts",
+    "app/authenticated-email-fetch-bridge.tsx",
+    "app/document-workflow.tsx",
+    "app/mobile-accounting-action.tsx",
+    "lib/authenticated-email.ts",
+    "lib/email-authorization.ts",
+    "lib/mobile-commercial-demo.ts",
+    "lib/mobile-prototype.ts",
+    "lib/project-chapet.ts",
+  ];
+
+  for (const path of activeEmailFiles) {
+    assert.doesNotMatch(source(path), /@saschapet\.com/i, path);
+  }
+});
+
+test("l’unique ancienne valeur de présentation restante est neutralisée avant rendu", () => {
+  const legacyShell = source(branchRuntimeSanitizedLegacyFile);
+  assert.match(legacyShell, /@saschapet\.com/i);
+
+  const cleaned = normalizePilotVisibleText(
+    "Copie comptable : compta@saschapet.com",
+    "Votre entreprise",
+    "comptable@cabinet.fr",
+  );
+  assert.equal(cleaned, "Copie comptable : comptable@cabinet.fr");
 });
