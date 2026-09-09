@@ -16,8 +16,8 @@ export type Customer = {
 };
 
 export type DocumentItem = {
-  id?: string; position: number; label: string; description: string | null; quantity: number;
-  unit: string | null; unit_price: number; tax_rate: number; total: number;
+  id?: string; position: number; label: string; description: string | null; quantity: number | null;
+  unit: string | null; unit_price: number | null; tax_rate: number | null; total: number;
 };
 
 export type Quote = {
@@ -53,17 +53,28 @@ export function customerName(customer: Pick<Customer, "kind" | "company_name" | 
 }
 
 export function calculateTotals(items: DocumentItem[]) {
-  const subtotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0);
-  const tax_total = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0) * (Number(item.tax_rate || 0) / 100), 0);
+  const subtotal = items.reduce((sum, item) => sum + Number(item.quantity ?? 0) * Number(item.unit_price ?? 0), 0);
+  const tax_total = items.reduce((sum, item) => sum + Number(item.quantity ?? 0) * Number(item.unit_price ?? 0) * (Number(item.tax_rate ?? 0) / 100), 0);
   return { subtotal: Math.round(subtotal * 100) / 100, tax_total: Math.round(tax_total * 100) / 100, total: Math.round((subtotal + tax_total) * 100) / 100 };
 }
 
+function optionalNumber(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return null;
+  return Math.max(0, Number(value));
+}
+
 function normalizeItems(items: DocumentItem[]) {
-  return items.map((item, index) => ({
-    position: index, label: item.label.trim(), description: item.description?.trim() || null,
-    quantity: Number(item.quantity || 0), unit: item.unit?.trim() || null, unit_price: Number(item.unit_price || 0),
-    tax_rate: Number(item.tax_rate || 0), total: Math.round(Number(item.quantity || 0) * Number(item.unit_price || 0) * 100) / 100,
-  }));
+  return items.map((item, index) => {
+    const quantity = optionalNumber(item.quantity);
+    const unitPrice = optionalNumber(item.unit_price);
+    const taxRate = optionalNumber(item.tax_rate);
+    return {
+      position: index, label: item.label.trim(), description: item.description?.trim() || null,
+      quantity, unit: item.unit?.trim() || null, unit_price: unitPrice,
+      tax_rate: taxRate,
+      total: quantity === null || unitPrice === null ? 0 : Math.round(quantity * unitPrice * 100) / 100,
+    };
+  });
 }
 
 export async function getActiveOrganizationId() {
