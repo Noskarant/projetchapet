@@ -54,6 +54,9 @@ jobs:
       - name: Browser regressions - full suite
         run: npm run test:e2e
 
+      - name: Browser smoke - public auth without bypass
+        run: npx playwright test --config=playwright.public.config.ts
+
       - name: Setup npm audit client
         run: npm install --global npm@11.19.0 --no-audit --no-fund
 
