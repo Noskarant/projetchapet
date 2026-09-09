@@ -44,7 +44,11 @@ test("permet de demander un lien de récupération sans révéler si le compte e
   await expect(page).toHaveURL(/\/reset-password$/);
   await expect(page.getByRole("heading", { name: "Mot de passe oublié ?" })).toBeVisible();
 
-  await page.getByLabel("Adresse e-mail").fill("philippe@example.com");
+  const email = page.getByLabel("Adresse e-mail");
+  await email.click();
+  await email.pressSequentially("philippe@example.com");
+  await expect(email).toHaveValue("philippe@example.com");
+  await email.blur();
   await page.getByRole("button", { name: "Recevoir le lien de récupération" }).click();
   await expect(page.getByRole("status")).toContainText("Si un compte FORGEO existe avec cette adresse");
 });
