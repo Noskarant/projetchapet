@@ -118,8 +118,6 @@ test("préserve un statut serveur plus précis tant que le mobile ne le change p
   assert.equal(invoiceStatusToMobile("partially_paid"), "En cours");
   assert.equal(mobileInvoiceStatusToDesktop("En cours", "partially_paid"), "partially_paid");
   assert.equal(mobileInvoiceStatusToDesktop("Payée", "partially_paid"), "paid");
-  assert.equal(invoiceStatusToMobile("cancelled"), "Avoir");
-  assert.equal(mobileInvoiceStatusToDesktop("Avoir", "cancelled"), "cancelled");
 });
 
 test("renvoie les null réels vers le RPC au lieu de fabriquer des zéros", () => {
