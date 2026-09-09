@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="FORGEO">
+  <defs>
+    <linearGradient id="b" x1="8" y1="8" x2="81" y2="83" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1788ff"/>
+      <stop offset="1" stop-color="#075bd8"/>
+    </linearGradient>
+    <linearGradient id="o" x1="40" y1="46" x2="67" y2="72" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff9a2f"/>
+      <stop offset="1" stop-color="#ff6d22"/>
+    </linearGradient>
+  </defs>
+  <path d="M17 13 73 4c7-1 12 5 9 12L70 36c-3 6-7 8-13 9l-16 2c-7 1-10 4-10 11v18c0 5-2 8-7 10l-7 3c-5 2-9-1-9-7V27c0-8 3-12 9-14Z" fill="url(#b)"/>
+  <path d="m43 51 17-3c6-1 9 4 6 9l-7 12c-2 4-6 5-10 3l-10-5c-5-2-5-8-2-12 2-2 3-3 6-4Z" fill="url(#o)"/>
+</svg>
