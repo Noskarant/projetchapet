@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import {
+  applyWorkspaceAliases,
   coreWorkspaceSignature,
   diffById,
+  emptyWorkspaceAliases,
   invoiceStatusToMobile,
   mobileInvoiceStatusToDesktop,
   mobileQuoteStatusToDesktop,
   normalizedWorkspaceToMobile,
   quoteInputFromMobile,
   quoteStatusToMobile,
+  stableSignature,
 } from "../lib/mobile-desktop-sync";
 import type { Customer, Quote } from "../lib/project-chapet";
 import type { MobileWorkspace } from "../lib/mobile-prototype";
@@ -105,6 +108,35 @@ test("détecte créations modifications et suppressions sans tenir compte de l'o
   assert.deepEqual(diff.created.map((item) => item.id), ["c"]);
   assert.deepEqual(diff.updated.map((item) => item.id), ["b"]);
   assert.deepEqual(diff.deleted.map((item) => item.id), ["a"]);
+});
+
+test("remappe les IDs locaux sans casser les relations client devis facture agenda", () => {
+  const aliases = emptyWorkspaceAliases();
+  aliases.customers.set("customer-local", customer.id);
+  aliases.quotes.set("quote-local", quote.id);
+  aliases.invoices.set("invoice-local", "cccccccc-2222-4333-8444-555555555555");
+
+  const local: MobileWorkspace = {
+    customers: [{ id: "customer-local", kind: "Professionnel", companyName: "Atelier Test", civility: "", lastName: "", firstName: "", emails: [], phones: [], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "" }],
+    quotes: [{ id: "quote-local", number: "D-2026-001", customerId: "customer-local", customerName: "Atelier Test", title: "Travaux", issueDate: "2026-09-09", expiryDate: "2026-10-09", status: "En attente", items: [], notes: "", subtotal: 0, taxTotal: 0, total: 0 }],
+    invoices: [{ id: "invoice-local", number: "F-2026-001", customerId: "customer-local", customerName: "Atelier Test", title: "Travaux", issueDate: "2026-09-09", dueDate: "2026-10-09", status: "Brouillon", items: [], notes: "", subtotal: 0, taxTotal: 0, total: 0, paidTotal: 0, accountantSent: false, sourceQuoteId: "quote-local" }],
+    agenda: [{ id: "agenda-local", date: "2026-09-10", time: "09:00", type: "Chantier", title: "Visite", customerId: "customer-local", customerName: "Atelier Test", done: false }],
+  };
+
+  const mapped = applyWorkspaceAliases(local, aliases);
+  assert.equal(mapped.customers[0].id, customer.id);
+  assert.equal(mapped.quotes[0].id, quote.id);
+  assert.equal(mapped.quotes[0].customerId, customer.id);
+  assert.equal(mapped.invoices[0].id, "cccccccc-2222-4333-8444-555555555555");
+  assert.equal(mapped.invoices[0].customerId, customer.id);
+  assert.equal(mapped.invoices[0].sourceQuoteId, quote.id);
+  assert.equal(mapped.agenda[0].customerId, customer.id);
+});
+
+test("ignore les IDs, numéros et totaux générés pour éviter une resynchronisation en boucle", () => {
+  const local = { id: "quote-local", number: "D-2026-001", customerName: "Atelier Test", title: "Peinture", subtotal: 0, taxTotal: 0, total: 0 };
+  const canonical = { id: quote.id, number: "DEV-2026-001", customerName: "Atelier Test", title: "Peinture", subtotal: 100, taxTotal: 20, total: 120 };
+  assert.equal(stableSignature(local), stableSignature(canonical));
 });
 
 test("la signature coeur ignore l'agenda qui reste synchronisé par le snapshot pilote", () => {
