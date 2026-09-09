@@ -30,6 +30,16 @@ export type EntityDiff<T extends { id: string }> = {
   deleted: T[];
 };
 
+export type WorkspaceAliases = {
+  customers: Map<string, string>;
+  quotes: Map<string, string>;
+  invoices: Map<string, string>;
+};
+
+export function emptyWorkspaceAliases(): WorkspaceAliases {
+  return { customers: new Map(), quotes: new Map(), invoices: new Map() };
+}
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function isDatabaseId(value: string) {
@@ -39,9 +49,13 @@ export function isDatabaseId(value: string) {
 function normalizeForSignature(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalizeForSignature);
   if (!value || typeof value !== "object") return value;
+  const ignored = new Set([
+    "id", "number", "customerName", "subtotal", "taxTotal", "total",
+    "created_at", "updated_at", "sent_at", "accepted_at", "signed_at",
+  ]);
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => !["created_at", "updated_at", "sent_at", "accepted_at", "signed_at"].includes(key))
+      .filter(([key]) => !ignored.has(key))
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, item]) => [key, normalizeForSignature(item)]),
   );
@@ -248,6 +262,32 @@ export function normalizedWorkspaceToMobile(
     quotes: workspace.quotes.map((quote) => quoteToMobile(quote, previousQuotes.get(quote.id))),
     invoices: workspace.invoices.map((invoice) => invoiceToMobile(invoice, previousInvoices.get(invoice.id), invoice.quote_id ? quoteTitles.get(invoice.quote_id) : undefined)),
     agenda: previous.agenda,
+  };
+}
+
+export function applyWorkspaceAliases(workspace: MobileWorkspace, aliases: WorkspaceAliases): MobileWorkspace {
+  return {
+    customers: workspace.customers.map((customer) => ({
+      ...customer,
+      id: aliases.customers.get(customer.id) ?? customer.id,
+    })),
+    quotes: workspace.quotes.map((quote) => ({
+      ...quote,
+      id: aliases.quotes.get(quote.id) ?? quote.id,
+      customerId: aliases.customers.get(quote.customerId) ?? quote.customerId,
+    })),
+    invoices: workspace.invoices.map((invoice) => ({
+      ...invoice,
+      id: aliases.invoices.get(invoice.id) ?? invoice.id,
+      customerId: aliases.customers.get(invoice.customerId) ?? invoice.customerId,
+      ...(invoice.sourceQuoteId
+        ? { sourceQuoteId: aliases.quotes.get(invoice.sourceQuoteId) ?? invoice.sourceQuoteId }
+        : {}),
+    })),
+    agenda: workspace.agenda.map((entry) => ({
+      ...entry,
+      customerId: aliases.customers.get(entry.customerId) ?? entry.customerId,
+    })),
   };
 }
 
