@@ -26,6 +26,7 @@ import {
   diffById,
   emptyWorkspaceAliases,
   invoiceInputFromMobile,
+  mergeInitialMobileWorkspace,
   mobileInvoiceStatusToDesktop,
   normalizedWorkspaceToMobile,
   quoteInputFromMobile,
@@ -34,6 +35,7 @@ import {
 } from "@/lib/mobile-desktop-sync";
 
 const LOCAL_CHECK_MS = 850;
+const PULL_INTERVAL_MS = 5_000;
 
 function readWorkspace(): MobileWorkspace {
   try {
@@ -154,19 +156,28 @@ async function synchronizeLocalChanges(
 export async function hydrateMobileCoreFromDesktop() {
   const local = readWorkspace();
   const server = await fetchWorkspace();
+  const serverCanonical = normalizedWorkspaceToMobile(server, local);
 
-  if (!server.customers.length && !server.quotes.length && !server.invoices.length && hasCoreData(local)) {
+  if (!hasCoreData(local)) {
+    writeWorkspace(serverCanonical);
+    return serverCanonical;
+  }
+
+  // Lors de la première convergence, le desktop et le mobile peuvent déjà contenir chacun
+  // de vraies données. Le serveur gagne uniquement sur les mêmes UUID ; les entités locales
+  // supplémentaires sont migrées au lieu d'être écrasées.
+  const merged = mergeInitialMobileWorkspace(serverCanonical, local);
+  if (coreWorkspaceSignature(merged) !== coreWorkspaceSignature(serverCanonical)) {
     const aliases = emptyWorkspaceAliases();
-    await synchronizeLocalChanges(EMPTY_MOBILE_WORKSPACE, local, aliases);
+    await synchronizeLocalChanges(serverCanonical, merged, aliases);
     const migrated = await fetchWorkspace();
-    const canonical = normalizedWorkspaceToMobile(migrated, applyWorkspaceAliases(local, aliases));
+    const canonical = normalizedWorkspaceToMobile(migrated, applyWorkspaceAliases(merged, aliases));
     writeWorkspace(canonical);
     return canonical;
   }
 
-  const canonical = normalizedWorkspaceToMobile(server, local);
-  writeWorkspace(canonical);
-  return canonical;
+  writeWorkspace(serverCanonical);
+  return serverCanonical;
 }
 
 export default function MobileDesktopSyncBridge() {
@@ -174,6 +185,7 @@ export default function MobileDesktopSyncBridge() {
   const aliases = useRef<WorkspaceAliases>(emptyWorkspaceAliases());
   const syncing = useRef(false);
   const failedSignature = useRef("");
+  const lastPull = useRef(0);
 
   useEffect(() => {
     let disposed = false;
@@ -181,9 +193,19 @@ export default function MobileDesktopSyncBridge() {
     const initialize = () => {
       try {
         baseline.current = applyWorkspaceAliases(readWorkspace(), aliases.current);
+        lastPull.current = Date.now();
       } catch (error) {
         console.error("[FORGEO] Initialisation de la synchronisation mobile impossible", error);
       }
+    };
+
+    const pullServer = async (local: MobileWorkspace) => {
+      const server = await fetchWorkspace();
+      const canonical = normalizedWorkspaceToMobile(server, applyWorkspaceAliases(local, aliases.current));
+      if (coreWorkspaceSignature(canonical) !== coreWorkspaceSignature(local)) writeWorkspace(canonical);
+      baseline.current = canonical;
+      lastPull.current = Date.now();
+      return canonical;
     };
 
     const synchronize = async () => {
@@ -191,24 +213,34 @@ export default function MobileDesktopSyncBridge() {
       const rawLocal = readWorkspace();
       const local = applyWorkspaceAliases(rawLocal, aliases.current);
       const localSignature = coreWorkspaceSignature(local);
-      if (localSignature === coreWorkspaceSignature(baseline.current) || localSignature === failedSignature.current) return;
+      const baselineSignature = coreWorkspaceSignature(baseline.current);
+      const localChanged = localSignature !== baselineSignature;
+      const pullDue = Date.now() - lastPull.current >= PULL_INTERVAL_MS;
+
+      if (!localChanged && !pullDue) return;
+      if (localChanged && localSignature === failedSignature.current && !pullDue) return;
 
       syncing.current = true;
       try {
-        await synchronizeLocalChanges(baseline.current, local, aliases.current);
-        const server = await fetchWorkspace();
-        const aliasedLocal = applyWorkspaceAliases(rawLocal, aliases.current);
-        const canonical = normalizedWorkspaceToMobile(server, aliasedLocal);
-        writeWorkspace(canonical);
-        baseline.current = canonical;
+        if (localChanged && localSignature !== failedSignature.current) {
+          await synchronizeLocalChanges(baseline.current, local, aliases.current);
+          const server = await fetchWorkspace();
+          const aliasedLocal = applyWorkspaceAliases(rawLocal, aliases.current);
+          const canonical = normalizedWorkspaceToMobile(server, aliasedLocal);
+          writeWorkspace(canonical);
+          baseline.current = canonical;
+          failedSignature.current = "";
+          lastPull.current = Date.now();
+          return;
+        }
+
+        await pullServer(local);
         failedSignature.current = "";
       } catch (error) {
         failedSignature.current = localSignature;
         console.error("[FORGEO] Synchronisation mobile ↔ desktop impossible", error);
         try {
-          const server = await fetchWorkspace();
-          const canonical = normalizedWorkspaceToMobile(server, applyWorkspaceAliases(rawLocal, aliases.current));
-          writeWorkspace(canonical);
+          await pullServer(rawLocal);
         } catch (reloadError) {
           console.error("[FORGEO] Récupération après erreur de synchronisation impossible", reloadError);
         }
