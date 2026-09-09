@@ -144,9 +144,6 @@ export function upsertInvoice(workspace: MobileWorkspace, invoice: MobileInvoice
     ? workspace.invoices.map((item) => item.id === invoice.id ? normalized : item)
     : [normalized, ...workspace.invoices];
 
-  // Un devis accepté reste dans l’onglet « Validé » tant que sa facture n’est pas payée.
-  // Au paiement, il passe en « Terminé » : il disparaît du filtre des devis acceptés,
-  // tout en restant conservé dans la liste générale et dans l’historique local.
   const quotes = normalized.status === "Payée" && normalized.sourceQuoteId
     ? workspace.quotes.map((quote) => quote.id === normalized.sourceQuoteId
       ? normalizeQuote({ ...quote, status: "Terminé" })
@@ -173,9 +170,6 @@ export function convertQuoteToInvoice(workspace: MobileWorkspace, quote: MobileQ
     status: "Brouillon", items: quote.items.map((item) => ({ ...item, id: makeId("line") })), notes: quote.notes,
     subtotal: 0, taxTotal: 0, total: 0, paidTotal: 0, accountantSent: false, sourceQuoteId: quote.id,
   });
-
-  // La conversion ne clôt plus prématurément le devis accepté.
-  // Sa clôture intervient automatiquement lorsque la facture liée est payée.
   return { workspace: upsertInvoice(workspace, invoice), invoice };
 }
 
@@ -215,33 +209,35 @@ export function filterAgenda(entries: MobileAgendaEntry[], filter: AgendaFilter,
   return entries.filter((entry) => entry.date >= today && entry.date <= weekEndIso);
 }
 
+// Fixtures techniques neutres utilisées uniquement par les tests et les routines de récupération.
+// Le parcours pilote réel passe explicitement EMPTY_MOBILE_WORKSPACE et démarre donc sans ces données.
 export function seedMobileWorkspace(): MobileWorkspace {
   const customers: MobileCustomer[] = [
-    { id: "C-001", kind: "Professionnel", companyName: "CHAPET Père & Fils", civility: "", lastName: "", firstName: "", emails: ["contact@saschapet.com", "compta@saschapet.com"], phones: ["06 81 20 14 88", "04 77 21 09 14"], address: "18 rue Jean-Neyret", postalCode: "42000", city: "Saint-Étienne", siret: "879 214 563 00012", vat: "FR 12 879214563", notes: "" },
-    { id: "C-002", kind: "Professionnel", companyName: "SCI BELLEVUE", civility: "", lastName: "", firstName: "", emails: ["gestion@scibellevue.fr"], phones: ["06 71 52 10 33"], address: "4 place du Monteil", postalCode: "43120", city: "Monistrol-sur-Loire", siret: "843 621 540 00018", vat: "FR 89 843621540", notes: "" },
-    { id: "C-003", kind: "Particulier", companyName: "", civility: "Mme", lastName: "DECHAUD", firstName: "Isabelle", emails: ["isabelle.dechaud@mail.fr"], phones: ["06 22 84 13 57"], address: "8 rue des Lilas", postalCode: "42230", city: "Roche-la-Molière", siret: "", vat: "", notes: "" },
-    { id: "C-004", kind: "Particulier", companyName: "", civility: "Mme", lastName: "SOULIER", firstName: "Françoise", emails: ["f.soulier@mail.fr"], phones: ["06 19 54 74 12"], address: "14 avenue de la Gare", postalCode: "42700", city: "Firminy", siret: "", vat: "", notes: "" },
+    { id: "C-001", kind: "Professionnel", companyName: "Entreprise Exemple", civility: "", lastName: "", firstName: "", emails: ["contact@entreprise-exemple.test"], phones: [""], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "" },
+    { id: "C-002", kind: "Professionnel", companyName: "SCI BELLEVUE", civility: "", lastName: "", firstName: "", emails: ["gestion@sci-exemple.test"], phones: [""], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "" },
+    { id: "C-003", kind: "Particulier", companyName: "", civility: "Mme", lastName: "MARTIN", firstName: "Alice", emails: ["alice.martin@example.test"], phones: [""], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "" },
+    { id: "C-004", kind: "Particulier", companyName: "", civility: "Mme", lastName: "DURAND", firstName: "Claire", emails: ["claire.durand@example.test"], phones: [""], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "" },
   ];
-  const line = (label: string, quantity: number, unitPrice: number, taxRate = 10): LineItem => ({ id: makeId("seed-line"), label, description: "", quantity, unit: "m²", unitPrice, taxRate });
+  const line = (label: string, quantity: number, unitPrice: number, taxRate = 10): LineItem => ({ id: makeId("fixture-line"), label, description: "", quantity, unit: "m²", unitPrice, taxRate });
   const quoteBase = (id: string, number: string, customerId: string, title: string, status: QuoteStatus, items: LineItem[], issueDate: string, expiryDate: string): MobileQuote => normalizeQuote({ id, number, customerId, customerName: customerDisplayName(customers.find((item) => item.id === customerId)!), title, issueDate, expiryDate, status, items, notes: "", subtotal: 0, taxTotal: 0, total: 0 });
   const quotes = [
-    quoteBase("Q-378", "D-2026-378", "C-003", "Peinture séjour et couloir", "En attente", [line("Protection et préparation", 1, 210, 10), line("Peinture séjour et couloir", 18, 39.7, 10)], "2026-07-30", "2026-08-28"),
-    quoteBase("Q-377", "D-2026-377", "C-004", "Reprise plafond cuisine", "Validé", [line("Reprise plafond cuisine", 1, 310, 10)], "2026-07-29", "2026-08-28"),
-    quoteBase("Q-376", "D-2026-376", "C-002", "Hall d’entrée", "En attente", [line("Préparation et peinture hall", 1, 2036.36, 10)], "2026-07-18", "2026-08-18"),
+    quoteBase("Q-378", "D-2026-378", "C-003", "Peinture séjour et couloir", "En attente", [line("Protection et préparation", 1, 210), line("Peinture séjour et couloir", 18, 39.7)], "2026-07-30", "2026-08-28"),
+    quoteBase("Q-377", "D-2026-377", "C-004", "Reprise plafond cuisine", "Validé", [line("Reprise plafond cuisine", 1, 310)], "2026-07-29", "2026-08-28"),
+    quoteBase("Q-376", "D-2026-376", "C-002", "Hall d’entrée", "En attente", [line("Préparation et peinture hall", 1, 2036.36)], "2026-07-18", "2026-08-18"),
   ];
   const invoiceFrom = (id: string, number: string, customerId: string, title: string, status: InvoiceStatus, items: LineItem[], issueDate: string, dueDate: string, paidTotal = 0, accountantSent = false, sourceQuoteId?: string): MobileInvoice => normalizeInvoice({ id, number, customerId, customerName: customerDisplayName(customers.find((item) => item.id === customerId)!), title, issueDate, dueDate, status, items, notes: "", subtotal: 0, taxTotal: 0, total: 0, paidTotal, accountantSent, sourceQuoteId });
   const invoices = [
-    invoiceFrom("I-017", "F-2026-017", "C-001", "Situation chantier", "Payée", [line("Facture de situation", 1, 2650.91, 10)], "2026-07-10", "2026-08-10", 2916, true),
-    invoiceFrom("I-018", "F-2026-018", "C-002", "Hall d’entrée", "En cours", [line("Acompte travaux", 1, 1221.82, 10)], "2026-07-12", "2026-08-12", 0, true),
-    invoiceFrom("I-019", "F-2026-019", "C-004", "Reprise plafond", "Brouillon", [line("Reprise plafond", 1, 310, 10)], "2026-07-09", "2026-08-09", 0, false, "Q-377"),
+    invoiceFrom("I-017", "F-2026-017", "C-001", "Situation chantier", "Payée", [line("Facture de situation", 1, 2650.91)], "2026-07-10", "2026-08-10", 2916, true),
+    invoiceFrom("I-018", "F-2026-018", "C-002", "Hall d’entrée", "En cours", [line("Acompte travaux", 1, 1221.82)], "2026-07-12", "2026-08-12", 0, true),
+    invoiceFrom("I-019", "F-2026-019", "C-004", "Reprise plafond", "Brouillon", [line("Reprise plafond", 1, 310)], "2026-07-09", "2026-08-09", 0, false, "Q-377"),
   ];
   const today = new Date().toISOString().slice(0, 10);
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   const agenda: MobileAgendaEntry[] = [
-    { id: "A-01", date: today, time: "08:30", type: "Commande", title: "Commander peinture façade", customerId: "C-002", customerName: "SCI BELLEVUE", done: false },
-    { id: "A-02", date: today, time: "10:00", type: "Chantier", title: "Visite avant démarrage", customerId: "C-003", customerName: "Isabelle DECHAUD", done: false },
-    { id: "A-03", date: today, time: "14:00", type: "Facturation", title: "Émettre facture de situation", customerId: "C-001", customerName: "CHAPET Père & Fils", done: false },
-    { id: "A-04", date: tomorrow, time: "09:00", type: "Relance", title: "Relancer devis D-2026-376", customerId: "C-002", customerName: "SCI BELLEVUE", done: false },
+    { id: "A-01", date: today, time: "08:30", type: "Commande", title: "Commander des fournitures", customerId: "C-002", customerName: "SCI BELLEVUE", done: false },
+    { id: "A-02", date: today, time: "10:00", type: "Chantier", title: "Visite avant démarrage", customerId: "C-003", customerName: "Mme MARTIN Alice", done: false },
+    { id: "A-03", date: today, time: "14:00", type: "Facturation", title: "Émettre une facture de situation", customerId: "C-001", customerName: "Entreprise Exemple", done: false },
+    { id: "A-04", date: tomorrow, time: "09:00", type: "Relance", title: "Relancer un devis", customerId: "C-002", customerName: "SCI BELLEVUE", done: false },
   ];
   return { customers, quotes, invoices, agenda };
 }

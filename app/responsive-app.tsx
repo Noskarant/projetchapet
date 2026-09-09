@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AiChain from "./ai-chain";
 import AiRecordingHotfix from "./ai-recording-hotfix";
 import AppErrorBoundary from "./app-error-boundary";
+import AuthenticatedEmailFetchBridge from "./authenticated-email-fetch-bridge";
 import CompanyProfileSettings from "./company-profile-settings";
 import DashboardEnhancements from "./dashboard-enhancements";
 import DesktopExerciseBridge from "./desktop-exercise-bridge";
@@ -12,6 +13,7 @@ import DocumentWorkflow from "./document-workflow";
 import FunctionalPrototype from "./functional-prototype";
 import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
+import PilotReadinessUiBridge from "./pilot-readiness-ui-bridge";
 import ProductEnhancements from "./product-enhancements";
 import PwaRegister from "./pwa-register";
 
@@ -31,7 +33,7 @@ export default function ResponsiveApp() {
   if (!mode) {
     return (
       <main
-        aria-label="Chargement du prototype"
+        aria-label="Chargement de FORGEO"
         style={{
           minHeight: "100dvh",
           display: "grid",
@@ -51,6 +53,8 @@ export default function ResponsiveApp() {
     <AppErrorBoundary>
       <PwaRegister />
       <PilotAuthGate>
+        <AuthenticatedEmailFetchBridge />
+        <PilotReadinessUiBridge />
         <CompanyProfileSettings />
         <DesktopExerciseBridge />
         {mode === "mobile" ? (

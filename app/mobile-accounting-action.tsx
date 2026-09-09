@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { sendAuthenticatedDocumentEmail } from "@/lib/authenticated-email";
+import { companyProfileDisplayName, readCompanyProfile, type CompanyProfile } from "@/lib/company-profile";
 import { blobToBase64 } from "@/lib/document-tools";
 import type { MobileInvoice, MobileWorkspace } from "@/lib/mobile-prototype";
 
@@ -46,14 +48,15 @@ function dateFr(value: string) {
     : "—";
 }
 
-async function buildAccountingPdf(invoice: MobileInvoice) {
+async function buildAccountingPdf(invoice: MobileInvoice, profile: CompanyProfile) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const companyName = companyProfileDisplayName(profile);
   let y = 18;
 
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
-  pdf.text("CHAPET SAS", 16, y);
+  pdf.text(companyName, 16, y);
   pdf.setFontSize(18);
   pdf.text(invoice.status === "Avoir" ? "AVOIR" : "FACTURE", 194, y, { align: "right" });
   pdf.setFontSize(10);
@@ -95,7 +98,7 @@ async function buildAccountingPdf(invoice: MobileInvoice) {
     pdf.text(lines, 18, y);
     pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
     pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" });
-    pdf.text(`${item.taxRate} %`, 165, y, { align: "right" });
+    pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, y, { align: "right" });
     pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
     if (item.description) {
       pdf.setTextColor(95, 108, 124);
@@ -131,7 +134,7 @@ async function buildAccountingPdf(invoice: MobileInvoice) {
 
   pdf.setFontSize(7.5);
   pdf.setTextColor(100, 110, 124);
-  pdf.text("Document généré par CHAPET SAS.", 105, 288, { align: "center" });
+  pdf.text("Document généré avec FORGEO.", 105, 288, { align: "center" });
   return pdf.output("blob");
 }
 
@@ -151,29 +154,24 @@ export default function MobileAccountingAction() {
       const number = text(sheet, "header h2", "Facture");
       const workspace = loadWorkspace();
       const invoice = workspace?.invoices.find((item) => item.number === number);
+      const profile = readCompanyProfile(window.localStorage);
 
       try {
-        if (!invoice) throw new Error("Facture introuvable dans l’espace mobile.");
-        const blob = await buildAccountingPdf(invoice);
-        const response = await fetch("/api/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: "compta@saschapet.com",
-            subject: `Facture ${number} — comptabilité`,
-            html: `<p>Bonjour,</p><p>Veuillez trouver la facture <strong>${number}</strong> de ${invoice.customerName} en pièce jointe.</p>`,
-            attachments: [{ filename: `${number}.pdf`, content: await blobToBase64(blob) }],
-          }),
+        if (!invoice) throw new Error("Facture introuvable dans votre espace.");
+        if (!profile.accountingEmail) throw new Error("Renseignez l’e-mail du comptable dans le profil de votre entreprise.");
+        const blob = await buildAccountingPdf(invoice, profile);
+        const response = await sendAuthenticatedDocumentEmail({
+          documentNumber: invoice.number,
+          documentKind: "invoice",
+          to: profile.accountingEmail,
+          subject: `Facture ${number} — comptabilité`,
+          html: `<p>Bonjour,</p><p>Veuillez trouver la facture <strong>${number}</strong> de ${invoice.customerName} en pièce jointe.</p><p>Cordialement,<br>${companyProfileDisplayName(profile)}</p>`,
+          attachments: [{ filename: `${number}.pdf`, content: await blobToBase64(blob) }],
         });
 
         if (!response.ok) {
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = `${number}.pdf`;
-          anchor.click();
-          window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-          throw new Error("Envoi indisponible : le PDF a été téléchargé.");
+          const result = await response.json().catch(() => ({})) as { error?: string };
+          throw new Error(result.error || "Envoi comptable impossible.");
         }
 
         persistAccountantState(number);

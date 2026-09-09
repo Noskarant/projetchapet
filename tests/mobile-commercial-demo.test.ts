@@ -27,8 +27,36 @@ class MemoryStorage {
   }
 }
 
-test("calcule l’avancement et permet de terminer une étape", () => {
+function commercialFixture() {
   const state = seedCommercialDemoState();
+  return {
+    ...state,
+    projects: [{
+      id: "PROJECT-TEST",
+      name: "Chantier technique",
+      subtitle: "Fixture de test",
+      customerId: "C-002",
+      quoteId: "Q-376",
+      invoiceId: "I-018",
+      address: "",
+      status: "En cours" as const,
+      startDate: "2026-07-01",
+      nextVisit: "2026-07-10",
+      teamIds: [],
+      steps: [
+        { id: "S-1", label: "Étape 1", assigneeId: "", dueDate: "", done: true },
+        { id: "S-2", label: "Étape 2", assigneeId: "", dueDate: "", done: true },
+        { id: "S-3", label: "Étape 3", assigneeId: "", dueDate: "", done: false },
+        { id: "S-4", label: "Étape 4", assigneeId: "", dueDate: "", done: false },
+      ],
+      issues: [],
+      photos: [],
+    }],
+  };
+}
+
+test("calcule l’avancement et permet de terminer une étape", () => {
+  const state = commercialFixture();
   const project = state.projects[0];
   assert.equal(calculateProjectProgress(project), 50);
 
@@ -52,7 +80,7 @@ test("filtre les documents par client, statut, date et montant", () => {
 });
 
 test("fait passer un chantier en bloqué lors d’un incident bloquant", () => {
-  const state = seedCommercialDemoState();
+  const state = commercialFixture();
   const project = state.projects[0];
   const next = addProjectIssue(state, project.id, {
     title: "Support humide",

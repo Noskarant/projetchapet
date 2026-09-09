@@ -97,6 +97,7 @@ export default function MobileCommercialDemo() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [workspace, setWorkspace] = useState<MobileWorkspace | null>(null);
   const [commercial, setCommercial] = useState<CommercialDemoState>(() => seedCommercialDemoState());
+  const [commercialLoaded, setCommercialLoaded] = useState(false);
   const [filterKind, setFilterKind] = useState<DemoDocumentKind>("quote");
   const [filterDraft, setFilterDraft] = useState<DocumentFilters>(() => emptyFilters());
   const [selectedProjectId, setSelectedProjectId] = useState("PROJECT-BELLEVUE");
@@ -132,14 +133,15 @@ export default function MobileCommercialDemo() {
     const initial = readCommercialDemoState(window.localStorage);
     setCommercial(initial);
     setCompanyDraft(initial.company);
+    setCommercialLoaded(true);
     refreshWorkspace();
   }, [refreshWorkspace]);
 
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    if (!commercialLoaded || !window.matchMedia("(max-width: 820px)").matches) return;
     writeCommercialDemoState(window.localStorage, commercial);
     document.documentElement.dataset.chapetAccent = commercial.company.accent;
-  }, [commercial]);
+  }, [commercial, commercialLoaded]);
 
   const notifications = useMemo(
     () => workspace ? buildCommercialNotifications(workspace, commercial) : [],

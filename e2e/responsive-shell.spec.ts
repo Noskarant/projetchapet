@@ -42,7 +42,6 @@ test("ne sélectionne jamais le premier client par défaut avec l’IA", async (
   test.skip(testInfo.project.name !== "iphone-webkit", "Parcours propre à l’interface mobile");
   await page.goto("/");
   await expect(page.locator(".rm-shell")).toBeVisible();
-  // The shell can paint before the effects install the AI event listeners.
   await expect(page.getByLabel("Créer avec l’IA", { exact: true })).toBeVisible();
 
   await page.evaluate(() => {
@@ -80,7 +79,7 @@ test("reconnaît Madame comme la civilité Mme lors d’une création IA", async
       detail: {
         target: "quote",
         data: {
-          customer_hint: "Madame Soulier",
+          customer_hint: "Madame Durand",
           title: "Reprise plafond",
           items: [{ label: "Préparation", quantity: 1, unit: "forfait", unit_price: 310, tax_rate: 10 }],
         },
@@ -140,13 +139,15 @@ test("refuse d’utiliser l’API e-mail comme relais sans document", async ({ r
   });
   expect(response.status()).toBe(400);
   await expect(response.json()).resolves.toMatchObject({
-    error: "Un document PDF est requis pour l’envoi.",
+    error: "Numéro du document est requis.",
   });
 });
 
-test("refuse les pièces jointes qui ne sont pas de vrais PDF", async ({ request }) => {
+test("exige une authentification avant de traiter une pièce jointe", async ({ request }) => {
   const response = await request.post("/api/email", {
     data: {
+      documentNumber: "D-TEST-001",
+      documentKind: "quote",
       to: "client@example.com",
       subject: "Document",
       attachments: [
@@ -157,8 +158,8 @@ test("refuse les pièces jointes qui ne sont pas de vrais PDF", async ({ request
       ],
     },
   });
-  expect(response.status()).toBe(400);
+  expect(response.status()).toBe(401);
   await expect(response.json()).resolves.toMatchObject({
-    error: "Seuls les documents PDF valides peuvent être envoyés.",
+    error: "Authentification requise.",
   });
 });

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const COMMERCIAL_STATE_KEY = "forgeo-commercial-state-v2";
+
 test("applique des filtres avancés aux devis", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
@@ -23,6 +25,60 @@ test("applique des filtres avancés aux devis", async ({ page }, testInfo) => {
 
 test("ouvre un centre chantier interactif et une vue collaborateur sans prix", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
+
+  await page.addInitScript(({ key }) => {
+    if (sessionStorage.getItem(`${key}:fixture-loaded`)) return;
+    sessionStorage.setItem(`${key}:fixture-loaded`, "1");
+    localStorage.setItem(key, JSON.stringify({
+      company: {
+        legalName: "",
+        displayName: "Votre entreprise",
+        siret: "",
+        vat: "",
+        email: "",
+        accountingEmail: "",
+        phone: "",
+        address: "",
+        postalCode: "",
+        city: "",
+        quoteValidityDays: 60,
+        paymentTerms: "Paiement à 30 jours.",
+        accent: "blue",
+      },
+      collaborators: [
+        { id: "COL-TEST", name: "Alex Martin", role: "Chef d’équipe", phone: "", initials: "AM", active: true },
+      ],
+      projects: [
+        {
+          id: "PROJECT-BELLEVUE",
+          name: "Chantier Atelier",
+          subtitle: "Peinture murs et plafond",
+          customerId: "C-002",
+          quoteId: "Q-376",
+          invoiceId: "I-018",
+          address: "Adresse chantier",
+          status: "En cours",
+          startDate: "2026-09-01",
+          nextVisit: "2026-09-10",
+          teamIds: ["COL-TEST"],
+          steps: [
+            { id: "STEP-1", label: "Protection du chantier", assigneeId: "COL-TEST", dueDate: "2026-09-07", done: true },
+            { id: "STEP-2", label: "Préparation des supports", assigneeId: "COL-TEST", dueDate: "2026-09-08", done: true },
+            { id: "STEP-3", label: "Première couche murs et plafond", assigneeId: "COL-TEST", dueDate: "2026-09-10", done: false },
+            { id: "STEP-4", label: "Finitions", assigneeId: "COL-TEST", dueDate: "2026-09-11", done: false },
+          ],
+          issues: [],
+          photos: [],
+        },
+      ],
+      activity: [],
+      filters: {
+        quote: { customerId: "", status: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "" },
+        invoice: { customerId: "", status: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "" },
+      },
+    }));
+  }, { key: COMMERCIAL_STATE_KEY });
+
   await page.goto("/");
 
   await page.getByRole("button", { name: "Menu" }).click();
@@ -30,7 +86,7 @@ test("ouvre un centre chantier interactif et une vue collaborateur sans prix", a
 
   const panel = page.getByRole("dialog", { name: "Chantiers & équipe" });
   await expect(panel).toBeVisible();
-  await expect(panel.getByText("SCI Bellevue", { exact: true }).first()).toBeVisible();
+  await expect(panel.getByText("Chantier Atelier", { exact: true }).first()).toBeVisible();
   await expect(panel.getByText("50 %").first()).toBeVisible();
 
   await panel.getByRole("button", { name: /Voir comme l’équipe/ }).click();
@@ -38,6 +94,19 @@ test("ouvre un centre chantier interactif et une vue collaborateur sans prix", a
   const step = panel.getByRole("button", { name: /Première couche murs et plafond/ });
   await step.click();
   await expect(step).toHaveClass(/done/);
+
+  await expect.poll(() => page.evaluate((key) => {
+    const state = JSON.parse(localStorage.getItem(key) || "{}");
+    return state.projects?.[0]?.steps?.find((item: { id: string }) => item.id === "STEP-3")?.done;
+  }, COMMERCIAL_STATE_KEY)).toBe(true);
+
+  await page.reload();
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("button", { name: /Interface collaborateurs/ }).click();
+  await expect(panel.getByText("Chantier Atelier", { exact: true }).first()).toBeVisible();
+  await expect(panel.getByText("75 %").first()).toBeVisible();
+  await panel.getByRole("button", { name: /Voir comme l’équipe/ }).click();
+  await expect(panel.getByRole("button", { name: /Première couche murs et plafond/ })).toHaveClass(/done/);
 
   await panel.getByRole("button", { name: /Consulter le document/ }).click();
 });
