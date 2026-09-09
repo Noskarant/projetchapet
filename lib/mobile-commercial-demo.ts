@@ -10,7 +10,7 @@ import type {
 import { QUOTE_META_STORAGE_KEY } from "./mobile-quote-preview";
 import { MOBILE_WORKSPACE_STORAGE_KEY } from "./mobile-workspace-storage";
 
-export const COMMERCIAL_DEMO_STORAGE_KEY = "projetchapet-commercial-demo-v1";
+export const COMMERCIAL_DEMO_STORAGE_KEY = "forgeo-commercial-state-v2";
 export const COMMERCIAL_BACKUP_VERSION = 1;
 
 export type DemoDocumentKind = "quote" | "invoice";
@@ -156,119 +156,25 @@ const isoDate = (offsetDays = 0) => {
 const nowIso = () => new Date().toISOString();
 
 export function seedCommercialDemoState(): CommercialDemoState {
-  const collaborators: CommercialCollaborator[] = [
-    {
-      id: "COL-01",
-      name: "Philippe Chapet",
-      role: "Dirigeant · suivi client",
-      phone: "06 81 20 14 88",
-      initials: "PC",
-      active: true,
-    },
-    {
-      id: "COL-02",
-      name: "Lucas Martin",
-      role: "Chef d’équipe peinture",
-      phone: "06 43 18 72 10",
-      initials: "LM",
-      active: true,
-    },
-    {
-      id: "COL-03",
-      name: "Mathieu Roche",
-      role: "Peintre façadier",
-      phone: "06 14 77 32 08",
-      initials: "MR",
-      active: true,
-    },
-  ];
-
-  const projects: CommercialProject[] = [
-    {
-      id: "PROJECT-BELLEVUE",
-      name: "SCI Bellevue",
-      subtitle: "Hall d’entrée · peinture murs et plafond",
-      customerId: "C-002",
-      quoteId: "Q-376",
-      invoiceId: "I-018",
-      address: "4 place du Monteil, 43120 Monistrol-sur-Loire",
-      status: "En cours",
-      startDate: isoDate(-4),
-      nextVisit: isoDate(1),
-      teamIds: ["COL-01", "COL-02", "COL-03"],
-      steps: [
-        { id: "STEP-B1", label: "Protection des sols et circulations", assigneeId: "COL-02", dueDate: isoDate(-3), done: true },
-        { id: "STEP-B2", label: "Préparation et reprises des supports", assigneeId: "COL-03", dueDate: isoDate(-1), done: true },
-        { id: "STEP-B3", label: "Première couche murs et plafond", assigneeId: "COL-02", dueDate: isoDate(1), done: false },
-        { id: "STEP-B4", label: "Finitions, contrôle et réception", assigneeId: "COL-01", dueDate: isoDate(3), done: false },
-      ],
-      issues: [
-        {
-          id: "ISSUE-B1",
-          title: "Microfissure au-dessus de la porte",
-          detail: "À reprendre avant la couche de finition. Photo demandée après rebouchage.",
-          severity: "À surveiller",
-          resolved: false,
-          createdAt: nowIso(),
-        },
-      ],
-      photos: [],
-    },
-    {
-      id: "PROJECT-DECHAUD",
-      name: "Mme Dechaud",
-      subtitle: "Séjour et couloir · remise en peinture",
-      customerId: "C-003",
-      quoteId: "Q-378",
-      address: "8 rue des Lilas, 42230 Roche-la-Molière",
-      status: "À planifier",
-      startDate: isoDate(6),
-      nextVisit: isoDate(6),
-      teamIds: ["COL-01", "COL-03"],
-      steps: [
-        { id: "STEP-D1", label: "Validation des teintes avec la cliente", assigneeId: "COL-01", dueDate: isoDate(2), done: false },
-        { id: "STEP-D2", label: "Préparation du matériel et protections", assigneeId: "COL-03", dueDate: isoDate(5), done: false },
-        { id: "STEP-D3", label: "Réalisation et contrôle final", assigneeId: "COL-03", dueDate: isoDate(8), done: false },
-      ],
-      issues: [],
-      photos: [],
-    },
-  ];
-
   return {
     company: {
-      legalName: "CHAPET SAS",
-      displayName: "CHAPET Père & Fils",
-      siret: "879 214 563 00012",
-      vat: "FR 12 879214563",
-      email: "contact@saschapet.com",
-      accountingEmail: "compta@saschapet.com",
-      phone: "04 77 21 09 14",
-      address: "18 rue Jean-Neyret",
-      postalCode: "42000",
-      city: "Saint-Étienne",
+      legalName: "",
+      displayName: "Votre entreprise",
+      siret: "",
+      vat: "",
+      email: "",
+      accountingEmail: "",
+      phone: "",
+      address: "",
+      postalCode: "",
+      city: "",
       quoteValidityDays: 60,
       paymentTerms: "Paiement à 30 jours. Aucun escompte pour règlement anticipé.",
       accent: "blue",
     },
-    collaborators,
-    projects,
-    activity: [
-      {
-        id: "ACT-SEED-1",
-        kind: "chantier",
-        message: "Chantier SCI Bellevue préparé pour le suivi d’équipe.",
-        createdAt: nowIso(),
-        projectId: "PROJECT-BELLEVUE",
-      },
-      {
-        id: "ACT-SEED-2",
-        kind: "document",
-        message: "Devis D-2026-378 prêt à être relancé.",
-        createdAt: new Date(Date.now() - 3_600_000).toISOString(),
-        documentNumber: "D-2026-378",
-      },
-    ],
+    collaborators: [],
+    projects: [],
+    activity: [],
     filters: {
       quote: emptyFilters(),
       invoice: emptyFilters(),
