@@ -87,6 +87,7 @@ export function invoiceStatusToMobile(status: InvoiceStatus): MobileInvoice["sta
   if (status === "paid") return "Payée";
   if (status === "overdue") return "En retard";
   if (status === "draft") return "Brouillon";
+  if (status === "cancelled") return "Avoir";
   return "En cours";
 }
 
@@ -257,11 +258,34 @@ export function normalizedWorkspaceToMobile(
   const previousQuotes = new Map(previous.quotes.map((item) => [item.id, item]));
   const previousInvoices = new Map(previous.invoices.map((item) => [item.id, item]));
   const quoteTitles = new Map(workspace.quotes.map((quote) => [quote.id, quote.title]));
+  const paidQuoteIds = new Set(
+    workspace.invoices
+      .filter((invoice) => invoice.status === "paid" && invoice.quote_id)
+      .map((invoice) => invoice.quote_id as string),
+  );
   return {
     customers: workspace.customers.map((customer) => customerToMobile(customer)),
-    quotes: workspace.quotes.map((quote) => quoteToMobile(quote, previousQuotes.get(quote.id))),
+    quotes: workspace.quotes.map((quote) => {
+      const mobile = quoteToMobile(quote, previousQuotes.get(quote.id));
+      if (quote.status === "accepted" && paidQuoteIds.has(quote.id)) return { ...mobile, status: "Terminé" as const };
+      return mobile;
+    }),
     invoices: workspace.invoices.map((invoice) => invoiceToMobile(invoice, previousInvoices.get(invoice.id), invoice.quote_id ? quoteTitles.get(invoice.quote_id) : undefined)),
     agenda: previous.agenda,
+  };
+}
+
+function mergeById<T extends { id: string }>(server: T[], local: T[]) {
+  const serverIds = new Set(server.map((item) => item.id));
+  return [...server, ...local.filter((item) => !serverIds.has(item.id))];
+}
+
+export function mergeInitialMobileWorkspace(server: MobileWorkspace, local: MobileWorkspace): MobileWorkspace {
+  return {
+    customers: mergeById(server.customers, local.customers),
+    quotes: mergeById(server.quotes, local.quotes),
+    invoices: mergeById(server.invoices, local.invoices),
+    agenda: local.agenda,
   };
 }
 
