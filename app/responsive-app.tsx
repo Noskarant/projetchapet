@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AiChain from "./ai-chain";
 import AiRecordingHotfix from "./ai-recording-hotfix";
 import AppErrorBoundary from "./app-error-boundary";
+import AuthenticatedEmailFetchBridge from "./authenticated-email-fetch-bridge";
 import CompanyProfileSettings from "./company-profile-settings";
 import DashboardEnhancements from "./dashboard-enhancements";
 import DesktopExerciseBridge from "./desktop-exercise-bridge";
@@ -31,7 +32,7 @@ export default function ResponsiveApp() {
   if (!mode) {
     return (
       <main
-        aria-label="Chargement du prototype"
+        aria-label="Chargement de FORGEO"
         style={{
           minHeight: "100dvh",
           display: "grid",
@@ -51,6 +52,7 @@ export default function ResponsiveApp() {
     <AppErrorBoundary>
       <PwaRegister />
       <PilotAuthGate>
+        <AuthenticatedEmailFetchBridge />
         <CompanyProfileSettings />
         <DesktopExerciseBridge />
         {mode === "mobile" ? (
