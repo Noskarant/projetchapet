@@ -15,11 +15,13 @@ export function normalizeEmailAddress(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
+export function isValidEmailAddress(value: unknown) {
+  const email = normalizeEmailAddress(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+}
+
 export function uniqueValidEmails(values: unknown[]) {
-  const emails = values
-    .map(normalizeEmailAddress)
-    .filter((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254);
-  return [...new Set(emails)];
+  return [...new Set(values.filter(isValidEmailAddress).map(normalizeEmailAddress))];
 }
 
 function recordArray(value: unknown) {
@@ -51,7 +53,7 @@ export function snapshotRecipientsForDocument(
 
 export function recipientsAreAuthorized(requested: string[], allowed: string[]) {
   const allowedSet = new Set(uniqueValidEmails(allowed));
-  const requestedEmails = uniqueValidEmails(requested);
-  return requestedEmails.length === requested.filter((value) => normalizeEmailAddress(value)).length
-    && requestedEmails.every((email) => allowedSet.has(email));
+  const requestedEmails = requested.map(normalizeEmailAddress).filter(Boolean);
+  return requestedEmails.length > 0
+    && requestedEmails.every((email) => isValidEmailAddress(email) && allowedSet.has(email));
 }
