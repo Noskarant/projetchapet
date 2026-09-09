@@ -114,16 +114,35 @@ function photoStoragePath(photo: CommercialProjectPhoto) {
   return (photo as StoredProjectPhoto).storagePath;
 }
 
+function photoForCloudSignature(photo: CommercialProjectPhoto) {
+  return {
+    id: photo.id,
+    name: photo.name,
+    caption: photo.caption,
+    createdAt: photo.createdAt,
+    storagePath: photoStoragePath(photo) ?? null,
+  };
+}
+
+function projectScalarSignature(project: CommercialProject) {
+  return stableSignature({
+    id: project.id,
+    name: project.name,
+    subtitle: project.subtitle,
+    customerId: project.customerId,
+    quoteId: project.quoteId ?? null,
+    invoiceId: project.invoiceId ?? null,
+    address: project.address,
+    status: project.status,
+    startDate: project.startDate,
+    nextVisit: project.nextVisit,
+  });
+}
+
 function projectForCloudSignature(project: CommercialProject) {
   return {
     ...project,
-    photos: project.photos.map((photo) => ({
-      id: photo.id,
-      name: photo.name,
-      caption: photo.caption,
-      createdAt: photo.createdAt,
-      storagePath: photoStoragePath(photo) ?? null,
-    })),
+    photos: project.photos.map(photoForCloudSignature),
   };
 }
 
@@ -170,7 +189,12 @@ export function mergeInitialCommercialState(
   };
 }
 
-function mergeConcurrentCollection<T extends { id: string }>(baseline: T[], local: T[], server: T[]) {
+function mergeConcurrentCollection<T extends { id: string }>(
+  baseline: T[],
+  local: T[],
+  server: T[],
+  signature: (item: T) => string = stableSignature,
+) {
   const baselineMap = new Map(baseline.map((item) => [item.id, item]));
   const localMap = new Map(local.map((item) => [item.id, item]));
   const result = new Map(server.map((item) => [item.id, item]));
@@ -181,7 +205,7 @@ function mergeConcurrentCollection<T extends { id: string }>(baseline: T[], loca
       result.delete(base.id);
       continue;
     }
-    if (stableSignature(localItem) !== stableSignature(base)) result.set(base.id, localItem);
+    if (signature(localItem) !== signature(base)) result.set(base.id, localItem);
   }
 
   for (const item of local) {
@@ -207,6 +231,92 @@ function mergeConcurrentCollection<T extends { id: string }>(baseline: T[], loca
   return ordered;
 }
 
+function mergeConcurrentIds(baseline: string[], local: string[], server: string[]) {
+  const result = new Set(server);
+  const baselineSet = new Set(baseline);
+  const localSet = new Set(local);
+  for (const id of baseline) {
+    if (!localSet.has(id)) result.delete(id);
+  }
+  for (const id of local) {
+    if (!baselineSet.has(id)) result.add(id);
+  }
+  return [
+    ...local.filter((id) => result.has(id)),
+    ...server.filter((id) => result.has(id) && !localSet.has(id)),
+  ];
+}
+
+function mergeConcurrentProject(
+  baseline: CommercialProject,
+  local: CommercialProject,
+  server: CommercialProject,
+): CommercialProject {
+  const localChangedScalars = projectScalarSignature(local) !== projectScalarSignature(baseline);
+  const scalarSource = localChangedScalars ? local : server;
+  return {
+    ...scalarSource,
+    teamIds: mergeConcurrentIds(baseline.teamIds, local.teamIds, server.teamIds),
+    steps: mergeConcurrentCollection(baseline.steps, local.steps, server.steps),
+    issues: mergeConcurrentCollection(baseline.issues, local.issues, server.issues),
+    photos: mergeConcurrentCollection(
+      baseline.photos,
+      local.photos,
+      server.photos,
+      (photo) => stableSignature(photoForCloudSignature(photo)),
+    ),
+  };
+}
+
+function mergeConcurrentProjects(
+  baseline: CommercialProject[],
+  local: CommercialProject[],
+  server: CommercialProject[],
+) {
+  const baselineMap = new Map(baseline.map((project) => [project.id, project]));
+  const localMap = new Map(local.map((project) => [project.id, project]));
+  const serverMap = new Map(server.map((project) => [project.id, project]));
+  const result = new Map(serverMap);
+
+  for (const base of baseline) {
+    const localProject = localMap.get(base.id);
+    if (!localProject) {
+      result.delete(base.id);
+      continue;
+    }
+    const serverProject = serverMap.get(base.id);
+    if (!serverProject) {
+      if (stableSignature(projectForCloudSignature(localProject)) !== stableSignature(projectForCloudSignature(base))) {
+        result.set(base.id, localProject);
+      }
+      continue;
+    }
+    result.set(base.id, mergeConcurrentProject(base, localProject, serverProject));
+  }
+
+  for (const project of local) {
+    if (!baselineMap.has(project.id)) result.set(project.id, project);
+  }
+
+  const ordered: CommercialProject[] = [];
+  const seen = new Set<string>();
+  for (const project of local) {
+    const resolved = result.get(project.id);
+    if (resolved && !seen.has(project.id)) {
+      ordered.push(resolved);
+      seen.add(project.id);
+    }
+  }
+  for (const project of server) {
+    const resolved = result.get(project.id);
+    if (resolved && !seen.has(project.id)) {
+      ordered.push(resolved);
+      seen.add(project.id);
+    }
+  }
+  return ordered;
+}
+
 export function mergeConcurrentCommercialState(
   baseline: CommercialDemoState,
   local: CommercialDemoState,
@@ -216,7 +326,7 @@ export function mergeConcurrentCommercialState(
     company: local.company,
     filters: local.filters,
     collaborators: mergeConcurrentCollection(baseline.collaborators, local.collaborators, server.collaborators),
-    projects: mergeConcurrentCollection(baseline.projects, local.projects, server.projects),
+    projects: mergeConcurrentProjects(baseline.projects, local.projects, server.projects),
     activity: mergeConcurrentCollection(baseline.activity, local.activity, server.activity).slice(0, 80),
   };
 }
@@ -380,7 +490,7 @@ async function dataUrlToBlob(dataUrl: string) {
   const response = await fetch(dataUrl);
   if (!response.ok) throw new Error("La photo locale ne peut pas être préparée pour le cloud.");
   const blob = await response.blob();
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(blob.type)) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(blob.type)) {
     throw new Error("Format de photo non pris en charge.");
   }
   if (blob.size > 5 * 1024 * 1024) throw new Error("La photo dépasse la limite de 5 Mo.");
