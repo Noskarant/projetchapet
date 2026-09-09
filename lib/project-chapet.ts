@@ -16,8 +16,8 @@ export type Customer = {
 };
 
 export type DocumentItem = {
-  id?: string; position: number; label: string; description: string | null; quantity: number | null;
-  unit: string | null; unit_price: number | null; tax_rate: number | null; total: number;
+  id?: string; position: number; label: string; description: string | null; quantity: number;
+  unit: string | null; unit_price: number; tax_rate: number; total: number;
 };
 
 export type Quote = {
