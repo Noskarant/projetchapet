@@ -72,10 +72,9 @@ create table if not exists public.commercial_project_steps (
   primary key (organization_id, project_id, id),
   foreign key (organization_id, project_id)
     references public.commercial_projects(organization_id, id) on delete cascade,
-  foreign key (organization_id, assignee_id)
-    references public.commercial_collaborators(organization_id, id) on delete set null,
   check (length(id) between 1 and 160),
   check (length(label) between 1 and 500),
+  check (assignee_id is null or length(assignee_id) between 1 and 160),
   check (position >= 0)
 );
 
@@ -140,8 +139,7 @@ alter table public.commercial_project_issues enable row level security;
 alter table public.commercial_project_photos enable row level security;
 alter table public.commercial_activity_events enable row level security;
 
--- Les tables sont lisibles par les membres de l'organisation mais ne sont jamais
--- modifiées directement depuis le navigateur : le RPC ci-dessous conserve l'atomicité.
+-- Lecture directe seulement. Les modifications relationnelles passent par le RPC atomique.
 revoke all on table public.commercial_workspace_meta from anon, authenticated;
 revoke all on table public.commercial_collaborators from anon, authenticated;
 revoke all on table public.commercial_projects from anon, authenticated;
@@ -163,31 +161,24 @@ grant select on table public.commercial_activity_events to authenticated;
 create policy "members read commercial workspace meta"
   on public.commercial_workspace_meta for select to authenticated
   using (private.is_org_member(organization_id));
-
 create policy "members read commercial collaborators"
   on public.commercial_collaborators for select to authenticated
   using (private.is_org_member(organization_id));
-
 create policy "members read commercial projects"
   on public.commercial_projects for select to authenticated
   using (private.is_org_member(organization_id));
-
 create policy "members read commercial project members"
   on public.commercial_project_members for select to authenticated
   using (private.is_org_member(organization_id));
-
 create policy "members read commercial project steps"
   on public.commercial_project_steps for select to authenticated
   using (private.is_org_member(organization_id));
-
 create policy "members read commercial project issues"
   on public.commercial_project_issues for select to authenticated
   using (private.is_org_member(organization_id));
-
 create policy "members read commercial project photos"
   on public.commercial_project_photos for select to authenticated
   using (private.is_org_member(organization_id));
-
 create policy "members read commercial activity"
   on public.commercial_activity_events for select to authenticated
   using (private.is_org_member(organization_id));
@@ -205,9 +196,7 @@ set public = false,
     file_size_limit = excluded.file_size_limit,
     allowed_mime_types = excluded.allowed_mime_types;
 
--- Le premier dossier de chaque objet est toujours l'UUID de l'organisation.
--- Le bucket est privé : même une URL de stockage brute reste inutilisable sans session
--- ou sans URL signée générée après le contrôle RLS.
+-- Le premier dossier d'un objet est l'UUID de l'organisation. Le bucket est privé.
 create policy "members read commercial project photo objects"
   on storage.objects for select to authenticated
   using (
@@ -215,7 +204,6 @@ create policy "members read commercial project photo objects"
     and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     and private.is_org_member(((storage.foldername(name))[1])::uuid)
   );
-
 create policy "members upload commercial project photo objects"
   on storage.objects for insert to authenticated
   with check (
@@ -223,7 +211,6 @@ create policy "members upload commercial project photo objects"
     and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     and private.is_org_member(((storage.foldername(name))[1])::uuid)
   );
-
 create policy "members update commercial project photo objects"
   on storage.objects for update to authenticated
   using (
@@ -236,7 +223,6 @@ create policy "members update commercial project photo objects"
     and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     and private.is_org_member(((storage.foldername(name))[1])::uuid)
   );
-
 create policy "members delete commercial project photo objects"
   on storage.objects for delete to authenticated
   using (
@@ -307,18 +293,64 @@ begin
     select 1 from jsonb_array_elements(projects) p
     where length(trim(coalesce(p->>'id', ''))) not between 1 and 160
        or length(trim(coalesce(p->>'name', ''))) not between 1 and 300
+       or coalesce(nullif(p->>'status', ''), 'À planifier') not in ('À planifier', 'En cours', 'Bloqué', 'Terminé')
   ) or exists (
     select 1 from jsonb_array_elements(activity) a
     where length(trim(coalesce(a->>'id', ''))) not between 1 and 180
        or length(trim(coalesce(a->>'message', ''))) not between 1 and 2000
+       or coalesce(a->>'kind', '') not in ('document', 'status', 'chantier', 'email', 'data', 'settings')
   ) then
     raise exception 'invalid commercial identifier or label';
   end if;
 
   if exists (
     select 1
-    from jsonb_array_elements(projects) p,
-         jsonb_array_elements(coalesce(p->'photos', '[]'::jsonb)) photo
+    from jsonb_array_elements(projects) p
+    cross join lateral jsonb_array_elements(coalesce(p->'steps', '[]'::jsonb)) step
+    where length(trim(coalesce(step->>'id', ''))) not between 1 and 160
+       or length(trim(coalesce(step->>'label', ''))) not between 1 and 500
+       or length(coalesce(step->>'assigneeId', '')) > 160
+  ) or exists (
+    select 1
+    from jsonb_array_elements(projects) p
+    cross join lateral jsonb_array_elements(coalesce(p->'issues', '[]'::jsonb)) issue
+    where length(trim(coalesce(issue->>'id', ''))) not between 1 and 160
+       or length(trim(coalesce(issue->>'title', ''))) not between 1 and 500
+       or coalesce(nullif(issue->>'severity', ''), 'À surveiller') not in ('Information', 'À surveiller', 'Bloquant')
+  ) or exists (
+    select 1
+    from jsonb_array_elements(projects) p
+    cross join lateral jsonb_array_elements(coalesce(p->'photos', '[]'::jsonb)) photo
+    where length(trim(coalesce(photo->>'id', ''))) not between 1 and 160
+  ) then
+    raise exception 'invalid nested commercial item';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(projects) p
+    cross join lateral jsonb_array_elements_text(coalesce(p->'teamIds', '[]'::jsonb)) member
+    where not exists (
+      select 1 from jsonb_array_elements(collaborators) c
+      where trim(c->>'id') = member
+    )
+  ) or exists (
+    select 1
+    from jsonb_array_elements(projects) p
+    cross join lateral jsonb_array_elements(coalesce(p->'steps', '[]'::jsonb)) step
+    where nullif(step->>'assigneeId', '') is not null
+      and not exists (
+        select 1 from jsonb_array_elements(collaborators) c
+        where trim(c->>'id') = step->>'assigneeId'
+      )
+  ) then
+    raise exception 'unknown commercial collaborator reference';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(projects) p
+    cross join lateral jsonb_array_elements(coalesce(p->'photos', '[]'::jsonb)) photo
     where nullif(photo->>'storagePath', '') is not null
       and (photo->>'storagePath') not like target_org::text || '/%'
   ) then
@@ -329,8 +361,7 @@ begin
   values (target_org, 0, auth.uid())
   on conflict (organization_id) do nothing;
 
-  select revision
-    into current_revision
+  select revision into current_revision
   from public.commercial_workspace_meta
   where organization_id = target_org
   for update;
@@ -350,125 +381,69 @@ begin
   insert into public.commercial_collaborators (
     organization_id, id, position, name, role, phone, initials, active
   )
-  select
-    target_org,
-    trim(c.value->>'id'),
-    c.ordinality - 1,
-    trim(c.value->>'name'),
-    coalesce(c.value->>'role', ''),
-    coalesce(c.value->>'phone', ''),
-    coalesce(c.value->>'initials', ''),
-    coalesce((c.value->>'active')::boolean, true)
+  select target_org, trim(c.value->>'id'), c.ordinality - 1, trim(c.value->>'name'),
+         coalesce(c.value->>'role', ''), coalesce(c.value->>'phone', ''),
+         coalesce(c.value->>'initials', ''), coalesce((c.value->>'active')::boolean, true)
   from jsonb_array_elements(collaborators) with ordinality as c(value, ordinality);
 
   insert into public.commercial_projects (
     organization_id, id, position, name, subtitle, customer_id, quote_id, invoice_id,
     address, status, start_date, next_visit
   )
-  select
-    target_org,
-    trim(p.value->>'id'),
-    p.ordinality - 1,
-    trim(p.value->>'name'),
-    coalesce(p.value->>'subtitle', ''),
-    coalesce(p.value->>'customerId', ''),
-    nullif(p.value->>'quoteId', ''),
-    nullif(p.value->>'invoiceId', ''),
-    coalesce(p.value->>'address', ''),
-    coalesce(nullif(p.value->>'status', ''), 'À planifier'),
-    nullif(p.value->>'startDate', '')::date,
-    nullif(p.value->>'nextVisit', '')::date
+  select target_org, trim(p.value->>'id'), p.ordinality - 1, trim(p.value->>'name'),
+         coalesce(p.value->>'subtitle', ''), coalesce(p.value->>'customerId', ''),
+         nullif(p.value->>'quoteId', ''), nullif(p.value->>'invoiceId', ''),
+         coalesce(p.value->>'address', ''), coalesce(nullif(p.value->>'status', ''), 'À planifier'),
+         nullif(p.value->>'startDate', '')::date, nullif(p.value->>'nextVisit', '')::date
   from jsonb_array_elements(projects) with ordinality as p(value, ordinality);
 
   insert into public.commercial_project_members (
     organization_id, project_id, collaborator_id, position
   )
-  select
-    target_org,
-    p.value->>'id',
-    member.value,
-    member.ordinality - 1
+  select target_org, p.value->>'id', member.value, member.ordinality - 1
   from jsonb_array_elements(projects) as p(value)
   cross join lateral jsonb_array_elements_text(coalesce(p.value->'teamIds', '[]'::jsonb))
-    with ordinality as member(value, ordinality)
-  where exists (
-    select 1 from public.commercial_collaborators c
-    where c.organization_id = target_org and c.id = member.value
-  );
+    with ordinality as member(value, ordinality);
 
   insert into public.commercial_project_steps (
     organization_id, project_id, id, position, label, assignee_id, due_date, done
   )
-  select
-    target_org,
-    p.value->>'id',
-    trim(step.value->>'id'),
-    step.ordinality - 1,
-    trim(step.value->>'label'),
-    case
-      when nullif(step.value->>'assigneeId', '') is null then null
-      when exists (
-        select 1 from public.commercial_collaborators c
-        where c.organization_id = target_org and c.id = step.value->>'assigneeId'
-      ) then step.value->>'assigneeId'
-      else null
-    end,
-    nullif(step.value->>'dueDate', '')::date,
-    coalesce((step.value->>'done')::boolean, false)
+  select target_org, p.value->>'id', trim(step.value->>'id'), step.ordinality - 1,
+         trim(step.value->>'label'), nullif(step.value->>'assigneeId', ''),
+         nullif(step.value->>'dueDate', '')::date, coalesce((step.value->>'done')::boolean, false)
   from jsonb_array_elements(projects) as p(value)
   cross join lateral jsonb_array_elements(coalesce(p.value->'steps', '[]'::jsonb))
-    with ordinality as step(value, ordinality)
-  where length(trim(coalesce(step.value->>'id', ''))) between 1 and 160
-    and length(trim(coalesce(step.value->>'label', ''))) between 1 and 500;
+    with ordinality as step(value, ordinality);
 
   insert into public.commercial_project_issues (
     organization_id, project_id, id, position, title, detail, severity, resolved, created_at
   )
-  select
-    target_org,
-    p.value->>'id',
-    trim(issue.value->>'id'),
-    issue.ordinality - 1,
-    trim(issue.value->>'title'),
-    coalesce(issue.value->>'detail', ''),
-    coalesce(nullif(issue.value->>'severity', ''), 'À surveiller'),
-    coalesce((issue.value->>'resolved')::boolean, false),
-    coalesce(nullif(issue.value->>'createdAt', '')::timestamptz, now())
+  select target_org, p.value->>'id', trim(issue.value->>'id'), issue.ordinality - 1,
+         trim(issue.value->>'title'), coalesce(issue.value->>'detail', ''),
+         coalesce(nullif(issue.value->>'severity', ''), 'À surveiller'),
+         coalesce((issue.value->>'resolved')::boolean, false),
+         coalesce(nullif(issue.value->>'createdAt', '')::timestamptz, now())
   from jsonb_array_elements(projects) as p(value)
   cross join lateral jsonb_array_elements(coalesce(p.value->'issues', '[]'::jsonb))
-    with ordinality as issue(value, ordinality)
-  where length(trim(coalesce(issue.value->>'id', ''))) between 1 and 160
-    and length(trim(coalesce(issue.value->>'title', ''))) between 1 and 500;
+    with ordinality as issue(value, ordinality);
 
   insert into public.commercial_project_photos (
     organization_id, project_id, id, position, name, caption, storage_path, created_at
   )
-  select
-    target_org,
-    p.value->>'id',
-    trim(photo.value->>'id'),
-    photo.ordinality - 1,
-    coalesce(photo.value->>'name', ''),
-    coalesce(nullif(photo.value->>'caption', ''), 'Photo chantier'),
-    nullif(photo.value->>'storagePath', ''),
-    coalesce(nullif(photo.value->>'createdAt', '')::timestamptz, now())
+  select target_org, p.value->>'id', trim(photo.value->>'id'), photo.ordinality - 1,
+         coalesce(photo.value->>'name', ''), coalesce(nullif(photo.value->>'caption', ''), 'Photo chantier'),
+         nullif(photo.value->>'storagePath', ''),
+         coalesce(nullif(photo.value->>'createdAt', '')::timestamptz, now())
   from jsonb_array_elements(projects) as p(value)
   cross join lateral jsonb_array_elements(coalesce(p.value->'photos', '[]'::jsonb))
-    with ordinality as photo(value, ordinality)
-  where length(trim(coalesce(photo.value->>'id', ''))) between 1 and 160;
+    with ordinality as photo(value, ordinality);
 
   insert into public.commercial_activity_events (
     organization_id, id, position, kind, message, document_number, project_id, created_at
   )
-  select
-    target_org,
-    trim(a.value->>'id'),
-    a.ordinality - 1,
-    a.value->>'kind',
-    trim(a.value->>'message'),
-    nullif(a.value->>'documentNumber', ''),
-    nullif(a.value->>'projectId', ''),
-    coalesce(nullif(a.value->>'createdAt', '')::timestamptz, now())
+  select target_org, trim(a.value->>'id'), a.ordinality - 1, a.value->>'kind', trim(a.value->>'message'),
+         nullif(a.value->>'documentNumber', ''), nullif(a.value->>'projectId', ''),
+         coalesce(nullif(a.value->>'createdAt', '')::timestamptz, now())
   from jsonb_array_elements(activity) with ordinality as a(value, ordinality);
 
   update public.commercial_workspace_meta
