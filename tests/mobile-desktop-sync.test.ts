@@ -7,6 +7,7 @@ import {
   diffById,
   emptyWorkspaceAliases,
   invoiceStatusToMobile,
+  mergeInitialMobileWorkspace,
   mobileInvoiceStatusToDesktop,
   mobileQuoteStatusToDesktop,
   normalizedWorkspaceToMobile,
@@ -14,7 +15,7 @@ import {
   quoteStatusToMobile,
   stableSignature,
 } from "../lib/mobile-desktop-sync";
-import type { Customer, Quote } from "../lib/project-chapet";
+import type { Customer, Invoice, Quote } from "../lib/project-chapet";
 import type { MobileWorkspace } from "../lib/mobile-prototype";
 
 const customer: Customer = {
@@ -66,6 +67,27 @@ const quote: Quote = {
   }],
 };
 
+const paidInvoice: Invoice = {
+  id: "cccccccc-2222-4333-8444-555555555555",
+  organization_id: customer.organization_id,
+  customer_id: customer.id,
+  quote_id: quote.id,
+  number: "FAC-2026-001",
+  status: "paid",
+  issue_date: "2026-09-09",
+  due_date: "2026-10-09",
+  subtotal: 100,
+  tax_total: 20,
+  total: 120,
+  paid_total: 120,
+  notes: null,
+  sent_at: "2026-09-09T10:00:00Z",
+  created_at: "2026-09-09T10:00:00Z",
+  updated_at: "2026-09-09T10:00:00Z",
+  customer,
+  items: [],
+};
+
 const emptyMobile: MobileWorkspace = { customers: [], quotes: [], invoices: [], agenda: [] };
 
 test("convertit le coeur Supabase en workspace mobile sans perdre les valeurs À préciser", () => {
@@ -83,6 +105,12 @@ test("convertit le coeur Supabase en workspace mobile sans perdre les valeurs À
   assert.equal(mobile.agenda[0].title, "Visite");
 });
 
+test("marque un devis accepté comme terminé quand sa facture liée est payée", () => {
+  const acceptedQuote = { ...quote, status: "accepted" as const };
+  const mobile = normalizedWorkspaceToMobile({ customers: [customer], quotes: [acceptedQuote], invoices: [paidInvoice] }, emptyMobile);
+  assert.equal(mobile.quotes[0].status, "Terminé");
+});
+
 test("préserve un statut serveur plus précis tant que le mobile ne le change pas", () => {
   assert.equal(quoteStatusToMobile("sent"), "En attente");
   assert.equal(mobileQuoteStatusToDesktop("En attente", "sent"), "sent");
@@ -90,6 +118,8 @@ test("préserve un statut serveur plus précis tant que le mobile ne le change p
   assert.equal(invoiceStatusToMobile("partially_paid"), "En cours");
   assert.equal(mobileInvoiceStatusToDesktop("En cours", "partially_paid"), "partially_paid");
   assert.equal(mobileInvoiceStatusToDesktop("Payée", "partially_paid"), "paid");
+  assert.equal(invoiceStatusToMobile("cancelled"), "Avoir");
+  assert.equal(mobileInvoiceStatusToDesktop("Avoir", "cancelled"), "cancelled");
 });
 
 test("renvoie les null réels vers le RPC au lieu de fabriquer des zéros", () => {
@@ -110,11 +140,30 @@ test("détecte créations modifications et suppressions sans tenir compte de l'o
   assert.deepEqual(diff.deleted.map((item) => item.id), ["a"]);
 });
 
+test("fusionne la première ouverture sans écraser les données présentes d'un seul côté", () => {
+  const server = normalizedWorkspaceToMobile({ customers: [customer], quotes: [quote], invoices: [] }, emptyMobile);
+  const local: MobileWorkspace = {
+    customers: [
+      { ...server.customers[0], companyName: "Ancienne copie locale" },
+      { ...server.customers[0], id: "customer-local", companyName: "Client mobile uniquement" },
+    ],
+    quotes: [],
+    invoices: [],
+    agenda: [{ id: "agenda-local", date: "2026-09-10", time: "10:00", type: "Chantier", title: "Visite locale", customerId: "customer-local", customerName: "Client mobile uniquement", done: false }],
+  };
+
+  const merged = mergeInitialMobileWorkspace(server, local);
+  assert.equal(merged.customers.length, 2);
+  assert.equal(merged.customers.find((item) => item.id === customer.id)?.companyName, "Atelier Test");
+  assert.equal(merged.customers.find((item) => item.id === "customer-local")?.companyName, "Client mobile uniquement");
+  assert.equal(merged.agenda[0].title, "Visite locale");
+});
+
 test("remappe les IDs locaux sans casser les relations client devis facture agenda", () => {
   const aliases = emptyWorkspaceAliases();
   aliases.customers.set("customer-local", customer.id);
   aliases.quotes.set("quote-local", quote.id);
-  aliases.invoices.set("invoice-local", "cccccccc-2222-4333-8444-555555555555");
+  aliases.invoices.set("invoice-local", paidInvoice.id);
 
   const local: MobileWorkspace = {
     customers: [{ id: "customer-local", kind: "Professionnel", companyName: "Atelier Test", civility: "", lastName: "", firstName: "", emails: [], phones: [], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "" }],
@@ -127,7 +176,7 @@ test("remappe les IDs locaux sans casser les relations client devis facture agen
   assert.equal(mapped.customers[0].id, customer.id);
   assert.equal(mapped.quotes[0].id, quote.id);
   assert.equal(mapped.quotes[0].customerId, customer.id);
-  assert.equal(mapped.invoices[0].id, "cccccccc-2222-4333-8444-555555555555");
+  assert.equal(mapped.invoices[0].id, paidInvoice.id);
   assert.equal(mapped.invoices[0].customerId, customer.id);
   assert.equal(mapped.invoices[0].sourceQuoteId, quote.id);
   assert.equal(mapped.agenda[0].customerId, customer.id);
