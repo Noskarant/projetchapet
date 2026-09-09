@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 
-export const DEMO_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const E2E_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
 
 export type CustomerKind = "individual" | "business";
 export type QuoteStatus = "draft" | "sent" | "accepted" | "refused" | "expired" | "cancelled";
@@ -67,7 +68,10 @@ function normalizeItems(items: DocumentItem[]) {
 
 export async function getActiveOrganizationId() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return DEMO_ORGANIZATION_ID;
+  if (!session?.user) {
+    if (AUTH_BYPASS) return E2E_ORGANIZATION_ID;
+    throw new Error("Votre session a expiré. Reconnectez-vous.");
+  }
   const { data, error } = await supabase.rpc("ensure_personal_organization");
   if (error) throw error;
   return data as string;
