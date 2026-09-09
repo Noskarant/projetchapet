@@ -23,6 +23,7 @@ import "./mobile-quote-preview-scroll-fix.css";
 import "./mobile-status-colors.css";
 import "./mobile-commercial-demo.css";
 import "./mobile-premium-polish.css";
+import "./public-auth-redesign.css";
 
 export const metadata: Metadata = {
   title: "FORGEO — gestion simple pour artisans du bâtiment",
@@ -43,7 +44,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#102922",
+  themeColor: "#0878f9",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
