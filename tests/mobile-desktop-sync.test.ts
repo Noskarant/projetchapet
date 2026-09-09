@@ -193,7 +193,7 @@ test("la signature coeur ignore l'agenda qui reste synchronisé par le snapshot 
 });
 
 test("la migration conserve les inconnues et ne réouvre aucun accès anonyme", () => {
-  const sql = fs.readFileSync("supabase/migrations/20260909143000_preserve_incomplete_document_lines.sql", "utf8");
+  const sql = fs.readFileSync("supabase/migrations/20260909153236_preserve_incomplete_document_lines.sql", "utf8");
   assert.match(sql, /alter column quantity drop not null/i);
   assert.match(sql, /item->>'quantity' is null then null/i);
   assert.match(sql, /item->>'unit_price' is null then null/i);
