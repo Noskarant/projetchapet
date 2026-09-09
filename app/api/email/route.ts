@@ -12,6 +12,7 @@ import {
 } from "@/lib/api-guard";
 import {
   recipientsAreAuthorized,
+  snapshotAccountingEmails,
   snapshotRecipientsForDocument,
   uniqueValidEmails,
   type EmailDocumentKind,
@@ -125,6 +126,7 @@ async function authorizeRecipients(
   if (!organizationIds.length) throw new ApiInputError("Aucune entreprise autorisée pour cet envoi.", 403);
 
   const allowed = new Set<string>();
+  const snapshotAccountingByOrganization = new Map<string, string[]>();
   let documentFound = false;
 
   const { data: snapshots, error: snapshotError } = await client
@@ -134,6 +136,8 @@ async function authorizeRecipients(
   if (snapshotError) throw new Error("Espace de travail inaccessible");
 
   for (const snapshot of snapshots ?? []) {
+    const organizationId = String(snapshot.organization_id ?? "");
+    snapshotAccountingByOrganization.set(organizationId, snapshotAccountingEmails(snapshot));
     const authorization = snapshotRecipientsForDocument(snapshot, documentNumber, documentKind);
     if (!authorization.found) continue;
     documentFound = true;
@@ -162,6 +166,10 @@ async function authorizeRecipients(
     }
 
     const matchingOrganizationIds = [...new Set(documents.map((row) => String(row.organization_id)).filter(Boolean))];
+    matchingOrganizationIds.forEach((organizationId) => {
+      snapshotAccountingByOrganization.get(organizationId)?.forEach((email) => allowed.add(email));
+    });
+
     const { data: organizations, error: organizationError } = await client
       .from("organizations")
       .select("id, accountant_email")
