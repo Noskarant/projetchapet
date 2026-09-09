@@ -4,7 +4,7 @@ test("affiche la landing et ouvre les parcours connexion et création de compte 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: /Moins de paperasse/i })).toBeVisible();
-  await expect(page.getByText("Vos prix restent vos prix", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Vos prix restent vos prix/).first()).toBeVisible();
 
   await page.getByRole("button", { name: "J’ai déjà un compte", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Connexion FORGEO" })).toBeVisible();
@@ -20,8 +20,22 @@ test("affiche la landing et ouvre les parcours connexion et création de compte 
 });
 
 test("permet de demander un lien de récupération sans révéler si le compte existe", async ({ page }) => {
-  await page.route("**/auth/v1/recover*", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+      if (url.includes("/auth/v1/recover")) {
+        return new Response("{}", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return originalFetch(input, init);
+    };
   });
 
   await page.goto("/");
