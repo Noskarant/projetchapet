@@ -53,17 +53,49 @@ export function customerName(customer: Pick<Customer, "kind" | "company_name" | 
 }
 
 export function calculateTotals(items: DocumentItem[]) {
-  const subtotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0);
-  const tax_total = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0) * (Number(item.tax_rate || 0) / 100), 0);
+  const subtotal = items.reduce((sum, item) => sum + Number(item.quantity ?? 0) * Number(item.unit_price ?? 0), 0);
+  const tax_total = items.reduce((sum, item) => sum + Number(item.quantity ?? 0) * Number(item.unit_price ?? 0) * (Number(item.tax_rate ?? 0) / 100), 0);
   return { subtotal: Math.round(subtotal * 100) / 100, tax_total: Math.round(tax_total * 100) / 100, total: Math.round((subtotal + tax_total) * 100) / 100 };
 }
 
+function optionalNumber(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return null;
+  return Math.max(0, Number(value));
+}
+
 function normalizeItems(items: DocumentItem[]) {
-  return items.map((item, index) => ({
-    position: index, label: item.label.trim(), description: item.description?.trim() || null,
-    quantity: Number(item.quantity || 0), unit: item.unit?.trim() || null, unit_price: Number(item.unit_price || 0),
-    tax_rate: Number(item.tax_rate || 0), total: Math.round(Number(item.quantity || 0) * Number(item.unit_price || 0) * 100) / 100,
-  }));
+  return items.map((item, index) => {
+    const quantity = optionalNumber(item.quantity);
+    const unitPrice = optionalNumber(item.unit_price);
+    const taxRate = optionalNumber(item.tax_rate);
+    return {
+      position: index, label: item.label.trim(), description: item.description?.trim() || null,
+      quantity, unit: item.unit?.trim() || null, unit_price: unitPrice,
+      tax_rate: taxRate,
+      total: quantity === null || unitPrice === null ? 0 : Math.round(quantity * unitPrice * 100) / 100,
+    };
+  });
+}
+
+export function preserveOmittedUnknownQuantityItems(submitted: DocumentItem[], persisted: DocumentItem[]) {
+  // L’éditeur desktop historique filtre encore les lignes dont la quantité est NULL avant l’appel
+  // à saveQuote/saveInvoice. Lors d’une édition d’un document venu du mobile, on protège donc
+  // uniquement ces lignes déjà persistées et absentes de la soumission. Les créations/suppressions
+  // mobiles ne passent pas par ce garde-fou car leurs lignes n’embarquent pas d’ID SQL.
+  const desktopEdit = submitted.some((item) => Boolean(item.id));
+  if (!desktopEdit) return submitted;
+
+  const submittedIds = new Set(submitted.flatMap((item) => item.id ? [item.id] : []));
+  const protectedItems = persisted.filter((item) =>
+    Boolean(item.id) &&
+    !submittedIds.has(item.id as string) &&
+    (item.quantity as number | null) === null,
+  );
+
+  if (!protectedItems.length) return submitted;
+  return [...submitted, ...protectedItems]
+    .sort((left, right) => left.position - right.position)
+    .map((item, index) => ({ ...item, position: index }));
 }
 
 export async function getActiveOrganizationId() {
@@ -116,6 +148,16 @@ export async function deleteCustomer(id: string) {
 
 export async function saveQuote(input: DocumentInput, existingNumbers: string[], id?: string) {
   void existingNumbers;
+  let items = input.items;
+  if (id && input.items.some((item) => Boolean(item.id))) {
+    const { data: persistedItems, error: persistedItemsError } = await supabase
+      .from("quote_items")
+      .select("*")
+      .eq("quote_id", id)
+      .order("position", { ascending: true });
+    if (persistedItemsError) throw persistedItemsError;
+    items = preserveOmittedUnknownQuantityItems(input.items, (persistedItems ?? []) as unknown as DocumentItem[]);
+  }
   const { data, error } = await supabase.rpc("save_quote_document", {
     p_quote_id: id ?? null,
     p_customer_id: input.customer_id,
@@ -124,7 +166,7 @@ export async function saveQuote(input: DocumentInput, existingNumbers: string[],
     p_issue_date: input.issue_date,
     p_expiry_date: input.expiry_date || null,
     p_notes: input.notes,
-    p_items: normalizeItems(input.items),
+    p_items: normalizeItems(items),
   });
   if (error) throw error;
   return data as string;
@@ -149,6 +191,16 @@ export async function saveQuoteSignature(id: string, signerName: string, signatu
 
 export async function saveInvoice(input: DocumentInput, existingNumbers: string[], id?: string) {
   void existingNumbers;
+  let items = input.items;
+  if (id && input.items.some((item) => Boolean(item.id))) {
+    const { data: persistedItems, error: persistedItemsError } = await supabase
+      .from("invoice_items")
+      .select("*")
+      .eq("invoice_id", id)
+      .order("position", { ascending: true });
+    if (persistedItemsError) throw persistedItemsError;
+    items = preserveOmittedUnknownQuantityItems(input.items, (persistedItems ?? []) as unknown as DocumentItem[]);
+  }
   const { data, error } = await supabase.rpc("save_invoice_document", {
     p_invoice_id: id ?? null,
     p_customer_id: input.customer_id,
@@ -157,7 +209,7 @@ export async function saveInvoice(input: DocumentInput, existingNumbers: string[
     p_issue_date: input.issue_date,
     p_due_date: input.due_date || null,
     p_notes: input.notes,
-    p_items: normalizeItems(input.items),
+    p_items: normalizeItems(items),
   });
   if (error) throw error;
   return data as string;

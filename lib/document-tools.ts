@@ -7,11 +7,22 @@ function isQuote(document: BusinessDocument): document is Quote {
   return "title" in document;
 }
 
-function money(value: number) {
-  const amount = Number(value || 0);
+function money(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "À préciser";
+  const amount = Number(value);
   const [integerPart, decimalPart] = amount.toFixed(2).split(".");
   const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   return `${groupedInteger},${decimalPart} €`;
+}
+
+function numberWithUnit(value: number | null | undefined, unit: string | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "À préciser";
+  return `${value} ${unit || ""}`.trim();
+}
+
+function percent(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "À préciser";
+  return `${value} %`;
 }
 
 function date(value: string | null | undefined) {
@@ -89,10 +100,13 @@ export async function buildDocumentPdf(document: BusinessDocument) {
       pdf.setFontSize(8.5);
     }
     pdf.setCharSpace(0);
-    pdf.text(`${item.quantity} ${item.unit || ""}`.trim(), 118, y, { align: "right" });
+    pdf.text(numberWithUnit(item.quantity, item.unit), 118, y, { align: "right" });
     pdf.text(money(item.unit_price), 145, y, { align: "right" });
-    pdf.text(`${item.tax_rate} %`, 162, y, { align: "right" });
-    pdf.text(money(item.total), 192, y, { align: "right" });
+    pdf.text(percent(item.tax_rate), 162, y, { align: "right" });
+    const lineTotal = item.quantity === null || item.quantity === undefined || item.unit_price === null || item.unit_price === undefined
+      ? null
+      : item.total;
+    pdf.text(money(lineTotal), 192, y, { align: "right" });
     y += Math.max(11, lines.length * 4.5 + (item.description ? 5 : 0));
     pdf.setDrawColor(235, 239, 244);
     pdf.line(margin, y - 4, 194, y - 4);

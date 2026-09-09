@@ -12,6 +12,7 @@ import MobileCopilotAssistant from "./mobile-copilot-assistant";
 import MobileCopilotBusinessProfileBridge from "./mobile-copilot-business-profile-bridge";
 import MobileCopilotDictationBridge from "./mobile-copilot-dictation-bridge";
 import MobileCopilotLauncherGuard from "./mobile-copilot-launcher-guard";
+import MobileDesktopSyncBridge, { hydrateMobileCoreFromDesktop } from "./mobile-desktop-sync-bridge";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
 import MobileForgeoBusinessSettings from "./mobile-forgeo-business-settings";
 import MobileLegacyQuoteDetailGuard from "./mobile-legacy-quote-detail-guard";
@@ -31,14 +32,21 @@ export default function MobilePrototypeGate() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      prepareFreshArtisanStart(window.localStorage);
-      prepareMobileWorkspaceStorage(window.localStorage, EMPTY_MOBILE_WORKSPACE);
-    } catch (error) {
-      console.warn("[FORGEO] Préparation du stockage mobile impossible", error);
-    } finally {
-      setReady(true);
-    }
+    let active = true;
+    void (async () => {
+      try {
+        prepareFreshArtisanStart(window.localStorage);
+        prepareMobileWorkspaceStorage(window.localStorage, EMPTY_MOBILE_WORKSPACE);
+        await hydrateMobileCoreFromDesktop();
+      } catch (error) {
+        console.warn("[FORGEO] Préparation du stockage mobile impossible", error);
+      } finally {
+        if (active) setReady(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (!ready) {
@@ -62,6 +70,7 @@ export default function MobilePrototypeGate() {
 
   return (
     <>
+      <MobileDesktopSyncBridge />
       <MobileAiContextBridge />
       <MobileLongVoiceBridge />
       <MobileAiApplyGuard />
