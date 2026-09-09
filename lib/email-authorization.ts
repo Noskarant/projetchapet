@@ -28,6 +28,11 @@ function recordArray(value: unknown) {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
 
+export function snapshotAccountingEmails(snapshot: PilotEmailSnapshot) {
+  const profile = isRecord(snapshot.company_profile) ? snapshot.company_profile : {};
+  return uniqueValidEmails([profile.accountingEmail]);
+}
+
 export function snapshotRecipientsForDocument(
   snapshot: PilotEmailSnapshot,
   documentNumber: string,
@@ -44,10 +49,9 @@ export function snapshotRecipientsForDocument(
   const customer = customers.find((item) => String(item.id ?? "").trim() === customerId);
   const customerEmails = customer && Array.isArray(customer.emails) ? customer.emails : [];
 
-  const profile = isRecord(snapshot.company_profile) ? snapshot.company_profile : {};
   return {
     found: true,
-    emails: uniqueValidEmails([...customerEmails, profile.accountingEmail]),
+    emails: uniqueValidEmails([...customerEmails, ...snapshotAccountingEmails(snapshot)]),
   };
 }
 
