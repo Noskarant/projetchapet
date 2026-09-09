@@ -111,14 +111,17 @@ function mobileLineFromDesktop(item: DocumentItem, previous?: LineItem): LineIte
 
 function desktopItemFromMobile(item: LineItem, position: number): DocumentItem {
   const total = item.quantity === null || item.unitPrice === null ? 0 : Math.round(item.quantity * item.unitPrice * 100) / 100;
+  // Les colonnes SQL deviennent nullable dans la migration de ce bloc. Le type desktop historique
+  // reste temporairement numérique pour ne pas élargir toute l'UI d'un coup ; la frontière conserve
+  // néanmoins les null réels afin que « À préciser » ne soit jamais transformé en zéro.
   return {
     position,
     label: item.label.trim() || "Prestation",
     description: item.description.trim() || null,
-    quantity: item.quantity,
+    quantity: item.quantity as number,
     unit: item.unit?.trim() || null,
-    unit_price: item.unitPrice,
-    tax_rate: item.taxRate,
+    unit_price: item.unitPrice as number,
+    tax_rate: item.taxRate as number,
     total,
   };
 }
@@ -237,7 +240,6 @@ export function normalizedWorkspaceToMobile(
   workspace: NormalizedWorkspace,
   previous: MobileWorkspace,
 ): MobileWorkspace {
-  const previousCustomers = new Map(previous.customers.map((item) => [item.id, item]));
   const previousQuotes = new Map(previous.quotes.map((item) => [item.id, item]));
   const previousInvoices = new Map(previous.invoices.map((item) => [item.id, item]));
   const quoteTitles = new Map(workspace.quotes.map((quote) => [quote.id, quote.title]));
