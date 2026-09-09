@@ -36,6 +36,7 @@ import {
 
 const LOCAL_CHECK_MS = 850;
 const PULL_INTERVAL_MS = 5_000;
+const FAILED_PUSH_RETRY_MS = 5_000;
 
 function readWorkspace(): MobileWorkspace {
   try {
@@ -185,6 +186,7 @@ export default function MobileDesktopSyncBridge() {
   const aliases = useRef<WorkspaceAliases>(emptyWorkspaceAliases());
   const syncing = useRef(false);
   const failedSignature = useRef("");
+  const failedAt = useRef(0);
   const lastPull = useRef(0);
 
   useEffect(() => {
@@ -218,11 +220,17 @@ export default function MobileDesktopSyncBridge() {
       const pullDue = Date.now() - lastPull.current >= PULL_INTERVAL_MS;
 
       if (!localChanged && !pullDue) return;
-      if (localChanged && localSignature === failedSignature.current && !pullDue) return;
+      if (
+        localChanged &&
+        localSignature === failedSignature.current &&
+        Date.now() - failedAt.current < FAILED_PUSH_RETRY_MS
+      ) return;
 
       syncing.current = true;
       try {
-        if (localChanged && localSignature !== failedSignature.current) {
+        if (localChanged) {
+          // Une saisie locale non envoyée est prioritaire sur un pull serveur : si le push échoue,
+          // on la laisse strictement en place et on retentera plus tard au lieu de l'écraser.
           await synchronizeLocalChanges(baseline.current, local, aliases.current);
           const server = await fetchWorkspace();
           const aliasedLocal = applyWorkspaceAliases(rawLocal, aliases.current);
@@ -230,19 +238,21 @@ export default function MobileDesktopSyncBridge() {
           writeWorkspace(canonical);
           baseline.current = canonical;
           failedSignature.current = "";
+          failedAt.current = 0;
           lastPull.current = Date.now();
           return;
         }
 
         await pullServer(local);
         failedSignature.current = "";
+        failedAt.current = 0;
       } catch (error) {
-        failedSignature.current = localSignature;
         console.error("[FORGEO] Synchronisation mobile ↔ desktop impossible", error);
-        try {
-          await pullServer(rawLocal);
-        } catch (reloadError) {
-          console.error("[FORGEO] Récupération après erreur de synchronisation impossible", reloadError);
+        if (localChanged) {
+          failedSignature.current = localSignature;
+          failedAt.current = Date.now();
+          // Ne pas recharger le serveur ici : cela détruirait précisément les changements locaux
+          // qui viennent d'échouer. Le prochain essai repartira de la même baseline.
         }
       } finally {
         syncing.current = false;
