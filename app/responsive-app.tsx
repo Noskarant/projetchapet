@@ -13,6 +13,7 @@ import DocumentWorkflow from "./document-workflow";
 import FunctionalPrototype from "./functional-prototype";
 import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
+import PilotReadinessUiBridge from "./pilot-readiness-ui-bridge";
 import ProductEnhancements from "./product-enhancements";
 import PwaRegister from "./pwa-register";
 
@@ -53,6 +54,7 @@ export default function ResponsiveApp() {
       <PwaRegister />
       <PilotAuthGate>
         <AuthenticatedEmailFetchBridge />
+        <PilotReadinessUiBridge />
         <CompanyProfileSettings />
         <DesktopExerciseBridge />
         {mode === "mobile" ? (
