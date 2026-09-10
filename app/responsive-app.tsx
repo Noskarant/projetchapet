@@ -11,6 +11,7 @@ import DesktopExerciseBridge from "./desktop-exercise-bridge";
 import DocumentPreviewBridge from "./document-preview-bridge";
 import DocumentWorkflow from "./document-workflow";
 import FunctionalPrototype from "./functional-prototype";
+import ManufeoBrandingBridge from "./manufeo-branding-bridge";
 import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
 import PilotReadinessUiBridge from "./pilot-readiness-ui-bridge";
@@ -34,7 +35,7 @@ export default function ResponsiveApp() {
   if (!mode) {
     return (
       <main
-        aria-label="Chargement de FORGEO"
+        aria-label="Chargement de MANUFEO"
         style={{
           minHeight: "100dvh",
           display: "grid",
@@ -45,7 +46,7 @@ export default function ResponsiveApp() {
           fontWeight: 800,
         }}
       >
-        FORGEO
+        MANUFEO
       </main>
     );
   }
@@ -53,6 +54,7 @@ export default function ResponsiveApp() {
   return (
     <AppErrorBoundary>
       <PwaRegister />
+      <ManufeoBrandingBridge />
       <PilotAuthGate>
         <AuthenticatedEmailFetchBridge />
         <PilotReadinessUiBridge />
