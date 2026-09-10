@@ -47,7 +47,7 @@ test("le profil métier et les tarifs entreprise sont injectés dans le copilote
   await page.goto("/");
   await page.getByRole("button", { name: "Menu" }).click();
   await expect(page.getByRole("button", { name: /Métier & tarifs/ })).toBeVisible();
-  await page.getByRole("button", { name: "Fermer" }).click().catch(() => page.getByRole("button", { name: "Menu" }).click());
+  await page.locator(".rm-side-drawer header > button:first-child").click();
   await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
   await expect(page.getByLabel("Description du chantier")).toHaveAttribute("placeholder", /Voltaire/);
   await expect(page.getByText(/COPILOTE · TAPISSERIE D’AMEUBLEMENT/i)).toBeVisible();
