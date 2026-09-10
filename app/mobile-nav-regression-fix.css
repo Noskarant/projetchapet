@@ -1,0 +1,14 @@
+@media (max-width: 820px) {
+  /* Keep the product polish while respecting the compact mobile shell contract. */
+  .rm-content {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .rm-bottom-nav {
+    height: calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .rm-create-dock {
+    bottom: calc(81px + env(safe-area-inset-bottom));
+  }
+}
