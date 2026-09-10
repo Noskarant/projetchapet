@@ -49,7 +49,7 @@ export default function ResetPasswordPage() {
     event.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      setMessage("Renseignez l’adresse e-mail de votre compte FORGEO.");
+      setMessage("Renseignez l’adresse e-mail de votre compte MANUFEO.");
       return;
     }
 
@@ -61,7 +61,7 @@ export default function ResetPasswordPage() {
       });
       if (error) throw error;
       setMessage(
-        "Si un compte FORGEO existe avec cette adresse, un lien de récupération vient d’être envoyé.",
+        "Si un compte MANUFEO existe avec cette adresse, un lien de récupération vient d’être envoyé.",
       );
     } catch (error) {
       setMessage(
@@ -101,7 +101,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <AuthFrame label="Récupération du compte FORGEO">
+    <AuthFrame label="Récupération du compte MANUFEO">
       {step === "request" && (
         <>
           <div className="forgeo-auth-brand">
@@ -141,7 +141,7 @@ export default function ResetPasswordPage() {
       {step === "update" && (
         <>
           <div className="forgeo-auth-brand">
-            <span>VOTRE COMPTE FORGEO</span>
+            <span>VOTRE COMPTE MANUFEO</span>
             <h1>Choisir un nouveau mot de passe</h1>
             <p>
               Choisissez un mot de passe que vous n’utilisez pas sur un autre
@@ -185,7 +185,7 @@ export default function ResetPasswordPage() {
             espace.
           </p>
           <a className="forgeo-auth-primary" href="/">
-            Ouvrir mon espace FORGEO →
+            Ouvrir mon espace MANUFEO →
           </a>
         </div>
       )}
