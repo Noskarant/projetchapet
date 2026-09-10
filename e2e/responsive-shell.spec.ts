@@ -96,7 +96,7 @@ test("expose un manifeste PWA valide", async ({ request }) => {
   const response = await request.get("/manifest.webmanifest");
   expect(response.ok()).toBeTruthy();
   const manifest = await response.json();
-  expect(manifest.name).toBe("FORGEO");
+  expect(manifest.name).toBe("MANUFEO");
   expect(manifest.display).toBe("standalone");
   expect(manifest.icons).toHaveLength(2);
 });
