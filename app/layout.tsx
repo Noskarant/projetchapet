@@ -25,6 +25,7 @@ import "./mobile-premium-polish.css";
 import "./public-auth-redesign.css";
 import "./desktop-product-ui-polish.css";
 import "./mobile-overlay-safety.css";
+import "./manufeo-brand.css";
 
 export const metadata: Metadata = {
   title: "MANUFEO — gestion simple pour artisans du bâtiment",
@@ -32,8 +33,8 @@ export const metadata: Metadata = {
   applicationName: "MANUFEO",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icon-192.svg",
-    apple: "/icon-192.svg",
+    icon: "/icon-192.webp",
+    apple: "/icon-192.webp",
   },
   appleWebApp: {
     capable: true,
