@@ -105,6 +105,12 @@ function authenticatedSupabase(token: string) {
   });
 }
 
+function manufeoSender(value: string) {
+  return value
+    .replace(/^\s*FORGEO\s*(?=<)/i, "MANUFEO ")
+    .replace(/^\s*Projet Chapet\s*(?=<)/i, "MANUFEO ");
+}
+
 async function authorizeRecipients(
   request: Request,
   documentNumber: string,
@@ -186,7 +192,7 @@ async function authorizeRecipients(
 }
 
 export async function GET() {
-  const from = process.env.RESEND_FROM_EMAIL ?? "";
+  const from = manufeoSender(process.env.RESEND_FROM_EMAIL ?? "");
   return NextResponse.json(
     { configured: Boolean(process.env.RESEND_API_KEY && from) },
     { headers: { "Cache-Control": "no-store" } },
@@ -213,7 +219,8 @@ export async function POST(request: Request) {
     const attachments = cleanAttachments(body.attachments);
 
     const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.RESEND_FROM_EMAIL;
+    const configuredFrom = process.env.RESEND_FROM_EMAIL;
+    const from = configuredFrom ? manufeoSender(configuredFrom) : "";
     if (!apiKey || !from) {
       return NextResponse.json(
         { configured: false, error: "Le service d’envoi n’est pas configuré." },
