@@ -1,0 +1,2 @@
+/* Keep the premium CRM/ERP polish introduced for desktop, without applying its mobile overrides. */
+@import url("./product-ui-polish.css") screen and (min-width: 821px);

@@ -19,7 +19,7 @@ function ProjectPreview() {
   return (
     <div
       className="fp-project-preview"
-      aria-label="Aperçu illustratif des chantiers FORGEO"
+      aria-label="Aperçu illustratif des chantiers MANUFEO"
     >
       <aside>
         <ForgeoBrand compact />
@@ -48,7 +48,7 @@ function ProjectPreview() {
         </span>
       </aside>
       <div className="fp-project-preview-main">
-        <small>Aperçu du logiciel · Données d’exemple</small>
+        <small>Aperçu du logiciel</small>
         <h3>Mes chantiers</h3>
         {[
           {
@@ -93,7 +93,7 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
   return (
     <main className="fp-page" id="accueil">
       <header className="fp-header">
-        <a href="#accueil" aria-label="FORGEO, accueil">
+        <a href="#accueil" aria-label="MANUFEO, accueil">
           <ForgeoBrand />
         </a>
         <nav className="fp-nav" aria-label="Navigation principale">
@@ -121,7 +121,7 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
           </h1>
           <p>
             Du premier devis au dernier jour de chantier, gardez le fil de votre
-            activité avec FORGEO.
+            activité avec MANUFEO.
           </p>
           <div className="fp-hero-actions">
             <button className="fp-primary" onClick={onSignup}>
@@ -230,7 +230,7 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
             Tout le fil de votre activité.
           </h2>
           <p>
-            FORGEO réunit vos clients, vos documents et vos chantiers dans un
+            MANUFEO réunit vos clients, vos documents et vos chantiers dans un
             espace accessible sur ordinateur et mobile.
           </p>
         </div>
@@ -277,7 +277,7 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
         </div>
       </section>
       <footer className="fp-footer">
-        <a href="#accueil" aria-label="FORGEO, accueil">
+        <a href="#accueil" aria-label="MANUFEO, accueil">
           <ForgeoBrand compact />
         </a>
         <p>Gestion métier pour artisans du bâtiment.</p>

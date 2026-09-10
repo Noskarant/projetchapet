@@ -4,7 +4,7 @@ function rgbChannels(value: string) {
   return (value.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
 }
 
-test("le mobile garde un chrome lisible, compact et sans launchers superposés", async ({ page }, testInfo) => {
+test("le mobile retrouve son chrome sombre compact sans commandes superposées", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit", "Polish mobile uniquement.");
 
   await page.goto("/");
@@ -18,16 +18,23 @@ test("le mobile garde un chrome lisible, compact et sans launchers superposés",
     const header = document.querySelector<HTMLElement>(".rm-header")!;
     const nav = document.querySelector<HTMLElement>(".rm-bottom-nav")!;
     const dock = document.querySelector<HTMLElement>(".rm-create-dock")!;
+    const manual = document.querySelector<HTMLElement>(".rm-create-manual");
+    const manualRect = manual?.getBoundingClientRect();
     return {
       headerBackground: getComputedStyle(header).backgroundColor,
       navBackground: getComputedStyle(nav).backgroundColor,
       dockHeight: dock.getBoundingClientRect().height,
+      manualLeft: manualRect?.left ?? 0,
+      manualRight: manualRect?.right ?? 0,
+      viewportWidth: window.innerWidth,
     };
   });
 
-  expect(rgbChannels(chrome.headerBackground).every((channel) => channel > 220)).toBe(true);
-  expect(rgbChannels(chrome.navBackground).every((channel) => channel > 220)).toBe(true);
-  expect(chrome.dockHeight).toBeLessThanOrEqual(56);
+  expect(rgbChannels(chrome.headerBackground).every((channel) => channel < 35)).toBe(true);
+  expect(rgbChannels(chrome.navBackground).every((channel) => channel < 35)).toBe(true);
+  expect(chrome.dockHeight).toBeLessThanOrEqual(46);
+  expect(chrome.manualLeft).toBeGreaterThanOrEqual(0);
+  expect(chrome.manualRight).toBeLessThanOrEqual(chrome.viewportWidth);
 
   await expect(page.locator(".fbs-launchers")).toBeHidden();
   await page.getByRole("button", { name: "Menu" }).click();

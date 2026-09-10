@@ -1,0 +1,16 @@
+@media (max-width: 820px) {
+  /* Restore the previous mobile shell, while keeping the overlap fixes requested for field use. */
+  .fbs-launchers {
+    display: none !important;
+  }
+
+  body:has(.rm-drawer-backdrop) .mcp-launcher,
+  body:has(.rm-commercial-backdrop) .mcp-launcher,
+  body:has(.forgeo-account-backdrop) .mcp-launcher,
+  body:has(.rm-v2-editor) .mcp-launcher,
+  body:has(.rm-create-sheet) .mcp-launcher,
+  body:has([role="dialog"]) .mcp-launcher {
+    display: none !important;
+    pointer-events: none !important;
+  }
+}

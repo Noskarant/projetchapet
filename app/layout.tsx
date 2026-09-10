@@ -23,13 +23,13 @@ import "./mobile-status-colors.css";
 import "./mobile-commercial-demo.css";
 import "./mobile-premium-polish.css";
 import "./public-auth-redesign.css";
-import "./product-ui-polish.css";
-import "./mobile-nav-regression-fix.css";
+import "./desktop-product-ui-polish.css";
+import "./mobile-overlay-safety.css";
 
 export const metadata: Metadata = {
-  title: "FORGEO — gestion simple pour artisans du bâtiment",
+  title: "MANUFEO — gestion simple pour artisans du bâtiment",
   description: "Devis, factures, clients et suivi de chantier dans un outil pensé pour les artisans du bâtiment.",
-  applicationName: "FORGEO",
+  applicationName: "MANUFEO",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon-192.svg",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "FORGEO",
+    title: "MANUFEO",
   },
 };
 
