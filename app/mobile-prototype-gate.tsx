@@ -52,7 +52,7 @@ export default function MobilePrototypeGate() {
   if (!ready) {
     return (
       <main
-        aria-label="Chargement du prototype"
+        aria-label="Chargement de FORGEO"
         style={{
           minHeight: "100dvh",
           display: "grid",
