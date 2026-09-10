@@ -17,12 +17,17 @@ test("le mobile retrouve son chrome sombre compact sans commandes superposées",
   const chrome = await page.evaluate(() => {
     const header = document.querySelector<HTMLElement>(".rm-header")!;
     const nav = document.querySelector<HTMLElement>(".rm-bottom-nav")!;
+    const navButton = nav.querySelector<HTMLButtonElement>("button")!;
+    const navIcon = navButton.querySelector<SVGElement>("svg")!;
     const dock = document.querySelector<HTMLElement>(".rm-create-dock")!;
     const manual = document.querySelector<HTMLElement>(".rm-create-manual");
     const manualRect = manual?.getBoundingClientRect();
     return {
       headerBackground: getComputedStyle(header).backgroundColor,
       navBackground: getComputedStyle(nav).backgroundColor,
+      navButtonHeight: navButton.getBoundingClientRect().height,
+      navFontSize: Number.parseFloat(getComputedStyle(navButton).fontSize),
+      navIconWidth: navIcon.getBoundingClientRect().width,
       dockHeight: dock.getBoundingClientRect().height,
       manualLeft: manualRect?.left ?? 0,
       manualRight: manualRect?.right ?? 0,
@@ -32,6 +37,9 @@ test("le mobile retrouve son chrome sombre compact sans commandes superposées",
 
   expect(rgbChannels(chrome.headerBackground).every((channel) => channel < 35)).toBe(true);
   expect(rgbChannels(chrome.navBackground).every((channel) => channel < 35)).toBe(true);
+  expect(chrome.navButtonHeight).toBeGreaterThanOrEqual(44);
+  expect(chrome.navFontSize).toBeGreaterThanOrEqual(9);
+  expect(chrome.navIconWidth).toBeGreaterThanOrEqual(21);
   expect(chrome.dockHeight).toBeLessThanOrEqual(46);
   expect(chrome.manualLeft).toBeGreaterThanOrEqual(0);
   expect(chrome.manualRight).toBeLessThanOrEqual(chrome.viewportWidth);
