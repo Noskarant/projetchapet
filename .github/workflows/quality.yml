@@ -18,7 +18,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -43,6 +43,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
 
+      - name: Build browser test app
+        run: npm run build
+        env:
+          NEXT_PUBLIC_FORGEO_AUTH_BYPASS: "1"
+          NEXT_PUBLIC_COMMERCIAL_CLOUD_ENABLED: "0"
+          NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_local_only"
+
       - name: Browser regressions - business profile
         continue-on-error: true
         run: npx playwright test e2e/mobile-business-profile-copilot.spec.ts
@@ -53,6 +61,12 @@ jobs:
 
       - name: Browser regressions - full suite
         run: npm run test:e2e
+
+      - name: Build public auth app
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_local_only"
 
       - name: Browser smoke - public auth without bypass
         run: npx playwright test --config=playwright.public.config.ts
@@ -80,3 +94,12 @@ jobs:
           fi
 
           exit "$status"
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-results-${{ github.run_id }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

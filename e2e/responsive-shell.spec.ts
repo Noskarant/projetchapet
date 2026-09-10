@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("monte uniquement l’interface adaptée à l’écran", async ({ page }, testInfo) => {
   if (testInfo.project.name !== "iphone-webkit") {
-    await page.route("https://mdpmpuurdhdmeupqsmal.supabase.co/rest/v1/**", (route) =>
+    await page.route("**/rest/v1/**", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
