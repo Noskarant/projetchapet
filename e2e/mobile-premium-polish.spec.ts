@@ -4,7 +4,7 @@ function rgbChannels(value: string) {
   return (value.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
 }
 
-test("le mobile garde des barres compactes, sombres et une dictée sans transcription visible", async ({ page }, testInfo) => {
+test("le mobile garde un chrome lisible, compact et sans launchers superposés", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit", "Polish mobile uniquement.");
 
   await page.goto("/");
@@ -13,12 +13,6 @@ test("le mobile garde des barres compactes, sombres et une dictée sans transcri
     expect(page.locator(".rm-bottom-nav")).toBeVisible(),
     expect(page.locator(".rm-create-dock")).toBeVisible(),
   ]);
-
-  // Le gate d'auth pilote peut retarder légèrement le montage du shell mobile.
-  // On attend les éléments réellement testés au lieu de les lire avant leur création.
-  await expect(page.locator(".rm-header")).toBeVisible();
-  await expect(page.locator(".rm-bottom-nav")).toBeVisible();
-  await expect(page.locator(".rm-create-dock")).toBeVisible();
 
   const chrome = await page.evaluate(() => {
     const header = document.querySelector<HTMLElement>(".rm-header")!;
@@ -31,9 +25,18 @@ test("le mobile garde des barres compactes, sombres et une dictée sans transcri
     };
   });
 
-  expect(rgbChannels(chrome.headerBackground).every((channel) => channel < 35)).toBe(true);
-  expect(rgbChannels(chrome.navBackground).every((channel) => channel < 35)).toBe(true);
-  expect(chrome.dockHeight).toBeLessThanOrEqual(46);
+  expect(rgbChannels(chrome.headerBackground).every((channel) => channel > 220)).toBe(true);
+  expect(rgbChannels(chrome.navBackground).every((channel) => channel > 220)).toBe(true);
+  expect(chrome.dockHeight).toBeLessThanOrEqual(56);
+
+  await expect(page.locator(".fbs-launchers")).toBeHidden();
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("button", { name: /Métier & tarifs/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Rentabilité chantier/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeHidden();
+
+  await page.locator(".rm-side-drawer header > button:first-child").click();
+  await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeVisible();
 
   const voiceBars = await page.evaluate(() => {
     const wave = document.createElement("span");
@@ -54,6 +57,7 @@ test("le mobile garde des barres compactes, sombres et une dictée sans transcri
   const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
   await expect(assistant).toBeVisible();
   await expect(assistant.getByLabel("Demande à analyser")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeHidden();
 
   const panelBackground = await assistant.locator(".mai-panel").evaluate((node) => getComputedStyle(node).backgroundImage);
   expect(panelBackground).toContain("linear-gradient");
