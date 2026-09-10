@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+async function openTradeSettings(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Menu" }).click();
+  const entry = page.getByRole("button", { name: /Métier & tarifs/ });
+  await expect(entry).toBeVisible();
+  await entry.click();
+}
+
 test("le profil métier et les tarifs entreprise sont injectés dans le copilote mobile", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit", "Pont de profil utilisé par l’interface mobile.");
 
@@ -38,7 +45,9 @@ test("le profil métier et les tarifs entreprise sont injectés dans le copilote
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Configurer le métier et les tarifs FORGEO" })).toBeVisible();
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("button", { name: /Métier & tarifs/ })).toBeVisible();
+  await page.locator(".rm-side-drawer header > button:first-child").click();
   await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
   await expect(page.getByLabel("Description du chantier")).toHaveAttribute("placeholder", /Voltaire/);
   await expect(page.getByText(/COPILOTE · TAPISSERIE D’AMEUBLEMENT/i)).toBeVisible();
@@ -61,10 +70,10 @@ test("le profil métier et les tarifs entreprise sont injectés dans le copilote
   });
 });
 
-test("la configuration métier s’ouvre sans remplacer l’application existante", async ({ page }, testInfo) => {
+test("la configuration métier s’ouvre depuis le menu sans remplacer l’application existante", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit", "Configuration mobile uniquement.");
   await page.goto("/");
-  await page.getByRole("button", { name: "Configurer le métier et les tarifs FORGEO" }).click();
+  await openTradeSettings(page);
   await expect(page.getByRole("dialog", { name: "Configuration métier FORGEO" })).toBeVisible();
   await expect(page.getByLabel("Métier principal")).toHaveValue("interior_painting");
   await expect(page.getByRole("heading", { name: "Métier et tarifs" })).toBeVisible();
@@ -84,7 +93,7 @@ test("un artisan peut basculer vers électricien et le copilote suit réellement
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Configurer le métier et les tarifs FORGEO" }).click();
+  await openTradeSettings(page);
   const settingsDialog = page.getByRole("dialog", { name: "Configuration métier FORGEO" });
   await settingsDialog.getByLabel("Métier principal").selectOption("electrician");
   await expect(settingsDialog).toContainText("Prise de courant");

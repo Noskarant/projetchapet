@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 test("le suivi de rentabilité calcule les coûts saisis sans modifier les devis", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "iphone-webkit", "Fonction mobile du prototype.");
+  test.skip(testInfo.project.name !== "iphone-webkit", "Fonction mobile uniquement.");
   await page.goto("/");
-  await page.getByRole("button", { name: "Ouvrir la rentabilité réelle FORGEO" }).click();
+  await page.getByRole("button", { name: "Menu" }).click();
+  const profitability = page.getByRole("button", { name: /Rentabilité chantier/ });
+  await expect(profitability).toBeVisible();
+  await profitability.click();
   const dialog = page.getByRole("dialog", { name: "Rentabilité réelle chantier" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Revenu HT du devis")).toBeVisible();

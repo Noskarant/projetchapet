@@ -15,6 +15,7 @@ import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
 import PilotReadinessUiBridge from "./pilot-readiness-ui-bridge";
 import ProductEnhancements from "./product-enhancements";
+import ProductUiPolish from "./product-ui-polish";
 import PwaRegister from "./pwa-register";
 
 type InterfaceMode = "mobile" | "desktop";
@@ -57,6 +58,7 @@ export default function ResponsiveApp() {
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
         <DesktopExerciseBridge />
+        <ProductUiPolish />
         {mode === "mobile" ? (
           <MobilePrototypeGate />
         ) : (
