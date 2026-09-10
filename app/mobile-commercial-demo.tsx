@@ -66,6 +66,7 @@ type Overlay =
   | null;
 
 const COMMERCIAL_LOCAL_CHECK_MS = 850;
+const COMMERCIAL_CLOUD_ENABLED = process.env.NEXT_PUBLIC_COMMERCIAL_CLOUD_ENABLED !== "0";
 
 const emptyFilters = (): DocumentFilters => ({
   customerId: "",
@@ -156,6 +157,8 @@ export default function MobileCommercialDemo() {
     setCommercialLoaded(true);
     refreshWorkspace();
 
+    if (!COMMERCIAL_CLOUD_ENABLED) return;
+
     const hydrateCloud = async () => {
       try {
         let server = await fetchCommercialCloudState(initial);
@@ -203,7 +206,11 @@ export default function MobileCommercialDemo() {
   }, [commercial, commercialLoaded]);
 
   useEffect(() => {
-    if (!commercialLoaded || !window.matchMedia("(max-width: 820px)").matches) return;
+    if (
+      !COMMERCIAL_CLOUD_ENABLED ||
+      !commercialLoaded ||
+      !window.matchMedia("(max-width: 820px)").matches
+    ) return;
     let disposed = false;
 
     const synchronizeCommercialCloud = async () => {

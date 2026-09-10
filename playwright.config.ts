@@ -33,6 +33,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:3000",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    serviceWorkers: "block",
     storageState: demoStorageState,
   },
   webServer: {
@@ -42,7 +43,12 @@ export default defineConfig({
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { NEXT_PUBLIC_FORGEO_AUTH_BYPASS: "1" },
+    env: {
+      NEXT_PUBLIC_FORGEO_AUTH_BYPASS: "1",
+      NEXT_PUBLIC_COMMERCIAL_CLOUD_ENABLED: "0",
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_local_only",
+    },
   },
   projects: [
     {
