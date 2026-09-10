@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { accountingExerciseLabel, readCompanyProfile } from "@/lib/company-profile";
 
 const EXERCISE_YEAR_STORAGE_KEY = "manufeo:accounting-exercise-year:v1";
 
@@ -143,8 +142,7 @@ export default function DesktopExerciseBridge() {
       button.setAttribute("aria-haspopup", "menu");
       if (!popover) button.setAttribute("aria-expanded", "false");
 
-      const profile = readCompanyProfile(window.localStorage);
-      const label = accountingExerciseLabel(profile, readExerciseYear());
+      const label = `Exercice ${readExerciseYear()}`;
       const textNode = Array.from(button.childNodes).find(
         (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.includes("Exercice"),
       );
@@ -172,7 +170,6 @@ export default function DesktopExerciseBridge() {
       }
     };
 
-    const update = () => synchronize();
     const resize = () => positionPopover();
     const observer = new MutationObserver(synchronize);
     observer.observe(document.body, { subtree: true, childList: true });
@@ -180,7 +177,6 @@ export default function DesktopExerciseBridge() {
     document.addEventListener("keydown", keydown);
     window.addEventListener("resize", resize);
     window.addEventListener("scroll", resize, true);
-    window.addEventListener("projetchapet:company-profile-updated", update);
     synchronize();
 
     return () => {
@@ -190,7 +186,6 @@ export default function DesktopExerciseBridge() {
       document.removeEventListener("keydown", keydown);
       window.removeEventListener("resize", resize);
       window.removeEventListener("scroll", resize, true);
-      window.removeEventListener("projetchapet:company-profile-updated", update);
     };
   }, []);
 
