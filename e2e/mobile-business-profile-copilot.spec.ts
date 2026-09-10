@@ -74,7 +74,7 @@ test("la configuration métier s’ouvre depuis le menu sans remplacer l’appli
   test.skip(testInfo.project.name !== "iphone-webkit", "Configuration mobile uniquement.");
   await page.goto("/");
   await openTradeSettings(page);
-  await expect(page.getByRole("dialog", { name: "Configuration métier FORGEO" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Configuration métier MANUFEO" })).toBeVisible();
   await expect(page.getByLabel("Métier principal")).toHaveValue("interior_painting");
   await expect(page.getByRole("heading", { name: "Métier et tarifs" })).toBeVisible();
 });
@@ -94,7 +94,7 @@ test("un artisan peut basculer vers électricien et le copilote suit réellement
 
   await page.goto("/");
   await openTradeSettings(page);
-  const settingsDialog = page.getByRole("dialog", { name: "Configuration métier FORGEO" });
+  const settingsDialog = page.getByRole("dialog", { name: "Configuration métier MANUFEO" });
   await settingsDialog.getByLabel("Métier principal").selectOption("electrician");
   await expect(settingsDialog).toContainText("Prise de courant");
   await settingsDialog.getByLabel("Coût horaire (€)").fill("37");
