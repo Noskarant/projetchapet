@@ -151,7 +151,7 @@ test("les chemins de photo restent sous l'organisation et neutralisent les carac
 });
 
 test("la migration verrouille RLS, stockage privé, concurrence et références", () => {
-  const sql = fs.readFileSync("supabase/migrations/20260909180000_cloud_commercial_projects.sql", "utf8");
+  const sql = fs.readFileSync("supabase/migrations/20260910092958_cloud_commercial_projects.sql", "utf8");
   for (const table of [
     "commercial_workspace_meta",
     "commercial_collaborators",
