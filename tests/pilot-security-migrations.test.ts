@@ -26,3 +26,10 @@ test("le cutover retire policies, tables et RPC du mode démo anonyme", () => {
   assert.match(sql, /revoke execute on function public\.save_quote_document/i);
   assert.match(sql, /revoke usage on schema private from anon/i);
 });
+
+test("le helper de trigger n'est plus exécutable par PUBLIC ou anon", () => {
+  const sql = migration("20260910131539_revoke_public_trigger_execute.sql");
+  assert.match(sql, /revoke execute on function public\.set_updated_at\(\) from public/i);
+  assert.match(sql, /revoke execute on function public\.set_updated_at\(\) from anon/i);
+  assert.match(sql, /grant execute on function public\.set_updated_at\(\) to authenticated/i);
+});
