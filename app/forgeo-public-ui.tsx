@@ -7,12 +7,30 @@ import { useId, useState, type ReactNode } from "react";
 export function ForgeoBrand({ compact = false }: { compact?: boolean }) {
   return (
     <span className={`fp-brand${compact ? " fp-brand-compact" : ""}`}>
-      <Image src="/forgeo-mark.svg" width={44} height={44} alt="" />
+      <Image
+        src="/manufeo-mark.webp"
+        width={48}
+        height={38}
+        alt=""
+        className="manufeo-brand-mark"
+      />
       <span>
         <b>MANUFEO</b>
-        {!compact && <small>L’ALLIÉ DES ARTISANS</small>}
+        {!compact && <small>SIMPLIFIE LE QUOTIDIEN DES PROS</small>}
       </span>
     </span>
+  );
+}
+
+export function ManufeoLockup({ className = "" }: { className?: string }) {
+  return (
+    <Image
+      src="/manufeo-logo.webp"
+      width={360}
+      height={360}
+      alt="MANUFEO — Simplifie le quotidien des pros"
+      className={`manufeo-lockup ${className}`.trim()}
+    />
   );
 }
 
@@ -81,7 +99,7 @@ export function AuthFrame({
           </div>
         </div>
       </section>
-      <p className="forgeo-auth-footnote">MANUFEO · L’allié des artisans</p>
+      <p className="forgeo-auth-footnote">MANUFEO · Simplifie le quotidien des pros</p>
     </main>
   );
 }

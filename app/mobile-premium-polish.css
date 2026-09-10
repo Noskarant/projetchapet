@@ -51,10 +51,15 @@
     backdrop-filter: blur(20px);
   }
 
+  /* Targets plus lisibles et plus faciles à toucher, sans agrandir la barre elle-même. */
   .rm-bottom-nav button {
-    gap: 1px;
+    min-height: 46px;
+    gap: 2px;
+    padding: 3px 2px 4px;
+    border-radius: 14px;
     color: #91a0b7;
-    font-size: 7.5px;
+    font-size: 9.5px;
+    line-height: 1.05;
   }
 
   .rm-bottom-nav button.active {
@@ -63,8 +68,8 @@
   }
 
   .rm-bottom-nav button svg {
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
   }
 
   .rm-create-dock {

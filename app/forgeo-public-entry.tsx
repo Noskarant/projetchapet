@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Mic,
 } from "lucide-react";
-import { ArtisanPhoto, ForgeoBrand } from "./forgeo-public-ui";
+import { ArtisanPhoto, ForgeoBrand, ManufeoLockup } from "./forgeo-public-ui";
 
 type Props = { onLogin: () => void; onSignup: () => void };
 
@@ -277,8 +277,8 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
         </div>
       </section>
       <footer className="fp-footer">
-        <a href="#accueil" aria-label="MANUFEO, accueil">
-          <ForgeoBrand compact />
+        <a className="fp-footer-lockup" href="#accueil" aria-label="MANUFEO, accueil">
+          <ManufeoLockup />
         </a>
         <p>Gestion métier pour artisans du bâtiment.</p>
         <button className="fp-login" onClick={onLogin}>

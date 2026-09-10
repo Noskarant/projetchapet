@@ -1,0 +1,52 @@
+/* Final MANUFEO brand assets. Keep this layer intentionally small and visual-only. */
+.manufeo-brand-mark,
+.fp-brand > img {
+  display: block;
+  object-fit: contain;
+}
+
+.fp-footer-lockup {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.fp-footer-lockup .manufeo-lockup {
+  display: block;
+  width: 168px;
+  height: auto;
+}
+
+@media (min-width: 821px) {
+  .pc-brand > div {
+    color: transparent !important;
+    font-size: 0 !important;
+    background-color: #fff !important;
+    background-image: url("/manufeo-mark.webp") !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-size: 30px auto !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .rm-side-drawer > header > div {
+    position: relative;
+    padding-left: 31px;
+  }
+
+  .rm-side-drawer > header > div::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 24px;
+    height: 24px;
+    transform: translateY(-50%);
+    background: url("/manufeo-mark.webp") center / contain no-repeat;
+  }
+
+  .fp-footer-lockup .manufeo-lockup {
+    width: 145px;
+  }
+}

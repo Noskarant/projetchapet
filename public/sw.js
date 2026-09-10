@@ -1,5 +1,5 @@
-const CACHE_NAME = "projetchapet-shell-v1";
-const CORE_ASSETS = ["/", "/manifest.webmanifest", "/icon-192.svg", "/icon-512.svg"];
+const CACHE_NAME = "manufeo-shell-v2";
+const CORE_ASSETS = ["/", "/manifest.webmanifest", "/icon-192.webp", "/icon-512.webp", "/manufeo-mark.webp"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -43,6 +43,7 @@ self.addEventListener("fetch", (event) => {
     || url.pathname.endsWith(".css")
     || url.pathname.endsWith(".js")
     || url.pathname.endsWith(".svg")
+    || url.pathname.endsWith(".webp")
     || url.pathname.endsWith(".webmanifest");
   if (!cacheable) return;
 
