@@ -156,7 +156,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
 
   pdf.setFontSize(7.5);
   pdf.setTextColor(100, 110, 124);
-  pdf.text("Document généré avec FORGEO.", 105, 288, { align: "center" });
+  pdf.text("Document généré avec MANUFEO.", 105, 288, { align: "center" });
   return pdf.output("blob");
 }
 
