@@ -11,13 +11,14 @@ test("affiche la landing et ouvre les parcours connexion et création de compte 
   await expect(
     page.getByText(/Vos prix restent vos prix/).first(),
   ).toBeVisible();
+  await expect(page.getByText("MANUFEO", { exact: true }).first()).toBeVisible();
 
   await page
     .getByRole("button", { name: "Connexion", exact: true })
     .first()
     .click();
   await expect(
-    page.getByRole("dialog", { name: "Connexion FORGEO" }),
+    page.getByRole("dialog", { name: "Connexion MANUFEO" }),
   ).toBeVisible();
   await expect(page.getByLabel("Adresse e-mail")).toBeVisible();
   await expect(page.getByLabel("Mot de passe", { exact: true })).toBeVisible();
@@ -29,7 +30,7 @@ test("affiche la landing et ouvre les parcours connexion et création de compte 
     .getByRole("button", { name: "Créer un compte", exact: true })
     .click();
   await expect(
-    page.getByRole("dialog", { name: "Création de compte FORGEO" }),
+    page.getByRole("dialog", { name: "Création de compte MANUFEO" }),
   ).toBeVisible();
   await expect(page.getByLabel("Nom de l’entreprise")).toBeVisible();
   await expect(
@@ -82,7 +83,7 @@ test("permet de demander un lien de récupération sans révéler si le compte e
     .getByRole("button", { name: "Recevoir le lien de récupération" })
     .click();
   await expect(page.getByRole("status")).toContainText(
-    "Si un compte FORGEO existe avec cette adresse",
+    "Si un compte MANUFEO existe avec cette adresse",
   );
 });
 
@@ -209,7 +210,7 @@ test("vérifie la mise en page des écrans publics", async ({
     .first()
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Se connecter à FORGEO",
+    "Se connecter à MANUFEO",
   );
   await page.screenshot({
     path: testInfo.outputPath("login.png"),
