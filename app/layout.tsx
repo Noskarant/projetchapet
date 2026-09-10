@@ -23,6 +23,7 @@ import "./mobile-status-colors.css";
 import "./mobile-commercial-demo.css";
 import "./mobile-premium-polish.css";
 import "./public-auth-redesign.css";
+import "./product-ui-polish.css";
 
 export const metadata: Metadata = {
   title: "FORGEO — gestion simple pour artisans du bâtiment",
