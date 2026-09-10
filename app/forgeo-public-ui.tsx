@@ -9,7 +9,7 @@ export function ForgeoBrand({ compact = false }: { compact?: boolean }) {
     <span className={`fp-brand${compact ? " fp-brand-compact" : ""}`}>
       <Image src="/forgeo-mark.svg" width={44} height={44} alt="" />
       <span>
-        <b>FORGEO</b>
+        <b>MANUFEO</b>
         {!compact && <small>L’ALLIÉ DES ARTISANS</small>}
       </span>
     </span>
@@ -43,7 +43,7 @@ export function AuthFrame({
   return (
     <main className="forgeo-auth-screen">
       <div className="forgeo-auth-header">
-        <a href="/" aria-label="FORGEO, accueil">
+        <a href="/" aria-label="MANUFEO, accueil">
           <ForgeoBrand />
         </a>
       </div>
@@ -81,7 +81,7 @@ export function AuthFrame({
           </div>
         </div>
       </section>
-      <p className="forgeo-auth-footnote">FORGEO · L’allié des artisans</p>
+      <p className="forgeo-auth-footnote">MANUFEO · L’allié des artisans</p>
     </main>
   );
 }
