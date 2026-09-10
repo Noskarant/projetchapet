@@ -1,5 +1,6 @@
 import type { Invoice, Quote } from "./project-chapet";
 import { customerName } from "./project-chapet";
+import { companyProfileDisplayName, readCompanyProfile } from "./company-profile";
 
 type BusinessDocument = Quote | Invoice;
 
@@ -35,13 +36,20 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   const margin = 16;
   let y = 18;
+  const profile = typeof window !== "undefined" ? readCompanyProfile(window.localStorage) : null;
+  const companyName = profile ? companyProfileDisplayName(profile, "Votre entreprise") : "Votre entreprise";
+  const companyLocation = profile
+    ? [profile.address, profile.postalCode, profile.city].filter(Boolean).join(" · ")
+    : "";
 
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
-  pdf.text("CHAPET SAS", margin, y);
-  pdf.setFontSize(9);
-  pdf.setFont("helvetica", "normal");
-  pdf.text("Saint-Étienne · Loire", margin, y + 6);
+  pdf.text(companyName, margin, y);
+  if (companyLocation) {
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(companyLocation, margin, y + 6, { maxWidth: 95 });
+  }
 
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(18);
@@ -148,7 +156,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
 
   pdf.setFontSize(7.5);
   pdf.setTextColor(100, 110, 124);
-  pdf.text("Document généré par le logiciel de gestion de l’entreprise.", 105, 288, { align: "center" });
+  pdf.text("Document généré avec FORGEO.", 105, 288, { align: "center" });
   return pdf.output("blob");
 }
 
