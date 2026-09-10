@@ -39,7 +39,7 @@ export default function MobilePrototypeGate() {
         prepareMobileWorkspaceStorage(window.localStorage, EMPTY_MOBILE_WORKSPACE);
         await hydrateMobileCoreFromDesktop();
       } catch (error) {
-        console.warn("[FORGEO] Préparation du stockage mobile impossible", error);
+        console.warn("[MANUFEO] Préparation du stockage mobile impossible", error);
       } finally {
         if (active) setReady(true);
       }
@@ -52,7 +52,7 @@ export default function MobilePrototypeGate() {
   if (!ready) {
     return (
       <main
-        aria-label="Chargement de FORGEO"
+        aria-label="Chargement de MANUFEO"
         style={{
           minHeight: "100dvh",
           display: "grid",
@@ -63,7 +63,7 @@ export default function MobilePrototypeGate() {
           fontWeight: 800,
         }}
       >
-        FORGEO
+        MANUFEO
       </main>
     );
   }
