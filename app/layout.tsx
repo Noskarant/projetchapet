@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import AuthSelfServiceBridge from "./auth-self-service-bridge";
 import MarketPricingExperience from "./market-pricing-experience";
 import "./globals.css";
 import "./prototype.css";
@@ -44,13 +43,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0878f9",
+  themeColor: "#0875f5",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr">
-      <body>{children}<AuthSelfServiceBridge /><MarketPricingExperience /></body>
+      <body>{children}<MarketPricingExperience /></body>
     </html>
   );
 }
