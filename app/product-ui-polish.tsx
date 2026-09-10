@@ -110,6 +110,20 @@ function installDesktopActions() {
   }
 }
 
+function sanitizeAccountPanel() {
+  const panel = document.querySelector<HTMLElement>(".forgeo-account-panel");
+  if (!panel) return;
+  directText(panel.querySelector("header small"), "MON COMPTE");
+  const role = Array.from(panel.querySelectorAll<HTMLElement>(".forgeo-account-meta > span")).find((node) =>
+    /^Rôle\s*:/i.test(node.textContent || ""),
+  );
+  if (role) {
+    const raw = role.textContent || "";
+    const friendly = /owner/i.test(raw) ? "Administrateur" : /member/i.test(raw) ? "Collaborateur" : raw.replace(/^Rôle\s*:\s*/i, "");
+    directText(role, `Accès · ${friendly}`);
+  }
+}
+
 function sanitizeDesktop() {
   const profile = readCompanyProfile(window.localStorage);
   const displayName = companyProfileDisplayName(profile, "Votre entreprise");
@@ -152,6 +166,7 @@ function sanitizeDesktop() {
     }
   }
 
+  sanitizeAccountPanel();
   installDesktopActions();
 }
 
@@ -195,7 +210,57 @@ function sanitizeMobile() {
     if (label === "Logo") directText(value, profile.logoDataUrl ? "Logo entreprise configuré" : "Aucun logo configuré");
   }
 
+  sanitizeAccountPanel();
   installMobileTools();
+}
+
+function requestUrl(input: RequestInfo | URL) {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
+function installDesktopIdentityFetchBridge() {
+  const originalFetch = window.fetch.bind(window);
+  const bridgedFetch: typeof window.fetch = async (input, init) => {
+    if (!window.matchMedia("(min-width: 821px)").matches || typeof init?.body !== "string") {
+      return originalFetch(input, init);
+    }
+
+    const url = requestUrl(input);
+    if (!url.includes("/api/email") && !url.includes("/api/einvoice")) {
+      return originalFetch(input, init);
+    }
+
+    try {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      const profile = readCompanyProfile(window.localStorage);
+      const displayName = companyProfileDisplayName(profile, "Votre entreprise");
+
+      if (url.includes("/api/email") && typeof body.html === "string") {
+        body.html = body.html
+          .replaceAll("CHAPET SAS", displayName)
+          .replaceAll("CHAPET Père & Fils", displayName)
+          .replaceAll("Projet Chapet", "FORGEO");
+      }
+
+      if (url.includes("/api/einvoice")) {
+        body.company = {
+          name: profile.legalName || displayName,
+          siret: profile.siret || "",
+          vat_number: profile.vatNumber || "",
+        };
+      }
+
+      return originalFetch(input, { ...init, body: JSON.stringify(body) });
+    } catch {
+      return originalFetch(input, init);
+    }
+  };
+  window.fetch = bridgedFetch;
+  return () => {
+    if (window.fetch === bridgedFetch) window.fetch = originalFetch;
+  };
 }
 
 export default function ProductUiPolish() {
@@ -209,6 +274,7 @@ export default function ProductUiPolish() {
       });
     };
 
+    const restoreFetch = installDesktopIdentityFetchBridge();
     const observer = new MutationObserver(enhance);
     observer.observe(document.body, { childList: true, subtree: true });
     window.addEventListener("resize", enhance);
@@ -216,6 +282,7 @@ export default function ProductUiPolish() {
     enhance();
 
     return () => {
+      restoreFetch();
       observer.disconnect();
       window.removeEventListener("resize", enhance);
       window.removeEventListener("projetchapet:company-profile-updated", enhance);
