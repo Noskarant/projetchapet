@@ -128,8 +128,8 @@ function sanitizeDesktop() {
   const profile = readCompanyProfile(window.localStorage);
   const displayName = companyProfileDisplayName(profile, "Votre entreprise");
 
-  directText(document.querySelector(".pc-brand > div"), "F");
-  directText(document.querySelector(".pc-brand strong"), "FORGEO");
+  directText(document.querySelector(".pc-brand > div"), "M");
+  directText(document.querySelector(".pc-brand strong"), "MANUFEO");
   directText(document.querySelector(".pc-brand small"), "Gestion artisans");
 
   const company = document.querySelector<HTMLElement>(".pc-company");
@@ -143,7 +143,7 @@ function sanitizeDesktop() {
   }
 
   document.querySelectorAll<HTMLElement>(".pc-crud-modal header span").forEach((node) =>
-    directText(node, "FORGEO"),
+    directText(node, "MANUFEO"),
   );
 
   const settings = document.querySelector<HTMLElement>(".pc-settings-grid");
@@ -173,7 +173,7 @@ function sanitizeDesktop() {
 function sanitizeMobile() {
   document
     .querySelectorAll<HTMLElement>(".rm-side-drawer header small, .rm-commercial-header small")
-    .forEach((node) => directText(node, "FORGEO"));
+    .forEach((node) => directText(node, "MANUFEO"));
 
   document.querySelectorAll<HTMLElement>(".rm-commercial-live").forEach((node) => {
     if (/démo|locale/i.test(node.textContent || "")) node.innerHTML = "<i></i> Données privées";
@@ -186,7 +186,7 @@ function sanitizeMobile() {
       if (/CHAPET Père & Fils|CHAPET SAS/i.test(text)) node.textContent = "Votre entreprise";
       else if (/compta@saschapet\.com|comptabilite@cabinet-loire\.fr/i.test(text)) node.textContent = "À renseigner";
       else if (/Logo CHAPET/i.test(text)) node.textContent = "Aucun logo configuré";
-      else if (/dans CHAPET/i.test(text)) node.textContent = text.replace(/CHAPET/gi, "FORGEO");
+      else if (/dans CHAPET/i.test(text)) node.textContent = text.replace(/CHAPET/gi, "MANUFEO");
     });
 
   const workCard = document.querySelector<HTMLButtonElement>(".rm-work-card");
@@ -241,7 +241,8 @@ function installDesktopIdentityFetchBridge() {
         body.html = body.html
           .replaceAll("CHAPET SAS", displayName)
           .replaceAll("CHAPET Père & Fils", displayName)
-          .replaceAll("Projet Chapet", "FORGEO");
+          .replaceAll("Projet Chapet", "MANUFEO")
+          .replaceAll("FORGEO", "MANUFEO");
       }
 
       if (url.includes("/api/einvoice")) {
