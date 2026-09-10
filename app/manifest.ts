@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "FORGEO",
-    short_name: "FORGEO",
+    name: "MANUFEO",
+    short_name: "MANUFEO",
     description: "Gestion de devis, factures, clients et chantiers pour les artisans du bâtiment.",
     id: "/",
     start_url: "/",
