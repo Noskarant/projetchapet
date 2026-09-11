@@ -7,6 +7,14 @@ async function openTradeSettings(page: import("@playwright/test").Page) {
   await entry.click();
 }
 
+async function openCopilot(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Menu" }).click();
+  const entry = page.getByRole("button", { name: /Copilote chantier/ });
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.getByRole("dialog", { name: "Copilote chantier" })).toBeVisible();
+}
+
 test("le profil métier et les tarifs entreprise sont injectés dans le copilote mobile", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit", "Pont de profil utilisé par l’interface mobile.");
 
@@ -45,10 +53,7 @@ test("le profil métier et les tarifs entreprise sont injectés dans le copilote
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Menu" }).click();
-  await expect(page.getByRole("button", { name: /Métier & tarifs/ })).toBeVisible();
-  await page.locator(".rm-side-drawer header > button:first-child").click();
-  await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
+  await openCopilot(page);
   await expect(page.getByLabel("Description du chantier")).toHaveAttribute("placeholder", /Voltaire/);
   await expect(page.getByText(/COPILOTE · TAPISSERIE D’AMEUBLEMENT/i)).toBeVisible();
 
@@ -104,7 +109,7 @@ test("un artisan peut basculer vers électricien et le copilote suit réellement
   const storedTrade = await page.evaluate(() => JSON.parse(localStorage.getItem("forgeo:business-profile:v1") || "{}")?.primaryTrade);
   expect(storedTrade).toBe("electrician");
 
-  await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
+  await openCopilot(page);
   const copilot = page.getByRole("dialog", { name: "Copilote chantier" });
   await expect(copilot.getByText(/COPILOTE · ÉLECTRICITÉ/i)).toBeVisible();
   await expect(copilot.getByLabel("Description du chantier")).toHaveAttribute("placeholder", /2P\+T/);

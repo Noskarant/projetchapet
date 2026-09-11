@@ -45,13 +45,14 @@ test("le mobile retrouve son chrome sombre compact sans commandes superposées",
   expect(chrome.manualRight).toBeLessThanOrEqual(chrome.viewportWidth);
 
   await expect(page.locator(".fbs-launchers")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeHidden();
   await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("button", { name: /Copilote chantier/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Métier & tarifs/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Rentabilité chantier/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeHidden();
 
   await page.locator(".rm-side-drawer header > button:first-child").click();
-  await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeHidden();
 
   const voiceBars = await page.evaluate(() => {
     const wave = document.createElement("span");

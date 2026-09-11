@@ -12,6 +12,7 @@ import MobileCopilotAssistant from "./mobile-copilot-assistant";
 import MobileCopilotBusinessProfileBridge from "./mobile-copilot-business-profile-bridge";
 import MobileCopilotDictationBridge from "./mobile-copilot-dictation-bridge";
 import MobileCopilotLauncherGuard from "./mobile-copilot-launcher-guard";
+import MobileCopilotMenuBridge from "./mobile-copilot-menu-bridge";
 import MobileDesktopSyncBridge, { hydrateMobileCoreFromDesktop } from "./mobile-desktop-sync-bridge";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
 import MobileForgeoBusinessSettings from "./mobile-forgeo-business-settings";
@@ -83,6 +84,7 @@ export default function MobilePrototypeGate() {
       <MobileCopilotAssistant />
       <MobileCopilotDictationBridge />
       <MobileCopilotLauncherGuard />
+      <MobileCopilotMenuBridge />
       <MobileForgeoBusinessSettings />
       <MobileProjectProfitability />
       <MobileAgendaAiBridge />
