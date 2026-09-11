@@ -14,6 +14,7 @@ import MobileCopilotDictationBridge from "./mobile-copilot-dictation-bridge";
 import MobileCopilotLauncherGuard from "./mobile-copilot-launcher-guard";
 import MobileCopilotMenuBridge from "./mobile-copilot-menu-bridge";
 import MobileDesktopSyncBridge, { hydrateMobileCoreFromDesktop } from "./mobile-desktop-sync-bridge";
+import MobileElectronicInvoiceSendBridge from "./mobile-electronic-invoice-send-bridge";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
 import MobileForgeoBusinessSettings from "./mobile-forgeo-business-settings";
 import MobileLegacyQuoteDetailGuard from "./mobile-legacy-quote-detail-guard";
@@ -95,6 +96,7 @@ export default function MobilePrototypeGate() {
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
       <MobileCommercialDemo />
+      <MobileElectronicInvoiceSendBridge />
       <MobileElectronicInvoicingReadiness />
     </>
   );
