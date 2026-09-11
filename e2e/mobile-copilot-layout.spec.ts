@@ -1,26 +1,22 @@
 import { expect, test } from "@playwright/test";
 
-test("range le copilote à droite au-dessus du dock sans bloquer la création", async ({ page }, testInfo) => {
+test("range le copilote dans le menu sans bloquer la création", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
   const launcher = page.getByRole("button", { name: "Ouvrir le copilote chantier" });
-  const dock = page.locator(".rm-create-dock");
   const manualCreate = page.locator(".rm-create-main");
 
-  await expect(launcher).toBeVisible();
-  await expect(dock).toBeVisible();
+  await expect(launcher).toBeHidden();
   await expect(manualCreate).toBeVisible();
-  await expect(launcher.locator("span")).toBeHidden();
 
-  const launcherBox = await launcher.boundingBox();
-  const dockBox = await dock.boundingBox();
-  const viewportWidth = await page.evaluate(() => window.innerWidth);
-  expect(launcherBox).not.toBeNull();
-  expect(dockBox).not.toBeNull();
-  expect(launcherBox?.width ?? 999).toBeLessThanOrEqual(52);
-  expect(viewportWidth - ((launcherBox?.x ?? 0) + (launcherBox?.width ?? 0))).toBeLessThanOrEqual(20);
-  expect((launcherBox?.y ?? 0) + (launcherBox?.height ?? 0)).toBeLessThanOrEqual((dockBox?.y ?? 0) - 8);
+  await page.getByRole("button", { name: "Menu" }).click();
+  const menuEntry = page.getByRole("button", { name: /Copilote chantier/ });
+  await expect(menuEntry).toBeVisible();
+  await menuEntry.click();
+
+  await expect(page.getByRole("dialog", { name: "Copilote chantier" })).toBeVisible();
+  await page.getByRole("button", { name: "Fermer le copilote" }).click();
 
   const manualButtonIsTopmost = await manualCreate.evaluate((button) => {
     const rect = button.getBoundingClientRect();
