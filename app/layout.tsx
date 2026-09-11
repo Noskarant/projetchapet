@@ -26,6 +26,7 @@ import "./public-auth-redesign.css";
 import "./desktop-product-ui-polish.css";
 import "./mobile-overlay-safety.css";
 import "./manufeo-brand.css";
+import "./first-run-onboarding.css";
 
 export const metadata: Metadata = {
   title: "MANUFEO — gestion simple pour artisans du bâtiment",
