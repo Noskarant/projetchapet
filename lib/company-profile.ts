@@ -17,6 +17,8 @@ export type CompanyProfile = {
   logoDataUrl: string;
   emailIntro: string;
   emailSignature: string;
+  onboardingCompletedAt: string;
+  tutorialCompletedAt: string;
   updatedAt: string;
 };
 
@@ -40,6 +42,8 @@ export function defaultCompanyProfile(): CompanyProfile {
     logoDataUrl: "",
     emailIntro: "Veuillez trouver ci-joint votre document. Merci de votre confiance.",
     emailSignature: "Cordialement,",
+    onboardingCompletedAt: "",
+    tutorialCompletedAt: "",
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -75,6 +79,8 @@ export function normalizeCompanyProfile(value: unknown): CompanyProfile {
     logoDataUrl: /^data:image\/(png|jpe?g|webp);base64,/i.test(logo) ? logo : "",
     emailIntro: text(raw.emailIntro, 1200) || fallback.emailIntro,
     emailSignature: text(raw.emailSignature, 800) || fallback.emailSignature,
+    onboardingCompletedAt: text(raw.onboardingCompletedAt, 40),
+    tutorialCompletedAt: text(raw.tutorialCompletedAt, 40),
     updatedAt: text(raw.updatedAt, 40) || new Date().toISOString(),
   };
 }
