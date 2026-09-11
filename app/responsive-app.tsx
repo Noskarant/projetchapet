@@ -10,6 +10,7 @@ import DashboardEnhancements from "./dashboard-enhancements";
 import DesktopExerciseBridge from "./desktop-exercise-bridge";
 import DocumentPreviewBridge from "./document-preview-bridge";
 import DocumentWorkflow from "./document-workflow";
+import FirstRunOnboarding from "./first-run-onboarding";
 import FunctionalPrototype from "./functional-prototype";
 import ManufeoBrandingBridge from "./manufeo-branding-bridge";
 import MobilePrototypeGate from "./mobile-prototype-gate";
@@ -20,6 +21,8 @@ import ProductUiPolish from "./product-ui-polish";
 import PwaRegister from "./pwa-register";
 
 type InterfaceMode = "mobile" | "desktop";
+
+const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
 
 export default function ResponsiveApp() {
   const [mode, setMode] = useState<InterfaceMode | null>(null);
@@ -59,6 +62,7 @@ export default function ResponsiveApp() {
         <AuthenticatedEmailFetchBridge />
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
+        {!AUTH_BYPASS && <FirstRunOnboarding />}
         <DesktopExerciseBridge />
         <ProductUiPolish />
         {mode === "mobile" ? (

@@ -12,11 +12,14 @@ export type CompanyProfile = {
   address: string;
   postalCode: string;
   city: string;
+  primaryTradeId: string;
   accountingStart: string;
   accountingEnd: string;
   logoDataUrl: string;
   emailIntro: string;
   emailSignature: string;
+  onboardingCompletedAt: string;
+  tutorialCompletedAt: string;
   updatedAt: string;
 };
 
@@ -35,11 +38,14 @@ export function defaultCompanyProfile(): CompanyProfile {
     address: "",
     postalCode: "",
     city: "",
+    primaryTradeId: "",
     accountingStart: "01-01",
     accountingEnd: "12-31",
     logoDataUrl: "",
     emailIntro: "Veuillez trouver ci-joint votre document. Merci de votre confiance.",
     emailSignature: "Cordialement,",
+    onboardingCompletedAt: "",
+    tutorialCompletedAt: "",
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -70,11 +76,14 @@ export function normalizeCompanyProfile(value: unknown): CompanyProfile {
     address: text(raw.address, 240),
     postalCode: text(raw.postalCode, 10),
     city: text(raw.city, 120),
+    primaryTradeId: text(raw.primaryTradeId, 80),
     accountingStart: monthDay(raw.accountingStart, fallback.accountingStart),
     accountingEnd: monthDay(raw.accountingEnd, fallback.accountingEnd),
     logoDataUrl: /^data:image\/(png|jpe?g|webp);base64,/i.test(logo) ? logo : "",
     emailIntro: text(raw.emailIntro, 1200) || fallback.emailIntro,
     emailSignature: text(raw.emailSignature, 800) || fallback.emailSignature,
+    onboardingCompletedAt: text(raw.onboardingCompletedAt, 40),
+    tutorialCompletedAt: text(raw.tutorialCompletedAt, 40),
     updatedAt: text(raw.updatedAt, 40) || new Date().toISOString(),
   };
 }
