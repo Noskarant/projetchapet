@@ -8,7 +8,6 @@ import {
   HardHat,
   ImagePlus,
   Loader2,
-  Mic,
   Search,
   UsersRound,
   WalletCards,
@@ -20,6 +19,15 @@ import {
   writeCompanyProfile,
   type CompanyProfile,
 } from "@/lib/company-profile";
+import {
+  changePrimaryTrade,
+  readForgeoBusinessProfile,
+  writeForgeoBusinessProfile,
+} from "@/lib/copilot/business-profile";
+import {
+  ARTISAN_TRADE_CATALOG,
+  getArtisanTradeDefinition,
+} from "@/lib/copilot/trade-catalog";
 import {
   companyOnboardingMissingFields,
   markCompanyOnboardingComplete,
@@ -38,6 +46,10 @@ type LookupCompany = {
   postalCode: string;
   city: string;
 };
+
+const onboardingTrades = ARTISAN_TRADE_CATALOG.filter(
+  (trade) => trade.packTrade && trade.availability !== "planned",
+);
 
 const tutorialSlides = [
   {
@@ -92,6 +104,16 @@ function humanMissingField(field: string) {
   return labels[field] || field;
 }
 
+function applyPrimaryTrade(profile: CompanyProfile) {
+  const definition = getArtisanTradeDefinition(profile.primaryTradeId);
+  if (!definition?.packTrade) return;
+  const current = readForgeoBusinessProfile(window.localStorage);
+  writeForgeoBusinessProfile(
+    changePrimaryTrade(current, definition.packTrade),
+    window.localStorage,
+  );
+}
+
 export default function FirstRunOnboarding() {
   const [stage, setStage] = useState<Stage>("checking");
   const [companyStep, setCompanyStep] = useState(0);
@@ -110,6 +132,7 @@ export default function FirstRunOnboarding() {
       }
 
       const stored = readCompanyProfile(window.localStorage);
+      if (stored.primaryTradeId) applyPrimaryTrade(stored);
       const metadataCompany = typeof data.user.user_metadata?.company_name === "string"
         ? data.user.user_metadata.company_name.trim()
         : "";
@@ -188,8 +211,11 @@ export default function FirstRunOnboarding() {
 
   function goToCompanyDetails() {
     const missing = companyOnboardingMissingFields(profile).filter((field) => field === "legalName" || field === "siret");
-    if (missing.length) {
-      setMessage(`Il manque ${missing.map(humanMissingField).join(" et ")}.`);
+    const trade = getArtisanTradeDefinition(profile.primaryTradeId);
+    if (missing.length || !trade?.packTrade) {
+      const parts = missing.map(humanMissingField);
+      if (!trade?.packTrade) parts.push("votre métier principal");
+      setMessage(`Il manque ${parts.join(" et ")}.`);
       return;
     }
     setMessage("");
@@ -202,14 +228,18 @@ export default function FirstRunOnboarding() {
       displayName: profile.displayName.trim() || profile.legalName.trim(),
     };
     const missing = companyOnboardingMissingFields(normalizedProfile);
-    if (missing.length) {
-      setMessage(`Complétez ${missing.map(humanMissingField).join(", ")}.`);
+    const trade = getArtisanTradeDefinition(normalizedProfile.primaryTradeId);
+    if (missing.length || !trade?.packTrade) {
+      const parts = missing.map(humanMissingField);
+      if (!trade?.packTrade) parts.push("votre métier principal");
+      setMessage(`Complétez ${parts.join(", ")}.`);
       return;
     }
     const saved = writeCompanyProfile(
       window.localStorage,
       markCompanyOnboardingComplete(normalizedProfile),
     );
+    applyPrimaryTrade(saved);
     setProfile(saved);
     window.dispatchEvent(new CustomEvent("projetchapet:company-profile-updated", { detail: saved }));
     setMessage("");
@@ -279,6 +309,12 @@ export default function FirstRunOnboarding() {
               <div className="fro-form-grid">
                 <label>Raison sociale *<input autoFocus value={profile.legalName} onChange={(event) => setProfile({ ...profile, legalName: event.target.value })} placeholder="Ex. Martin Peinture SARL" /></label>
                 <label>Nom commercial<input value={profile.displayName} onChange={(event) => setProfile({ ...profile, displayName: event.target.value })} placeholder="Ex. Martin Peinture" /></label>
+                <label>Métier principal *
+                  <select value={profile.primaryTradeId} onChange={(event) => setProfile({ ...profile, primaryTradeId: event.target.value })}>
+                    <option value="">Choisir votre métier</option>
+                    {onboardingTrades.map((trade) => <option key={trade.id} value={trade.id}>{trade.label}</option>)}
+                  </select>
+                </label>
                 <div className="fro-siret">
                   <label>SIRET *<input inputMode="numeric" value={profile.siret} onChange={(event) => setProfile({ ...profile, siret: event.target.value.replace(/\D/g, "").slice(0, 14) })} placeholder="14 chiffres" /></label>
                   <button type="button" onClick={() => void lookupCompany()} disabled={lookupBusy}>{lookupBusy ? <Loader2 className="fro-spin" size={17} /> : <Search size={17} />} Rechercher</button>
@@ -295,6 +331,8 @@ export default function FirstRunOnboarding() {
                 <label className="fro-wide">Adresse *<input value={profile.address} onChange={(event) => setProfile({ ...profile, address: event.target.value })} placeholder="12 rue des Artisans" /></label>
                 <label>Code postal *<input value={profile.postalCode} onChange={(event) => setProfile({ ...profile, postalCode: event.target.value })} /></label>
                 <label>Ville *<input value={profile.city} onChange={(event) => setProfile({ ...profile, city: event.target.value })} /></label>
+                <label>Début d’exercice (MM-JJ)<input value={profile.accountingStart} onChange={(event) => setProfile({ ...profile, accountingStart: event.target.value })} placeholder="01-01" /></label>
+                <label>Fin d’exercice (MM-JJ)<input value={profile.accountingEnd} onChange={(event) => setProfile({ ...profile, accountingEnd: event.target.value })} placeholder="12-31" /></label>
                 <label>E-mail du comptable<input type="email" value={profile.accountingEmail} onChange={(event) => setProfile({ ...profile, accountingEmail: event.target.value })} placeholder="compta@cabinet.fr" /></label>
                 <div className="fro-logo-field">
                   <span>Logo de l’entreprise</span>
