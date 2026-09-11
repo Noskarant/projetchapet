@@ -12,6 +12,7 @@ export type CompanyProfile = {
   address: string;
   postalCode: string;
   city: string;
+  primaryTradeId: string;
   accountingStart: string;
   accountingEnd: string;
   logoDataUrl: string;
@@ -37,6 +38,7 @@ export function defaultCompanyProfile(): CompanyProfile {
     address: "",
     postalCode: "",
     city: "",
+    primaryTradeId: "",
     accountingStart: "01-01",
     accountingEnd: "12-31",
     logoDataUrl: "",
@@ -74,6 +76,7 @@ export function normalizeCompanyProfile(value: unknown): CompanyProfile {
     address: text(raw.address, 240),
     postalCode: text(raw.postalCode, 10),
     city: text(raw.city, 120),
+    primaryTradeId: text(raw.primaryTradeId, 80),
     accountingStart: monthDay(raw.accountingStart, fallback.accountingStart),
     accountingEnd: monthDay(raw.accountingEnd, fallback.accountingEnd),
     logoDataUrl: /^data:image\/(png|jpe?g|webp);base64,/i.test(logo) ? logo : "",
