@@ -277,11 +277,22 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
         </div>
       </section>
       <footer className="fp-footer">
-        <a className="fp-footer-lockup" href="#accueil" aria-label="MANUFEO, accueil">
-          <ManufeoLockup />
-        </a>
-        <p>Gestion métier pour artisans du bâtiment.</p>
-        <button className="fp-login" onClick={onLogin}>
+        <div className="fp-footer-brand">
+          <a className="fp-footer-lockup" href="#accueil" aria-label="MANUFEO, accueil">
+            <ManufeoLockup />
+          </a>
+          <p>Gestion métier pour artisans du bâtiment.</p>
+        </div>
+        <div className="fp-footer-meta">
+          <p>© 2026 MANUFEO. Tous droits réservés.</p>
+          <nav className="fp-footer-links" aria-label="Informations légales">
+            <a href="/mentions-legales">Mentions légales</a>
+            <a href="/politique-confidentialite">Politique de confidentialité</a>
+            <a href="/cgv">CGV</a>
+            <a href="mailto:noe.anterieux@importmarginguard.fr">Contact</a>
+          </nav>
+        </div>
+        <button className="fp-login fp-footer-login" onClick={onLogin}>
           Connexion
         </button>
       </footer>
