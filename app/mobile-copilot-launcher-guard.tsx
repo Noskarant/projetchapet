@@ -48,10 +48,10 @@ function placeLauncherAboveCreateDock(launcher: HTMLElement) {
 
   const dockRect = dock.getBoundingClientRect();
   const appRect = app?.getBoundingClientRect();
-  const bottom = Math.max(16, Math.ceil(window.innerHeight - dockRect.top + 10));
+  const bottom = Math.max(16, Math.ceil(window.innerHeight - dockRect.top + 12));
   const right = appRect
-    ? Math.max(15, Math.ceil(window.innerWidth - appRect.right + 15))
-    : 15;
+    ? Math.max(12, Math.ceil(window.innerWidth - appRect.right + 12))
+    : 12;
 
   setStyleProperty(launcher, "bottom", `${bottom}px`);
   setStyleProperty(launcher, "right", `${right}px`);
@@ -101,15 +101,33 @@ export default function MobileCopilotLauncherGuard() {
     <style>{`
       @media (max-width: 820px) {
         .mcp-launcher {
-          max-width: min(220px, calc(100vw - 30px));
-          min-height: 46px;
+          width: 50px;
+          height: 50px;
+          min-width: 50px;
+          max-width: 50px;
+          min-height: 50px;
+          padding: 0;
+          gap: 0;
+          border-radius: 16px;
           justify-content: center;
+          align-items: center;
           white-space: nowrap;
+          box-shadow: 0 12px 28px rgba(0, 0, 0, .34);
+        }
+
+        .mcp-launcher > span {
+          display: none;
+        }
+
+        .mcp-launcher > svg {
+          width: 21px;
+          height: 21px;
+          flex: none;
         }
 
         body:has(.mcp-launcher:not([hidden])) .rm-list-scroll,
         body:has(.mcp-launcher:not([hidden])) .rm-home-section .rm-scroll-area {
-          padding-bottom: 148px;
+          padding-bottom: 118px;
         }
       }
     `}</style>
