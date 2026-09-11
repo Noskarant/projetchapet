@@ -94,7 +94,7 @@ export async function requireEInvoiceOrganizationAccess(
   if (!membership) throw new ApiInputError("Aucune entreprise autorisée.", 403);
   const role = String(membership.role ?? "");
   if (allowedRoles?.length && !allowedRoles.includes(role)) {
-    throw new ApiInputError("Seul un administrateur de l’entreprise peut gérer la plateforme agréée.", 403);
+    throw new ApiInputError("Votre rôle ne permet pas cette opération de facturation électronique.", 403);
   }
 
   const organizationId = String(membership.organization_id);
@@ -135,6 +135,22 @@ export async function verifyEInvoiceCallbackMembership(
     throw new ApiInputError("Autorisation de connexion refusée.", 403);
   }
   return role;
+}
+
+export async function getEInvoicePilotSnapshot(organizationId: string) {
+  const client = eInvoiceServiceSupabase();
+  const { data, error } = await client
+    .from("pilot_workspace_snapshots")
+    .select("workspace, company_profile, updated_at")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) throw new Error("Données de facturation MANUFEO inaccessibles.");
+  if (!data) throw new ApiInputError("Synchronisez d’abord les données de l’entreprise avec le cloud MANUFEO.", 409);
+  return {
+    workspace: data.workspace,
+    companyProfile: data.company_profile,
+    updatedAt: data.updated_at ? String(data.updated_at) : "",
+  };
 }
 
 export async function getEInvoiceProviderConnection(organizationId: string) {
