@@ -22,6 +22,8 @@ import PwaRegister from "./pwa-register";
 
 type InterfaceMode = "mobile" | "desktop";
 
+const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
+
 export default function ResponsiveApp() {
   const [mode, setMode] = useState<InterfaceMode | null>(null);
 
@@ -60,7 +62,7 @@ export default function ResponsiveApp() {
         <AuthenticatedEmailFetchBridge />
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
-        <FirstRunOnboarding />
+        {!AUTH_BYPASS && <FirstRunOnboarding />}
         <DesktopExerciseBridge />
         <ProductUiPolish />
         {mode === "mobile" ? (
