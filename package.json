@@ -12,6 +12,7 @@
     "check": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
+    "@attestwire/en16931": "0.7.3",
     "@supabase/supabase-js": "^2.53.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.468.0",
