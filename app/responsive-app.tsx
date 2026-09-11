@@ -10,6 +10,7 @@ import DashboardEnhancements from "./dashboard-enhancements";
 import DesktopExerciseBridge from "./desktop-exercise-bridge";
 import DocumentPreviewBridge from "./document-preview-bridge";
 import DocumentWorkflow from "./document-workflow";
+import FirstRunOnboarding from "./first-run-onboarding";
 import FunctionalPrototype from "./functional-prototype";
 import ManufeoBrandingBridge from "./manufeo-branding-bridge";
 import MobilePrototypeGate from "./mobile-prototype-gate";
@@ -59,6 +60,7 @@ export default function ResponsiveApp() {
         <AuthenticatedEmailFetchBridge />
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
+        <FirstRunOnboarding />
         <DesktopExerciseBridge />
         <ProductUiPolish />
         {mode === "mobile" ? (
