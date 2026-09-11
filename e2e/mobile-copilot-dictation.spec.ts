@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+async function openCopilot(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Menu" }).click();
+  const entry = page.getByRole("button", { name: /Copilote chantier/ });
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.getByRole("dialog", { name: "Copilote chantier" })).toBeVisible();
+}
+
 test("dicte le chantier via enregistrement audio sans utiliser SpeechRecognition Safari", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
 
@@ -78,7 +86,7 @@ test("dicte le chantier via enregistrement audio sans utiliser SpeechRecognition
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
+  await openCopilot(page);
 
   const dictation = page.locator(".mcp-dictation");
   const textarea = page.locator("#mcp-description");
