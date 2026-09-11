@@ -1,12 +1,19 @@
 import { expect, test } from "@playwright/test";
 
+async function openCopilot(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Menu" }).click();
+  const entry = page.getByRole("button", { name: /Copilote chantier/ });
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.getByRole("dialog", { name: "Copilote chantier" })).toBeVisible();
+}
+
 test("prépare un devis de peinture avec hypothèses, origine des prix et marge", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
+  await openCopilot(page);
   const dialog = page.getByRole("dialog", { name: "Copilote chantier" });
-  await expect(dialog).toBeVisible();
 
   await dialog.getByLabel("Description du chantier").fill(
     "Chez SCI BELLEVUE, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.",
@@ -36,7 +43,7 @@ test("bloque le brouillon tant que les quantités métier sont absentes", async 
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Ouvrir le copilote chantier" }).click();
+  await openCopilot(page);
   const dialog = page.getByRole("dialog", { name: "Copilote chantier" });
   await dialog.getByLabel("Description du chantier").fill(
     "Chez SCI BELLEVUE, je dois refaire la peinture intérieure.",
