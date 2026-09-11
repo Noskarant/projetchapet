@@ -6,6 +6,7 @@ import {
   sealEInvoiceSecret,
   verifyEInvoiceOAuthState,
 } from "../lib/einvoice/crypto";
+import { generateManufeoCii } from "../lib/einvoice/manufeo-en16931";
 import {
   buildSuperPdpAuthorizationUrl,
   extractFrenchSiren,
@@ -13,6 +14,74 @@ import {
 } from "../lib/einvoice/superpdp";
 
 const SECRET = "manufeo-test-secret-long-enough-2026";
+
+function sampleElectronicInvoice() {
+  return {
+    company: {
+      version: 1 as const,
+      legalName: "MANUFEO TEST SAS",
+      displayName: "MANUFEO TEST",
+      siret: "12345678900012",
+      vatNumber: "FR40123456789",
+      email: "facturation@manufeo.test",
+      accountingEmail: "",
+      phone: "+33400000000",
+      address: "10 rue de la République",
+      postalCode: "69002",
+      city: "Lyon",
+      primaryTradeId: "painting",
+      accountingStart: "01-01",
+      accountingEnd: "12-31",
+      logoDataUrl: "",
+      emailIntro: "Veuillez trouver ci-joint votre document.",
+      emailSignature: "Cordialement,",
+      onboardingCompletedAt: "2026-09-01T00:00:00.000Z",
+      tutorialCompletedAt: "2026-09-01T00:00:00.000Z",
+      updatedAt: "2026-09-11T00:00:00.000Z",
+    },
+    customer: {
+      id: "C-001",
+      kind: "Professionnel" as const,
+      companyName: "CLIENT TEST SARL",
+      civility: "",
+      lastName: "",
+      firstName: "",
+      emails: ["compta@client.test"],
+      phones: ["+33411111111"],
+      address: "20 avenue des Tests",
+      postalCode: "69003",
+      city: "Lyon",
+      siret: "98765432100019",
+      vat: "FR40987654321",
+      notes: "",
+    },
+    invoice: {
+      id: "I-001",
+      number: "F-2026-001",
+      customerId: "C-001",
+      customerName: "CLIENT TEST SARL",
+      title: "Travaux de peinture",
+      issueDate: "2026-09-11",
+      dueDate: "2026-10-11",
+      status: "En cours" as const,
+      items: [{
+        id: "L-1",
+        label: "Peinture murs",
+        description: "Préparation et deux couches",
+        quantity: 10,
+        unit: "m²",
+        unitPrice: 50,
+        taxRate: 20,
+      }],
+      notes: "",
+      subtotal: 500,
+      taxTotal: 100,
+      total: 600,
+      paidTotal: 0,
+      accountantSent: false,
+    },
+  };
+}
 
 test("extrait le SIREN à partir d’un SIRET français", () => {
   assert.equal(extractFrenchSiren("123 456 789 00012"), "123456789");
@@ -73,4 +142,21 @@ test("considère SUPER PDP configuré seulement avec client id et secret", () =>
   });
   assert.equal(result.configured, true);
   assert.equal(result.config.baseUrl, "https://api.superpdp.tech");
+});
+
+test("génère une facture CII EN16931 structurée avant envoi à la PA", () => {
+  const generated = generateManufeoCii(sampleElectronicInvoice());
+  assert.equal(generated.validation.valid, true);
+  assert.match(generated.xml, /CrossIndustryInvoice/);
+  assert.match(generated.xml, /F-2026-001/);
+  assert.match(generated.xml, /0225/);
+  assert.match(generated.xml, /987654321/);
+});
+
+test("refuse de deviner le motif fiscal d’une TVA à zéro", () => {
+  const sample = sampleElectronicInvoice();
+  sample.invoice.items[0]!.taxRate = 0;
+  sample.invoice.taxTotal = 0;
+  sample.invoice.total = 500;
+  assert.throws(() => generateManufeoCii(sample), /TVA 0 %/);
 });
