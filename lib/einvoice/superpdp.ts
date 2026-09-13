@@ -14,7 +14,9 @@ export type SuperPdpConfig = {
   clientSecret: string;
 };
 
-export function superPdpConfiguration(env: NodeJS.ProcessEnv = process.env) {
+type SuperPdpEnvironment = Readonly<Record<string, string | undefined>>;
+
+export function superPdpConfiguration(env: SuperPdpEnvironment = process.env) {
   const clientId = env.SUPERPDP_CLIENT_ID?.trim() ?? "";
   const clientSecret = env.SUPERPDP_CLIENT_SECRET?.trim() ?? "";
   const baseUrl = (env.SUPERPDP_API_BASE_URL?.trim() || SUPERPDP_DEFAULT_BASE_URL).replace(/\/$/, "");
