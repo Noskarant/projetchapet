@@ -69,10 +69,19 @@ create table if not exists public.import_jobs (
 create index if not exists import_jobs_org_created_idx on public.import_jobs (organization_id, created_at desc);
 alter table public.import_jobs enable row level security;
 
-drop policy if exists "admins manage import jobs" on public.import_jobs;
-create policy "admins manage import jobs" on public.import_jobs for all to authenticated
-using (private.has_org_role(organization_id, array['owner','admin']))
+drop policy if exists "admins read import jobs" on public.import_jobs;
+create policy "admins read import jobs" on public.import_jobs for select to authenticated
+using (private.has_org_role(organization_id, array['owner','admin']));
+drop policy if exists "admins create import jobs" on public.import_jobs;
+create policy "admins create import jobs" on public.import_jobs for insert to authenticated
 with check (private.has_org_role(organization_id, array['owner','admin']) and created_by = auth.uid());
+drop policy if exists "admins update import jobs" on public.import_jobs;
+create policy "admins update import jobs" on public.import_jobs for update to authenticated
+using (private.has_org_role(organization_id, array['owner','admin']))
+with check (private.has_org_role(organization_id, array['owner','admin']));
+drop policy if exists "admins delete import jobs" on public.import_jobs;
+create policy "admins delete import jobs" on public.import_jobs for delete to authenticated
+using (private.has_org_role(organization_id, array['owner','admin']));
 
 create table if not exists public.import_staging_rows (
   id uuid primary key default gen_random_uuid(),
