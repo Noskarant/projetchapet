@@ -114,18 +114,32 @@ function euro(value: unknown) {
 function proposalSummary(proposal: ActionProposalView) {
   const payload = proposal.payload ?? {};
   if (proposal.intent_type === "create_customer") {
-    return clean(payload.company_name) || [payload.civility, payload.last_name, payload.first_name].map(clean).filter(Boolean).join(" ") || "Client à compléter";
+    const name = clean(payload.company_name) || [payload.civility, payload.last_name, payload.first_name].map(clean).filter(Boolean).join(" ") || "Client à compléter";
+    const emails = Array.isArray(payload.emails) ? payload.emails.map(clean).filter(Boolean) : [];
+    const phones = Array.isArray(payload.phones) ? payload.phones.map(clean).filter(Boolean) : [];
+    return [name, clean(payload.siret) ? `SIRET ${clean(payload.siret)}` : "", emails[0] || "", phones[0] || ""].filter(Boolean).join(" · ");
   }
   if (proposal.intent_type === "prepare_quote" || proposal.intent_type === "prepare_invoice") {
-    const items = Array.isArray(payload.items) ? payload.items.length : 0;
+    const items = Array.isArray(payload.items) ? payload.items : [];
     const client = clean(payload.customer_hint) || (payload.customer_from_proposal_id ? "Nouveau client de cette demande" : "Client à préciser");
-    return `${client} · ${items} prestation${items > 1 ? "s" : ""}`;
+    const lineDetails = items.slice(0, 6).map((entry) => {
+      const row = entry && typeof entry === "object" && !Array.isArray(entry) ? entry as Record<string, unknown> : {};
+      const label = clean(row.label) || "Prestation";
+      const quantity = row.quantity === null || row.quantity === undefined ? "qté ?" : `${row.quantity}${clean(row.unit) ? ` ${clean(row.unit)}` : ""}`;
+      const price = row.unit_price === null || row.unit_price === undefined ? "prix ?" : `${euro(row.unit_price)} HT`;
+      const tax = row.tax_rate === null || row.tax_rate === undefined ? "TVA ?" : `TVA ${row.tax_rate} %`;
+      return `${label}: ${quantity} × ${price} (${tax})`;
+    });
+    const extra = items.length > 6 ? `+ ${items.length - 6} autre${items.length - 6 > 1 ? "s" : ""} ligne${items.length - 6 > 1 ? "s" : ""}` : "";
+    return [client, ...lineDetails, extra].filter(Boolean).join(" · ") || `${client} · aucune prestation`;
   }
   if (proposal.intent_type === "schedule_task") {
-    return [clean(payload.title), clean(payload.date), clean(payload.time)].filter(Boolean).join(" · ") || "Événement à compléter";
+    return [clean(payload.title), clean(payload.date), clean(payload.time), clean(payload.location)].filter(Boolean).join(" · ") || "Événement à compléter";
   }
   if (proposal.intent_type === "prepare_supplier_order") {
-    return [clean(payload.supplier_name), clean(payload.label)].filter(Boolean).join(" · ") || "Commande à compléter";
+    const quantity = payload.quantity === null || payload.quantity === undefined ? "" : `Qté ${payload.quantity}`;
+    const amount = payload.unit_price === null || payload.unit_price === undefined ? "" : `${euro(payload.unit_price)} HT/unité`;
+    return [clean(payload.supplier_name), clean(payload.label), quantity, amount].filter(Boolean).join(" · ") || "Commande à compléter";
   }
   if (proposal.intent_type === "mark_payment") {
     return `${clean(payload.invoice_number) || "Facture à préciser"} · ${euro(payload.amount)}`;
