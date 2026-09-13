@@ -27,4 +27,21 @@ describe("guided first-run tour", () => {
       expect(source).toContain(destination);
     }
   });
+
+  it("teaches the voice-first workflow on desktop and mobile", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
+    expect(source).toContain("Parlez. MANUFEO prépare. Vous validez.");
+    expect(source).toContain(".pc-ai-launcher");
+    expect(source).toContain(".pc-mobile-ai-fab");
+    expect(source).toContain("Dicter avec l’IA");
+    expect(source).toContain("transcription → lignes structurées → vérification → préremplissage");
+  });
+
+  it("clearly distinguishes voice entry from the trade copilot", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
+    expect(source).toContain("Vocal IA =");
+    expect(source).toContain("Copilote =");
+    expect(source).toContain("coûts et marge");
+    expect(source).toContain("oublis possibles");
+  });
 });
