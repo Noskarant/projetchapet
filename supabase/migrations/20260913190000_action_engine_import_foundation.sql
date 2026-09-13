@@ -40,16 +40,6 @@ with check (
 );
 
 drop policy if exists "authors update unexecuted action proposals" on public.action_proposals;
-create policy "authors update unexecuted action proposals" on public.action_proposals for update to authenticated
-using (private.is_org_member(organization_id) and created_by = auth.uid() and status in ('draft','needs_input','ready','rejected'))
-with check (
-  private.is_org_member(organization_id)
-  and created_by = auth.uid()
-  and status in ('draft','needs_input','ready','rejected')
-  and confirmed_by is null
-  and confirmed_at is null
-  and executed_at is null
-);
 
 create table if not exists public.import_jobs (
   id uuid primary key default gen_random_uuid(),
@@ -64,7 +54,8 @@ create table if not exists public.import_jobs (
   error_message text,
   committed_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (id, organization_id)
 );
 create index if not exists import_jobs_org_created_idx on public.import_jobs (organization_id, created_at desc);
 alter table public.import_jobs enable row level security;
@@ -85,7 +76,7 @@ using (private.has_org_role(organization_id, array['owner','admin']));
 
 create table if not exists public.import_staging_rows (
   id uuid primary key default gen_random_uuid(),
-  job_id uuid not null references public.import_jobs(id) on delete cascade,
+  job_id uuid not null,
   organization_id uuid not null references public.organizations(id) on delete cascade,
   row_index integer not null check (row_index >= 1),
   entity_type text not null,
@@ -97,7 +88,10 @@ create table if not exists public.import_staging_rows (
   duplicate_of text,
   imported_record_id text,
   created_at timestamptz not null default now(),
-  unique (job_id, row_index, entity_type)
+  unique (job_id, row_index, entity_type),
+  foreign key (job_id, organization_id)
+    references public.import_jobs(id, organization_id)
+    on delete cascade
 );
 create index if not exists import_staging_rows_job_status_idx on public.import_staging_rows (job_id, status, row_index);
 alter table public.import_staging_rows enable row level security;
@@ -114,9 +108,12 @@ create table if not exists public.external_source_links (
   entity_type text not null,
   source_id text not null,
   target_id text not null,
-  import_job_id uuid references public.import_jobs(id) on delete set null,
+  import_job_id uuid,
   created_at timestamptz not null default now(),
-  unique (organization_id, source_system, entity_type, source_id)
+  unique (organization_id, source_system, entity_type, source_id),
+  foreign key (import_job_id, organization_id)
+    references public.import_jobs(id, organization_id)
+    on delete set null (import_job_id)
 );
 create index if not exists external_source_links_target_idx on public.external_source_links (organization_id, entity_type, target_id);
 alter table public.external_source_links enable row level security;
@@ -127,6 +124,9 @@ using (private.has_org_role(organization_id, array['owner','admin']))
 with check (private.has_org_role(organization_id, array['owner','admin']));
 
 revoke all on table public.action_proposals, public.import_jobs, public.import_staging_rows, public.external_source_links from anon;
-grant select, insert, update on table public.action_proposals to authenticated;
+revoke all on table public.action_proposals, public.import_jobs, public.import_staging_rows, public.external_source_links from authenticated;
+revoke all on table public.action_proposals, public.import_jobs, public.import_staging_rows, public.external_source_links from service_role;
+
+grant select, insert on table public.action_proposals to authenticated;
 grant select, insert, update, delete on table public.import_jobs, public.import_staging_rows, public.external_source_links to authenticated;
 grant all on table public.action_proposals, public.import_jobs, public.import_staging_rows, public.external_source_links to service_role;
