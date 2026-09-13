@@ -111,8 +111,15 @@ async function persistPlan({
     const action = actions[index];
     const payload = { ...action.payload } as Record<string, unknown>;
     if (typeof action.customerFromPosition === "number") {
+      if (action.customerFromPosition < 0 || action.customerFromPosition >= index) {
+        throw new ApiInputError("Le plan IA contient une dépendance client invalide.", 422);
+      }
       const dependency = inserted[action.customerFromPosition];
-      if (dependency?.id) payload.customer_from_proposal_id = String(dependency.id);
+      if (!dependency?.id || dependency.intent_type !== "create_customer") {
+        throw new ApiInputError("Le client lié au document n’a pas pu être préparé correctement.", 422);
+      }
+      payload.customer_from_proposal_id = String(dependency.id);
+      delete payload.customer_from_position;
     }
     const { data, error } = await client
       .from("action_proposals")
