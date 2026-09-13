@@ -16,10 +16,19 @@ export type SuperPdpConfig = {
 
 type SuperPdpEnvironment = Readonly<Record<string, string | undefined>>;
 
+function normalizeSuperPdpBaseUrl(value: string | undefined) {
+  const configured = (value?.trim() || SUPERPDP_DEFAULT_BASE_URL).replace(/\/$/, "");
+  // Le portail et la documentation sont servis sur www.superpdp.tech, mais les
+  // endpoints OAuth et REST sont exposés sur api.superpdp.tech.
+  return configured === "https://www.superpdp.tech"
+    ? SUPERPDP_DEFAULT_BASE_URL
+    : configured;
+}
+
 export function superPdpConfiguration(env: SuperPdpEnvironment = process.env) {
   const clientId = env.SUPERPDP_CLIENT_ID?.trim() ?? "";
   const clientSecret = env.SUPERPDP_CLIENT_SECRET?.trim() ?? "";
-  const baseUrl = (env.SUPERPDP_API_BASE_URL?.trim() || SUPERPDP_DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = normalizeSuperPdpBaseUrl(env.SUPERPDP_API_BASE_URL);
   return {
     configured: Boolean(clientId && clientSecret),
     config: { baseUrl, clientId, clientSecret } satisfies SuperPdpConfig,
