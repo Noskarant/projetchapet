@@ -17,7 +17,16 @@ create table if not exists public.action_proposals (
   executed_at timestamptz,
   execution_result jsonb not null default '{}'::jsonb check (jsonb_typeof(execution_result) = 'object'),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint action_proposals_risk_matches_intent check (
+    case
+      when intent_type in ('prepare_supplier_order','prepare_invoice','mark_payment','prepare_email')
+        then risk_level = 'explicit_confirmation'
+      when intent_type in ('create_customer','prepare_quote','schedule_task')
+        then risk_level in ('review','explicit_confirmation')
+      else true
+    end
+  )
 );
 
 create index if not exists action_proposals_org_created_idx on public.action_proposals (organization_id, created_at desc);
@@ -37,6 +46,7 @@ with check (
   and confirmed_by is null
   and confirmed_at is null
   and executed_at is null
+  and execution_result = '{}'::jsonb
 );
 
 drop policy if exists "authors update unexecuted action proposals" on public.action_proposals;
@@ -63,16 +73,35 @@ alter table public.import_jobs enable row level security;
 drop policy if exists "admins read import jobs" on public.import_jobs;
 create policy "admins read import jobs" on public.import_jobs for select to authenticated
 using (private.has_org_role(organization_id, array['owner','admin']));
+
 drop policy if exists "admins create import jobs" on public.import_jobs;
 create policy "admins create import jobs" on public.import_jobs for insert to authenticated
-with check (private.has_org_role(organization_id, array['owner','admin']) and created_by = auth.uid());
+with check (
+  private.has_org_role(organization_id, array['owner','admin'])
+  and created_by = auth.uid()
+  and status = 'preview'
+  and committed_at is null
+  and error_message is null
+);
+
 drop policy if exists "admins update import jobs" on public.import_jobs;
 create policy "admins update import jobs" on public.import_jobs for update to authenticated
-using (private.has_org_role(organization_id, array['owner','admin']))
-with check (private.has_org_role(organization_id, array['owner','admin']));
+using (
+  private.has_org_role(organization_id, array['owner','admin'])
+  and status in ('preview','failed')
+)
+with check (
+  private.has_org_role(organization_id, array['owner','admin'])
+  and status in ('preview','failed')
+  and committed_at is null
+);
+
 drop policy if exists "admins delete import jobs" on public.import_jobs;
 create policy "admins delete import jobs" on public.import_jobs for delete to authenticated
-using (private.has_org_role(organization_id, array['owner','admin']));
+using (
+  private.has_org_role(organization_id, array['owner','admin'])
+  and status in ('preview','failed')
+);
 
 create table if not exists public.import_staging_rows (
   id uuid primary key default gen_random_uuid(),
@@ -128,5 +157,5 @@ revoke all on table public.action_proposals, public.import_jobs, public.import_s
 revoke all on table public.action_proposals, public.import_jobs, public.import_staging_rows, public.external_source_links from service_role;
 
 grant select, insert on table public.action_proposals to authenticated;
-grant select, insert, update, delete on table public.import_jobs, public.import_staging_rows, public.external_source_links to authenticated;
+grant select, insert, update, delete on table public.import_jobs, public.import_staging_rows to authenticated;
 grant all on table public.action_proposals, public.import_jobs, public.import_staging_rows, public.external_source_links to service_role;
