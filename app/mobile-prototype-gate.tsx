@@ -30,6 +30,8 @@ import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
 import { EMPTY_MOBILE_WORKSPACE, prepareFreshArtisanStart } from "@/lib/mobile-fresh-start";
 import { prepareMobileWorkspaceStorage } from "@/lib/mobile-workspace-storage";
 
+const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
+
 export default function MobilePrototypeGate() {
   const [ready, setReady] = useState(false);
 
@@ -80,7 +82,7 @@ export default function MobilePrototypeGate() {
       <RappidosExperienceBridge />
       <MobileLegacyQuoteDetailGuard />
       <MobilePriorityPolish />
-      <MobileAiAssistantV6 />
+      {AUTH_BYPASS && <MobileAiAssistantV6 />}
       <MobileCopilotBusinessProfileBridge />
       <MobileCopilotAssistant />
       <MobileCopilotDictationBridge />
