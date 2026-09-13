@@ -1,13 +1,22 @@
 import {
   ACTION_INTENTS,
-  normalizeActionProposal,
+  riskLevelForIntent,
   type ActionIntent,
-  type ActionProposalInput,
+  type ActionRiskLevel,
 } from "@/lib/action-engine";
 
 export type VoiceActionTarget = "command" | "quote" | "invoice" | "customer" | "agenda";
 
-export type PlannedAction = ActionProposalInput & {
+export type PlannedAction = {
+  sourceType: "voice";
+  rawText: string;
+  intentType: ActionIntent;
+  payload: Record<string, unknown>;
+  riskLevel: ActionRiskLevel;
+  status: "needs_input" | "ready";
+  confidence: number;
+  warnings: string[];
+  missingFields: string[];
   customerFromPosition?: number;
 };
 
@@ -205,6 +214,38 @@ function payloadForIntent(intentType: ActionIntent, source: RecordLike) {
   };
 }
 
+function finalizeAction({
+  intentType,
+  payload,
+  transcript,
+  confidence,
+  warnings,
+  missingFields,
+  customerFromPosition,
+}: {
+  intentType: ActionIntent;
+  payload: Record<string, unknown>;
+  transcript: string;
+  confidence?: number | null;
+  warnings?: string[];
+  missingFields?: string[];
+  customerFromPosition?: number;
+}): PlannedAction {
+  const dedupedMissing = [...new Set(missingFields ?? [])].slice(0, 30);
+  return {
+    sourceType: "voice",
+    rawText: text(transcript, 20_000),
+    intentType,
+    payload,
+    riskLevel: riskLevelForIntent(intentType),
+    status: dedupedMissing.length ? "needs_input" : "ready",
+    confidence: Math.max(0, Math.min(1, Number.isFinite(Number(confidence)) ? Number(confidence) : 0)),
+    warnings: [...new Set(warnings ?? [])].slice(0, 30),
+    missingFields: dedupedMissing,
+    ...(typeof customerFromPosition === "number" ? { customerFromPosition } : {}),
+  };
+}
+
 export function plannedActionFromParsed(
   target: Exclude<VoiceActionTarget, "command">,
   parsedValue: unknown,
@@ -221,11 +262,10 @@ export function plannedActionFromParsed(
   const payload = payloadForIntent(intentType, parsed);
   const warnings = stringArray(parsed.warnings, 20);
   const missingFields = missingForIntent(intentType, payload as RecordLike);
-  return normalizeActionProposal({
-    sourceType: "voice",
-    rawText: transcript,
+  return finalizeAction({
     intentType,
     payload,
+    transcript,
     confidence: numberOrNull(parsed.confidence) ?? (warnings.length ? 0.72 : 0.9),
     warnings,
     missingFields,
@@ -240,26 +280,23 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
     const source = record(value);
     const intentType = intent(source.intent_type);
     if (!intentType) continue;
-    const payload = payloadForIntent(intentType, record(source.payload));
+    const rawPayload = record(source.payload);
+    const payload = payloadForIntent(intentType, rawPayload);
     const warnings = stringArray(source.warnings, 20);
     const missingFields = [
       ...missingForIntent(intentType, payload as RecordLike),
       ...stringArray(source.missing_fields, 20),
     ];
-    const normalized = normalizeActionProposal({
-      sourceType: "voice",
-      rawText: transcript,
+    const customerFromPosition = numberOrNull(rawPayload.customer_from_position);
+    actions.push(finalizeAction({
       intentType,
       payload,
+      transcript,
       confidence: numberOrNull(source.confidence) ?? 0.7,
       warnings,
-      missingFields: [...new Set(missingFields)],
-    });
-    const customerFromPosition = numberOrNull(record(source.payload).customer_from_position);
-    actions.push({
-      ...normalized,
+      missingFields,
       customerFromPosition: customerFromPosition === null ? undefined : Math.floor(customerFromPosition),
-    });
+    }));
   }
   return actions;
 }
@@ -283,11 +320,10 @@ export function fallbackCommandPlan(transcript: string): PlannedAction[] {
         ? { kind: "business", company_name: "", notes: transcript }
         : { customer_hint: "", title: "Travaux", notes: transcript, items: [] };
   const missingFields = missingForIntent(likelyIntent, payload);
-  return [normalizeActionProposal({
-    sourceType: "voice",
-    rawText: transcript,
+  return [finalizeAction({
     intentType: likelyIntent,
     payload,
+    transcript,
     confidence: 0.25,
     warnings: ["Le plan multi-actions nécessite DeepSeek. La demande a été conservée sans inventer les informations manquantes."],
     missingFields,
