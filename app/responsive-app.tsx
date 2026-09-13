@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ActionVoiceAssistant from "./action-voice-assistant";
 import AiChain from "./ai-chain";
 import AiRecordingHotfix from "./ai-recording-hotfix";
 import AppErrorBoundary from "./app-error-boundary";
@@ -64,6 +65,7 @@ export default function ResponsiveApp() {
         <AuthenticatedEmailFetchBridge />
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
+        {!AUTH_BYPASS && <ActionVoiceAssistant />}
         {!AUTH_BYPASS && <FirstRunOnboarding />}
         {!AUTH_BYPASS && <GuidedFirstRunTour />}
         {!AUTH_BYPASS && <PilotOperationsCenter />}
@@ -75,8 +77,12 @@ export default function ResponsiveApp() {
           <>
             <FunctionalPrototype />
             <ProductEnhancements />
-            <AiChain />
-            <AiRecordingHotfix />
+            {AUTH_BYPASS && (
+              <>
+                <AiChain />
+                <AiRecordingHotfix />
+              </>
+            )}
             <DocumentWorkflow />
             <DocumentPreviewBridge />
             <DashboardEnhancements />
