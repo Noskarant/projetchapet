@@ -1,47 +1,46 @@
-import { describe, expect, it } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-describe("guided first-run tour", () => {
-  it("is wired only when auth bypass is disabled", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "app/responsive-app.tsx"), "utf8");
-    expect(source).toContain('import GuidedFirstRunTour from "./guided-first-run-tour"');
-    expect(source).toContain("!AUTH_BYPASS && <GuidedFirstRunTour />");
-  });
+test("guided tour is wired only when auth bypass is disabled", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/responsive-app.tsx"), "utf8");
+  assert.match(source, /import GuidedFirstRunTour from "\.\/guided-first-run-tour"/);
+  assert.equal(source.includes("!AUTH_BYPASS && <GuidedFirstRunTour />"), true);
+});
 
-  it("keeps the mandatory company onboarding and replaces only the tutorial experience", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
-    expect(source).toContain('resolveFirstRunStage(readCompanyProfile(window.localStorage))');
-    expect(source).toContain('next === "tutorial"');
-    expect(source).toContain("markTutorialComplete");
-    expect(source).toContain("Passer");
-    expect(source).toContain("Précédent");
-    expect(source).toContain("Suivant");
-  });
+test("guided tour keeps mandatory company onboarding and replaces only tutorial experience", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
+  assert.equal(source.includes('resolveFirstRunStage(readCompanyProfile(window.localStorage))'), true);
+  assert.equal(source.includes('next === "tutorial"'), true);
+  assert.equal(source.includes("markTutorialComplete"), true);
+  assert.equal(source.includes("Passer"), true);
+  assert.equal(source.includes("Précédent"), true);
+  assert.equal(source.includes("Suivant"), true);
+});
 
-  it("contains distinct mobile and desktop tours with operational destinations", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
-    expect(source).toContain("DESKTOP_STEPS");
-    expect(source).toContain("MOBILE_STEPS");
-    for (const destination of ["Clients", "Devis", "Factures", "Chantiers", "Paramètres", "Copilote"]) {
-      expect(source).toContain(destination);
-    }
-  });
+test("guided tour contains distinct mobile and desktop operational destinations", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
+  assert.equal(source.includes("DESKTOP_STEPS"), true);
+  assert.equal(source.includes("MOBILE_STEPS"), true);
+  for (const destination of ["Clients", "Devis", "Factures", "Chantiers", "Paramètres", "Copilote"]) {
+    assert.equal(source.includes(destination), true, `missing ${destination}`);
+  }
+});
 
-  it("teaches the voice-first workflow on desktop and mobile", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
-    expect(source).toContain("Parlez. MANUFEO prépare. Vous validez.");
-    expect(source).toContain(".pc-ai-launcher");
-    expect(source).toContain(".pc-mobile-ai-fab");
-    expect(source).toContain("Dicter avec l’IA");
-    expect(source).toContain("transcription → lignes structurées → vérification → préremplissage");
-  });
+test("guided tour teaches the voice-first workflow on desktop and mobile", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
+  assert.equal(source.includes("Parlez. MANUFEO prépare. Vous validez."), true);
+  assert.equal(source.includes(".pc-ai-launcher"), true);
+  assert.equal(source.includes(".pc-mobile-ai-fab"), true);
+  assert.equal(source.includes("Dicter avec l’IA"), true);
+  assert.equal(source.includes("transcription → lignes structurées → vérification → préremplissage"), true);
+});
 
-  it("clearly distinguishes voice entry from the trade copilot", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
-    expect(source).toContain("Vocal IA =");
-    expect(source).toContain("Copilote =");
-    expect(source).toContain("coûts et marge");
-    expect(source).toContain("oublis possibles");
-  });
+test("guided tour clearly distinguishes voice entry from the trade copilot", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/guided-first-run-tour.tsx"), "utf8");
+  assert.equal(source.includes("Vocal IA ="), true);
+  assert.equal(source.includes("Copilote ="), true);
+  assert.equal(source.includes("coûts et marge"), true);
+  assert.equal(source.includes("oublis possibles"), true);
 });
