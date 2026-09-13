@@ -12,6 +12,7 @@ import DocumentPreviewBridge from "./document-preview-bridge";
 import DocumentWorkflow from "./document-workflow";
 import FirstRunOnboarding from "./first-run-onboarding";
 import FunctionalPrototype from "./functional-prototype";
+import GuidedFirstRunTour from "./guided-first-run-tour";
 import ManufeoBrandingBridge from "./manufeo-branding-bridge";
 import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
@@ -64,6 +65,7 @@ export default function ResponsiveApp() {
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
         {!AUTH_BYPASS && <FirstRunOnboarding />}
+        {!AUTH_BYPASS && <GuidedFirstRunTour />}
         {!AUTH_BYPASS && <PilotOperationsCenter />}
         <DesktopExerciseBridge />
         <ProductUiPolish />
