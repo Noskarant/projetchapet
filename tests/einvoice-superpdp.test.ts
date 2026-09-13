@@ -144,6 +144,15 @@ test("considère SUPER PDP configuré seulement avec client id et secret", () =>
   assert.equal(result.config.baseUrl, "https://api.superpdp.tech");
 });
 
+test("normalise l’URL du portail SUPER PDP vers l’hôte API", () => {
+  const result = superPdpConfiguration({
+    SUPERPDP_CLIENT_ID: "id",
+    SUPERPDP_CLIENT_SECRET: "secret",
+    SUPERPDP_API_BASE_URL: "https://www.superpdp.tech/",
+  });
+  assert.equal(result.config.baseUrl, "https://api.superpdp.tech");
+});
+
 test("génère une facture CII EN16931 structurée avant envoi à la PA", () => {
   const generated = generateManufeoCii(sampleElectronicInvoice());
   assert.equal(generated.validation.valid, true);
