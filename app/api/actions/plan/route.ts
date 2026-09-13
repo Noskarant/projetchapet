@@ -93,6 +93,58 @@ async function planWithDeepSeek(transcript: string) {
   return actions;
 }
 
+async function assertCustomerNotDuplicate({
+  action,
+  organizationId,
+  client,
+}: {
+  action: PlannedAction;
+  organizationId: string;
+  client: Awaited<ReturnType<typeof authenticateRequest>>["client"];
+}) {
+  if (action.intentType !== "create_customer") return;
+  const siret = typeof action.payload.siret === "string" ? action.payload.siret.trim() : "";
+  if (siret) {
+    const { data, error } = await client
+      .from("customers")
+      .select("id, company_name")
+      .eq("organization_id", organizationId)
+      .eq("siret", siret)
+      .limit(1);
+    if (error) throw new Error("Vérification du SIRET impossible.");
+    if (data?.length) {
+      throw new ApiInputError(`Un client avec le SIRET ${siret} existe déjà dans MANUFEO.`, 409);
+    }
+  }
+
+  const firstEmail = Array.isArray(action.payload.emails)
+    ? action.payload.emails.find((value) => typeof value === "string" && value.trim())
+    : null;
+  if (typeof firstEmail === "string" && firstEmail.trim()) {
+    const email = firstEmail.trim().toLowerCase();
+    const { data, error } = await client
+      .from("customers")
+      .select("id, company_name, emails")
+      .eq("organization_id", organizationId)
+      .contains("emails", [email])
+      .limit(1);
+    if (error) throw new Error("Vérification de l’e-mail client impossible.");
+    if (data?.length) {
+      throw new ApiInputError(`Un client utilisant ${email} existe déjà dans MANUFEO.`, 409);
+    }
+  }
+}
+
+function validateDependencies(actions: PlannedAction[]) {
+  for (let index = 0; index < actions.length; index += 1) {
+    const dependencyIndex = actions[index].customerFromPosition;
+    if (typeof dependencyIndex !== "number") continue;
+    if (dependencyIndex < 0 || dependencyIndex >= index || actions[dependencyIndex]?.intentType !== "create_customer") {
+      throw new ApiInputError("Le plan IA contient une dépendance client invalide.", 422);
+    }
+  }
+}
+
 async function persistPlan({
   actions,
   organizationId,
@@ -104,6 +156,11 @@ async function persistPlan({
   userId: string;
   client: Awaited<ReturnType<typeof authenticateRequest>>["client"];
 }) {
+  validateDependencies(actions);
+  for (const action of actions) {
+    await assertCustomerNotDuplicate({ action, organizationId, client });
+  }
+
   const batchReference = `voice-batch:${crypto.randomUUID()}`;
   const inserted: Record<string, unknown>[] = [];
 
@@ -111,9 +168,6 @@ async function persistPlan({
     const action = actions[index];
     const payload = { ...action.payload } as Record<string, unknown>;
     if (typeof action.customerFromPosition === "number") {
-      if (action.customerFromPosition < 0 || action.customerFromPosition >= index) {
-        throw new ApiInputError("Le plan IA contient une dépendance client invalide.", 422);
-      }
       const dependency = inserted[action.customerFromPosition];
       if (!dependency?.id || dependency.intent_type !== "create_customer") {
         throw new ApiInputError("Le client lié au document n’a pas pu être préparé correctement.", 422);
