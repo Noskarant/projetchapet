@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { readCompanyProfile, writeCompanyProfile } from "@/lib/company-profile";
 import { markTutorialComplete, resolveFirstRunStage } from "@/lib/first-run-onboarding";
 import { supabase } from "@/lib/supabase";
@@ -166,20 +166,16 @@ export default function GuidedFirstRunTour() {
     let settleTimer: number | undefined;
 
     const run = () => {
-      if (step.openMenuFirst && !findTarget(step)) {
-        clickable(findMenuButton())?.click();
-      }
+      if (step.openMenuFirst && !findTarget(step)) clickable(findMenuButton())?.click();
       menuTimer = window.setTimeout(() => {
         if (cancelled) return;
-        if (step.activateLabels?.length) {
-          const target = findByText(step.activateLabels);
-          clickable(target)?.click();
-        }
+        if (step.activateLabels?.length) clickable(findByText(step.activateLabels))?.click();
         activateTimer = window.setTimeout(() => {
           if (!cancelled) refreshTarget();
         }, 240);
       }, step.openMenuFirst ? 180 : 40);
     };
+
     run();
     settleTimer = window.setTimeout(refreshTarget, 700);
     window.addEventListener("resize", refreshTarget);
@@ -196,12 +192,21 @@ export default function GuidedFirstRunTour() {
 
   useEffect(() => {
     if (!active) return;
-    const legacy = document.querySelector<HTMLElement>(".fro-backdrop[aria-label='Découvrir MANUFEO']");
-    if (!legacy) return;
-    const previous = legacy.style.display;
-    legacy.style.display = "none";
-    return () => { legacy.style.display = previous; };
-  }, [active, index]);
+    const hidden = new Map<HTMLElement, string>();
+    const suppressLegacyTutorial = () => {
+      document.querySelectorAll<HTMLElement>(".fro-backdrop[aria-label='Découvrir MANUFEO']").forEach((legacy) => {
+        if (!hidden.has(legacy)) hidden.set(legacy, legacy.style.display);
+        legacy.style.display = "none";
+      });
+    };
+    suppressLegacyTutorial();
+    const observer = new MutationObserver(suppressLegacyTutorial);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      hidden.forEach((display, legacy) => { legacy.style.display = display; });
+    };
+  }, [active]);
 
   function finish() {
     const current = readCompanyProfile(window.localStorage);
@@ -217,10 +222,10 @@ export default function GuidedFirstRunTour() {
   const card = cardPosition(targetRect);
   const progress = ((index + 1) / steps.length) * 100;
   const last = index === steps.length - 1;
-  const topShade = targetRect ? { left: 0, top: 0, width: "100%", height: targetRect.top } : { inset: 0 };
-  const leftShade = targetRect ? { left: 0, top: targetRect.top, width: targetRect.left, height: targetRect.height } : undefined;
-  const rightShade = targetRect ? { left: targetRect.right, top: targetRect.top, right: 0, height: targetRect.height } : undefined;
-  const bottomShade = targetRect ? { left: 0, top: targetRect.bottom, right: 0, bottom: 0 } : undefined;
+  const topShade: CSSProperties = targetRect ? { left: 0, top: 0, width: "100%", height: targetRect.top } : { inset: 0 };
+  const leftShade: CSSProperties | undefined = targetRect ? { left: 0, top: targetRect.top, width: targetRect.left, height: targetRect.height } : undefined;
+  const rightShade: CSSProperties | undefined = targetRect ? { left: targetRect.right, top: targetRect.top, right: 0, height: targetRect.height } : undefined;
+  const bottomShade: CSSProperties | undefined = targetRect ? { left: 0, top: targetRect.bottom, right: 0, bottom: 0 } : undefined;
 
   return (
     <div className={styles.root} role="dialog" aria-modal="true" aria-label="Visite guidée MANUFEO">
