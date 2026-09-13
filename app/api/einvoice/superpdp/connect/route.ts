@@ -7,7 +7,6 @@ import {
 } from "@/lib/einvoice/server";
 import {
   buildSuperPdpAuthorizationUrl,
-  extractFrenchSiren,
   superPdpConfiguration,
 } from "@/lib/einvoice/superpdp";
 
@@ -37,12 +36,14 @@ export async function POST(request: Request) {
       redirectUri,
     }, eInvoiceEncryptionSecret());
 
+    // On ne préremplit pas le SIREN ici : en sandbox SUPER PDP utilise les
+    // entreprises fictives Burger Queen / Tricatel. En production, l’utilisateur
+    // choisira/vérifiera son entreprise dans l’écran OAuth/KYB SUPER PDP.
     const authorizationUrl = buildSuperPdpAuthorizationUrl({
       config,
       redirectUri,
       state,
       loginHint: access.organization.email ?? undefined,
-      siren: extractFrenchSiren(access.organization.siret),
     });
 
     return NextResponse.json({
