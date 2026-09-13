@@ -15,6 +15,7 @@ import FunctionalPrototype from "./functional-prototype";
 import ManufeoBrandingBridge from "./manufeo-branding-bridge";
 import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
+import PilotOperationsCenter from "./pilot-operations-center";
 import PilotReadinessUiBridge from "./pilot-readiness-ui-bridge";
 import ProductEnhancements from "./product-enhancements";
 import ProductUiPolish from "./product-ui-polish";
@@ -63,6 +64,7 @@ export default function ResponsiveApp() {
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
         {!AUTH_BYPASS && <FirstRunOnboarding />}
+        {!AUTH_BYPASS && <PilotOperationsCenter />}
         <DesktopExerciseBridge />
         <ProductUiPolish />
         {mode === "mobile" ? (
