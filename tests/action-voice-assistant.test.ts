@@ -31,3 +31,16 @@ test("l’exécuteur ne transforme jamais automatiquement devis facture ou comma
   assert.equal(source.includes("Aucun e-mail n’a été envoyé"), true);
   assert.equal(source.includes("record_invoice_payment"), true);
 });
+
+test("le planificateur bloque les dépendances IA invalides et les doublons clients", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/api/actions/plan/route.ts"), "utf8");
+  assert.equal(source.includes("Le plan IA contient une dépendance client invalide."), true);
+  assert.equal(source.includes("dependency.intent_type !== \"create_customer\""), true);
+  assert.equal(source.includes("Un client avec le SIRET"), true);
+  assert.equal(source.includes(".contains(\"emails\", [email])"), true);
+});
+
+test("l’agenda vocal reste mobile tant que le desktop n’a pas son exécuteur agenda", () => {
+  const css = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.css"), "utf8");
+  assert.equal(css.includes("@media(min-width:821px){.ava-choices>button:last-child{display:none}}"), true);
+});
