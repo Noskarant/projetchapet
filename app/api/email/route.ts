@@ -213,8 +213,10 @@ export async function POST(request: Request) {
 
     await authorizeRecipients(request, documentNumber, documentKind, [to, ...cc, ...bcc]);
 
-    const subject = optionalString(body.subject, 180) || "Votre document";
-    const html = optionalString(body.html, 30_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";
+    const subject = optionalString(body.subject, 998) || "Votre document";
+    // La taille globale de la requête reste bornée par readJsonBody ; on ne bloque plus
+    // arbitrairement un e-mail riche (signature, logo, mise en forme) à seulement 30 ko.
+    const html = optionalString(body.html, 10_000_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";
     const attachments = cleanAttachments(body.attachments);
 
     const apiKey = process.env.RESEND_API_KEY;
