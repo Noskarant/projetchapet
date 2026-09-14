@@ -7,6 +7,7 @@ import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import { supabase } from "@/lib/supabase";
 
 const successPrefix = "Document envoyé à";
+const databaseIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function loadWorkspace() {
   try {
@@ -40,9 +41,19 @@ function setDeliveryState(sheet: HTMLElement, clientSent: boolean, accountantSen
   if (detail) detail.textContent = "Suivi des envois e-mail";
 }
 
+function markVisibleInvoiceSent(sheet: HTMLElement) {
+  const status = sheet.querySelector<HTMLElement>(".rm-status");
+  if (!status || !/brouillon/i.test(status.textContent ?? "")) return;
+  status.textContent = "En cours";
+  status.classList.remove("rm-status-brouillon");
+  status.classList.add("rm-status-en-cours");
+}
+
 async function serverClientSent(number: string, invoiceId?: string) {
   let query = supabase.from("invoices").select("sent_at");
-  query = invoiceId ? query.eq("id", invoiceId) : query.eq("number", number);
+  query = invoiceId && databaseIdPattern.test(invoiceId)
+    ? query.eq("id", invoiceId)
+    : query.eq("number", number);
   const { data, error } = await query.limit(1).maybeSingle();
   if (error) return false;
   return Boolean(data?.sent_at);
@@ -54,7 +65,7 @@ async function persistServerClientSend(number: string) {
   if (!invoice) return;
 
   let query = supabase.from("invoices").select("id, status");
-  query = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(invoice.id)
+  query = databaseIdPattern.test(invoice.id)
     ? query.eq("id", invoice.id)
     : query.eq("number", number);
   const { data, error } = await query.limit(1).maybeSingle();
@@ -87,6 +98,7 @@ export default function MobileInvoiceSendStateBridge() {
         cache.set(number, { sent: clientSent, checkedAt: Date.now() });
       }
       setDeliveryState(sheet, clientSent, Boolean(invoice.accountantSent));
+      if (clientSent) markVisibleInvoiceSent(sheet);
     };
 
     const refresh = () => {
@@ -109,7 +121,10 @@ export default function MobileInvoiceSendStateBridge() {
           const sheet = invoiceSheet(number);
           const workspace = loadWorkspace();
           const accountantSent = Boolean(workspace?.invoices.find((item) => item.number === number)?.accountantSent);
-          if (sheet) setDeliveryState(sheet, true, accountantSent);
+          if (sheet) {
+            setDeliveryState(sheet, true, accountantSent);
+            markVisibleInvoiceSent(sheet);
+          }
           void persistServerClientSend(number);
           return;
         }
