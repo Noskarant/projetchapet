@@ -25,8 +25,8 @@ import MobileProjectProfitability from "./mobile-project-profitability";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
 import MobileUnifiedQuoteSheet from "./mobile-unified-quote-sheet";
 import MobileVoiceEditAssistant from "./mobile-voice-edit-assistant";
+import MobileWorkspaceLiveShell from "./mobile-workspace-live-shell";
 import RappidosExperienceBridge from "./rappidos-experience-bridge";
-import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
 import { EMPTY_MOBILE_WORKSPACE, prepareFreshArtisanStart } from "@/lib/mobile-fresh-start";
 import { prepareMobileWorkspaceStorage } from "@/lib/mobile-workspace-storage";
 
@@ -78,7 +78,7 @@ export default function MobilePrototypeGate() {
       <MobileAiContextBridge />
       <MobileLongVoiceBridge />
       <MobileAiApplyGuard />
-      <RappidosMobileShellV2 />
+      <MobileWorkspaceLiveShell />
       <RappidosExperienceBridge />
       <MobileLegacyQuoteDetailGuard />
       <MobilePriorityPolish />
