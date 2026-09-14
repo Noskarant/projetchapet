@@ -9,7 +9,7 @@ type VoiceListeningVisualizerProps = {
   reactive: boolean;
 };
 
-const barPattern = [0.42, 0.62, 0.82, 1, 0.76, 0.94, 0.7, 1, 0.82, 0.62, 0.42];
+const barPattern = [0.3, 0.42, 0.58, 0.76, 0.94, 0.72, 0.88, 1, 0.88, 0.72, 0.94, 0.76, 0.58, 0.42, 0.3];
 
 export function VoiceListeningVisualizer({ level, reactive }: VoiceListeningVisualizerProps) {
   const normalized = Math.min(1, Math.max(0, level));
@@ -23,22 +23,26 @@ export function VoiceListeningVisualizer({ level, reactive }: VoiceListeningVisu
       type="button"
       className={`ava-voice-visualizer ${reactive ? "reactive" : "fallback"}`}
       aria-label="J’ai fini de parler"
-      title="Cliquer pour terminer la dictée"
+      title="Appuyez lorsque vous avez terminé"
       data-testid="voice-listening-visualizer"
       onClick={finishDictation}
     >
-      {barPattern.map((weight, index) => {
-        const distanceFromCenter = Math.abs(index - (barPattern.length - 1) / 2);
-        const centerBoost = 1 - distanceFromCenter / ((barPattern.length - 1) / 2);
-        const barLevel = reactive
-          ? Math.max(0.1, Math.min(1, 0.1 + normalized * (weight * 0.78 + centerBoost * 0.22)))
-          : 0.28 + weight * 0.2;
-        const style = {
-          "--ava-level": barLevel.toFixed(3),
-          "--ava-delay": `${index * -72}ms`,
-        } as CSSProperties;
-        return <span className="ava-voice-bar" style={style} key={`${weight}-${index}`} />;
-      })}
+      <span className="ava-voice-glow" aria-hidden="true" />
+      <span className="ava-voice-bars" aria-hidden="true">
+        {barPattern.map((weight, index) => {
+          const distanceFromCenter = Math.abs(index - (barPattern.length - 1) / 2);
+          const centerBoost = 1 - distanceFromCenter / ((barPattern.length - 1) / 2);
+          const barLevel = reactive
+            ? Math.max(0.12, Math.min(1, 0.12 + normalized * (weight * 0.76 + centerBoost * 0.24)))
+            : 0.24 + weight * 0.2;
+          const style = {
+            "--ava-level": barLevel.toFixed(3),
+            "--ava-delay": `${index * -68}ms`,
+          } as CSSProperties;
+          return <span className="ava-voice-bar" style={style} key={`${weight}-${index}`} />;
+        })}
+      </span>
+      <span className="ava-voice-stop-hint" aria-hidden="true">Appuyez ici quand vous avez terminé</span>
       <span className="ava-sr-only">Terminer la dictée</span>
     </button>
   );
