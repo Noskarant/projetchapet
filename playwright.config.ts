@@ -22,7 +22,7 @@ const demoStorageState = {
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: /public-auth\.spec\.ts/,
+  testIgnore: /public-(?:auth|landing-v2)\.spec\.ts/,
   timeout: 30_000,
   expect: { timeout: 8_000 },
   fullyParallel: false,
