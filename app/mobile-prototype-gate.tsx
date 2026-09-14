@@ -17,6 +17,7 @@ import MobileDesktopSyncBridge, { hydrateMobileCoreFromDesktop } from "./mobile-
 import MobileElectronicInvoiceSendBridge from "./mobile-electronic-invoice-send-bridge";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
 import MobileForgeoBusinessSettings from "./mobile-forgeo-business-settings";
+import MobileInvoiceSendStateBridge from "./mobile-invoice-send-state-bridge";
 import MobileLegacyQuoteDetailGuard from "./mobile-legacy-quote-detail-guard";
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
 import MobilePhilippeQuoteActionsMenu from "./mobile-philippe-quote-actions-menu";
@@ -97,6 +98,7 @@ export default function MobilePrototypeGate() {
       <MobilePhilippeQuoteActionsMenu />
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
+      <MobileInvoiceSendStateBridge />
       <MobileCommercialDemo />
       <MobileElectronicInvoiceSendBridge />
       <MobileElectronicInvoicingReadiness />
