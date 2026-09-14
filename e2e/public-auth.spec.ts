@@ -201,7 +201,7 @@ test("vérifie la mise en page des écrans publics", async ({
     .toBeGreaterThan(0);
   await page.screenshot({
     path: testInfo.outputPath("landing.png"),
-    fullPage: true,
+    fullPage: testInfo.project.name !== "public-iphone-webkit",
   });
   await page
     .getByRole("button", { name: "Se connecter", exact: true })
