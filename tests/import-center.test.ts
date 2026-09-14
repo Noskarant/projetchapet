@@ -15,6 +15,16 @@ test("les fonctions de commit et rollback restent serveur-only", () => {
   assert.match(rollbackRoute, /requireOrganization\(context, organizationId, \["owner", "admin"\]\)/);
 });
 
+test("un import doit obligatoirement repasser par preview avant exécution", () => {
+  assert.match(migration, /if j\.status <> 'preview' then/);
+  assert.match(migration, /import job must be previewed before execution/);
+  assert.match(commitRoute, /String\(job\.status\) !== "preview"/);
+});
+
+test("les adresses importées ne reçoivent aucun pays inventé", () => {
+  assert.doesNotMatch(migration, /'country',\s*'France'/);
+});
+
 test("le rollback protège les clients modifiés ou référencés", () => {
   assert.match(migration, /from public\.quotes where organization_id = j\.organization_id and customer_id = target/);
   assert.match(migration, /from public\.invoices where organization_id = j\.organization_id and customer_id = target/);
