@@ -2,7 +2,8 @@ import type { MobileInvoice, MobileWorkspace } from "./mobile-prototype";
 
 export function sameMobileInvoiceIdentity(left: MobileInvoice, right: MobileInvoice) {
   if (left.sourceQuoteId && right.sourceQuoteId && left.sourceQuoteId === right.sourceQuoteId) return true;
-  return left.customerId === right.customerId
+  const sameCustomer = left.customerId === right.customerId || left.customerName === right.customerName;
+  return sameCustomer
     && left.issueDate === right.issueDate
     && left.title === right.title
     && Math.abs(left.total - right.total) < 0.01;
