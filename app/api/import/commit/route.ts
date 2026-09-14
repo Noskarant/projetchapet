@@ -37,7 +37,9 @@ export async function POST(request: Request) {
       .eq("organization_id", organizationId)
       .maybeSingle();
     if (jobError || !job) throw new ApiInputError("Import introuvable.", 404);
-    if (!["preview", "failed"].includes(String(job.status))) throw new ApiInputError("Cet import a déjà été traité.", 409);
+    if (String(job.status) !== "preview") {
+      throw new ApiInputError("Cet import doit repasser par une prévisualisation valide avant exécution.", 409);
+    }
 
     const counters = (job.counters ?? {}) as Record<string, unknown>;
     if (Number(counters.valid ?? 0) + Number(counters.duplicates ?? 0) <= 0) {
