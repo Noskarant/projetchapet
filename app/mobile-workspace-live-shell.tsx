@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { EMPTY_MOBILE_WORKSPACE } from "@/lib/mobile-fresh-start";
 import {
+  findCanonicalMobileInvoice,
+  sameMobileInvoiceIdentity,
+} from "@/lib/mobile-invoice-canonical";
+import {
   MOBILE_WORKSPACE_STORAGE_KEY,
   normalizeMobileWorkspace,
 } from "@/lib/mobile-workspace-storage";
-import type { MobileInvoice, MobileWorkspace } from "@/lib/mobile-prototype";
+import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import RappidosMobileShellV2 from "./rappidos-mobile-shell-v2";
 
 type RestoreTarget = {
@@ -25,36 +29,6 @@ function readWorkspace(): MobileWorkspace {
   } catch {
     return EMPTY_MOBILE_WORKSPACE;
   }
-}
-
-function sameInvoiceIdentity(left: MobileInvoice, right: MobileInvoice) {
-  if (left.sourceQuoteId && right.sourceQuoteId && left.sourceQuoteId === right.sourceQuoteId) return true;
-  return left.customerId === right.customerId
-    && left.issueDate === right.issueDate
-    && left.title === right.title
-    && Math.abs(left.total - right.total) < 0.01;
-}
-
-export function findCanonicalInvoice(
-  previous: MobileWorkspace,
-  current: MobileWorkspace,
-  displayedNumber: string,
-) {
-  const exact = current.invoices.find((invoice) => invoice.number === displayedNumber);
-  if (exact) return exact;
-
-  const previousInvoice = previous.invoices.find((invoice) => invoice.number === displayedNumber);
-  if (previousInvoice) {
-    const byIdentity = current.invoices.find((invoice) => sameInvoiceIdentity(previousInvoice, invoice));
-    if (byIdentity) return byIdentity;
-  }
-
-  const legacy = /^F-(\d{4}-\d+)$/i.exec(displayedNumber);
-  if (legacy) {
-    return current.invoices.find((invoice) => invoice.number === `FAC-${legacy[1]}`) ?? null;
-  }
-
-  return null;
 }
 
 function activeTabLabel() {
@@ -78,13 +52,29 @@ function invoiceCardNumbers() {
 function clickTab(label: string) {
   const button = Array.from(document.querySelectorAll<HTMLButtonElement>(".rm-bottom-nav button"))
     .find((candidate) => candidate.querySelector("span")?.textContent?.trim() === label);
-  button?.click();
+  if (!button) return false;
+  button.click();
+  return true;
 }
 
 function clickInvoice(number: string) {
   const card = Array.from(document.querySelectorAll<HTMLButtonElement>(".rm-document-card"))
     .find((candidate) => candidate.querySelector(".rm-document-main small")?.textContent?.trim() === number);
-  card?.click();
+  if (!card) return false;
+  card.click();
+  return true;
+}
+
+function clickInvoiceAction(number: string, label: string) {
+  const sheets = Array.from(document.querySelectorAll<HTMLElement>(".rm-detail-sheet"));
+  const sheet = sheets.find((candidate) =>
+    candidate.querySelector("header h2")?.textContent?.trim() === number,
+  );
+  const action = Array.from(sheet?.querySelectorAll<HTMLButtonElement>("button") || [])
+    .find((candidate) => candidate.textContent?.trim() === label);
+  if (!action) return false;
+  action.click();
+  return true;
 }
 
 function showSyncError() {
@@ -122,7 +112,7 @@ export default function MobileWorkspaceLiveShell() {
       const detailNumber = openInvoiceNumber();
 
       if (detailNumber) {
-        const canonical = findCanonicalInvoice(previous, current, detailNumber);
+        const canonical = findCanonicalMobileInvoice(previous, current, detailNumber);
         if (canonical && canonical.number !== detailNumber) {
           previousWorkspace.current = current;
           requestRemount({ tab: "Factures", invoiceNumber: canonical.number });
@@ -178,8 +168,8 @@ export default function MobileWorkspaceLiveShell() {
       const wait = () => {
         const latest = readWorkspace();
         const canonical = source
-          ? latest.invoices.find((invoice) => /^FAC-/i.test(invoice.number) && sameInvoiceIdentity(source, invoice))
-          : findCanonicalInvoice(previous, latest, displayedNumber);
+          ? latest.invoices.find((invoice) => /^FAC-/i.test(invoice.number) && sameMobileInvoiceIdentity(source, invoice))
+          : findCanonicalMobileInvoice(previous, latest, displayedNumber);
 
         if (canonical) {
           previousWorkspace.current = latest;
@@ -212,35 +202,49 @@ export default function MobileWorkspaceLiveShell() {
     }
 
     let attempts = 0;
+    const finish = () => {
+      restore.current = null;
+      remounting.current = false;
+      previousWorkspace.current = readWorkspace();
+    };
+
     const restoreUi = () => {
       attempts += 1;
-      clickTab(target.tab);
-
-      if (target.invoiceNumber) {
-        window.setTimeout(() => {
-          clickInvoice(target.invoiceNumber as string);
-          if (target.actionLabel) {
-            window.setTimeout(() => {
-              const sheets = Array.from(document.querySelectorAll<HTMLElement>(".rm-detail-sheet"));
-              const sheet = sheets.find((candidate) =>
-                candidate.querySelector("header h2")?.textContent?.trim() === target.invoiceNumber,
-              );
-              const action = Array.from(sheet?.querySelectorAll<HTMLButtonElement>("button") || [])
-                .find((candidate) => candidate.textContent?.trim() === target.actionLabel);
-              action?.click();
-            }, 80);
-          }
-        }, 70);
-      }
-
-      if (document.querySelector(".rm-bottom-nav")) {
-        restore.current = null;
-        remounting.current = false;
-        previousWorkspace.current = readWorkspace();
+      const tabReady = clickTab(target.tab);
+      if (!tabReady) {
+        if (attempts < 30) window.setTimeout(restoreUi, 50);
+        else finish();
         return;
       }
-      if (attempts < 20) window.setTimeout(restoreUi, 50);
-      else remounting.current = false;
+
+      if (!target.invoiceNumber) {
+        finish();
+        return;
+      }
+
+      window.setTimeout(() => {
+        const number = target.invoiceNumber as string;
+        const detailReady = openInvoiceNumber() === number || clickInvoice(number);
+        if (!detailReady) {
+          if (attempts < 30) window.setTimeout(restoreUi, 60);
+          else finish();
+          return;
+        }
+
+        if (!target.actionLabel) {
+          finish();
+          return;
+        }
+
+        window.setTimeout(() => {
+          if (clickInvoiceAction(number, target.actionLabel as string)) {
+            finish();
+            return;
+          }
+          if (attempts < 30) window.setTimeout(restoreUi, 60);
+          else finish();
+        }, 70);
+      }, 60);
     };
 
     window.setTimeout(restoreUi, 0);
