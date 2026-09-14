@@ -7,7 +7,7 @@ const legalPages = [
     heading: "Mentions légales",
   },
   {
-    label: "Politique de confidentialité",
+    label: "Confidentialité",
     href: "/politique-confidentialite",
     heading: "Politique de confidentialité",
   },
