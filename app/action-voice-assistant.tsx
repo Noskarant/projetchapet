@@ -23,6 +23,7 @@ import {
 } from "@/lib/action-client";
 import type { VoiceActionTarget } from "@/lib/action-planner";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
+import { CommandPrecisionGuide, VoiceListeningVisualizer } from "./action-voice-experience";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 
@@ -58,7 +59,7 @@ type Choice = {
 };
 
 const choices: Choice[] = [
-  { id: "command", label: "Plusieurs actions", detail: "Client + devis + planning… dans une seule demande", icon: Sparkles },
+  { id: "command", label: "Plusieurs actions", detail: "Client + coordonnées + devis + planning… dans une seule demande", icon: Sparkles },
   { id: "quote", label: "Un devis", detail: "Client, prestations, quantités, prix et TVA", icon: FileText },
   { id: "invoice", label: "Une facture", detail: "Toujours créée en brouillon", icon: ReceiptText },
   { id: "customer", label: "Un client", detail: "Coordonnées, adresse, SIRET et TVA", icon: UserRound },
@@ -158,7 +159,7 @@ function riskLabel(value: ActionProposalView["risk_level"]) {
 }
 
 function placeholder(target: VoiceActionTarget | null) {
-  if (target === "command") return "Ex. Crée le client Martin Peinture, puis fais-lui un devis pour 80 m² de peinture à 22 € HT et mets une visite mardi à 14 h.";
+  if (target === "command") return "Ex. Crée le client Martin Peinture, tél. 06…, e-mail…, adresse…, puis un devis : préparation 80 m² à 8 € HT + peinture 80 m² à 22 € HT, TVA 10 %, et une visite mardi à 14 h à son adresse.";
   if (target === "customer") return "Ex. Société Martin Peinture, SIRET…, téléphone…, adresse…";
   if (target === "agenda") return "Ex. Mets une visite mardi prochain à 14 h chez Dupont.";
   return "Ex. Client Dupont, peinture 18 m² à 32 € HT, TVA 10 %.";
@@ -190,6 +191,7 @@ export default function ActionVoiceAssistant() {
   const [results, setResults] = useState<ActionExecutionResult[]>([]);
   const [explicitConfirmed, setExplicitConfirmed] = useState(false);
   const [groqReady, setGroqReady] = useState(false);
+  const [voiceLevel, setVoiceLevel] = useState(0);
   const transcriptRef = useRef("");
   const targetRef = useRef<VoiceActionTarget | null>(null);
   const pcmRef = useRef<PcmSession | null>(null);
@@ -208,6 +210,7 @@ export default function ActionVoiceAssistant() {
     recognitionRef.current = null;
     const session = pcmRef.current;
     pcmRef.current = null;
+    setVoiceLevel(0);
     if (session) tearDown(session);
   }, []);
 
@@ -319,6 +322,7 @@ export default function ActionVoiceAssistant() {
 
   function browserDictation() {
     const Constructor = speechConstructor();
+    setVoiceLevel(0);
     if (!Constructor) {
       setMessage("Micro non disponible. Autorisez le microphone ou écrivez la demande.");
       setStage("ready");
@@ -333,11 +337,13 @@ export default function ActionVoiceAssistant() {
       if (text) updateTranscript(`${transcriptRef.current} ${text}`.trim());
     };
     recognition.onerror = (event) => {
+      setVoiceLevel(0);
       setMessage(event.error ? `Micro interrompu : ${event.error}` : "Micro interrompu.");
       setStage("ready");
     };
     recognition.onend = () => {
       recognitionRef.current = null;
+      setVoiceLevel(0);
       const text = transcriptRef.current.trim();
       if (text) void prepare(text);
       else setStage("ready");
@@ -349,6 +355,7 @@ export default function ActionVoiceAssistant() {
 
   async function startRecording() {
     setMessage("");
+    setVoiceLevel(0);
     updateTranscript("");
     setProposals([]);
     if (!groqReady || !navigator.mediaDevices?.getUserMedia) {
@@ -374,7 +381,13 @@ export default function ActionVoiceAssistant() {
       const silentGain = context.createGain();
       silentGain.gain.value = 0;
       const buffers: Float32Array[] = [];
-      processor.onaudioprocess = (event) => buffers.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      processor.onaudioprocess = (event) => {
+        const chunk = new Float32Array(event.inputBuffer.getChannelData(0));
+        buffers.push(chunk);
+        const peak = audioPeak(chunk);
+        const normalized = Math.min(1, Math.max(0, (peak - 0.006) / 0.12));
+        setVoiceLevel((current) => Math.max(normalized, current * 0.58));
+      };
       source.connect(processor);
       processor.connect(silentGain);
       silentGain.connect(context.destination);
@@ -400,6 +413,7 @@ export default function ActionVoiceAssistant() {
       return;
     }
     pcmRef.current = null;
+    setVoiceLevel(0);
     setStage("transcribing");
     await new Promise((resolve) => window.setTimeout(resolve, 120));
     tearDown(session);
@@ -512,8 +526,10 @@ export default function ActionVoiceAssistant() {
                 >
                   {stage === "recording" ? <Square size={28} /> : busy ? <Loader2 size={32} className="ava-spin" /> : <Mic size={34} />}
                 </button>
+                {stage === "recording" && <VoiceListeningVisualizer level={voiceLevel} reactive={Boolean(pcmRef.current)} />}
                 <h3>{stage === "recording" ? "Je vous écoute…" : stage === "transcribing" ? "Transcription…" : stage === "analysing" ? "MANUFEO prépare les actions…" : "Dictez naturellement"}</h3>
                 <p>Rien n’est exécuté avant votre validation.</p>
+                {target === "command" && <CommandPrecisionGuide />}
                 <textarea
                   value={transcript}
                   onChange={(event) => updateTranscript(event.target.value)}
