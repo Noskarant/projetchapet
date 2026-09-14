@@ -32,7 +32,7 @@ test("expose une navigation produit claire et des ancres valides", async ({ page
   ] as const;
 
   for (const [label, href] of links) {
-    const link = page.getByRole("link", { name: label, exact: true });
+    const link = page.getByRole("link", { name: label, exact: true, includeHidden: true });
     await expect(link).toHaveAttribute("href", href);
     await expect(page.locator(href)).toHaveCount(1);
   }
