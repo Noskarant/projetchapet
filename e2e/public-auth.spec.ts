@@ -6,15 +6,15 @@ test("affiche la landing et ouvre les parcours connexion et création de compte 
   await page.goto("/");
 
   await expect(
-    page.getByRole("heading", { name: /Moins de paperasse/i }),
+    page.getByRole("heading", { level: 1, name: /MANUFEO prépare le reste/i }),
   ).toBeVisible();
   await expect(
-    page.getByText(/Vos prix restent vos prix/).first(),
+    page.getByRole("heading", { name: /Une couche d’action sur toute votre entreprise/i }),
   ).toBeVisible();
   await expect(page.getByText("MANUFEO", { exact: true }).first()).toBeVisible();
 
   await page
-    .getByRole("button", { name: "Connexion", exact: true })
+    .getByRole("button", { name: "Se connecter", exact: true })
     .first()
     .click();
   await expect(
@@ -65,7 +65,7 @@ test("permet de demander un lien de récupération sans révéler si le compte e
 
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Connexion", exact: true })
+    .getByRole("button", { name: "Se connecter", exact: true })
     .first()
     .click();
   await page.getByRole("link", { name: "Mot de passe oublié ?" }).click();
@@ -107,6 +107,7 @@ test("garde les formulaires cohérents, affiche le mot de passe et confirme l’
       }),
     });
   });
+
   await page.goto("/");
   const photo = page.locator(".fp-hero-photo img");
   await expect(photo).toBeVisible();
@@ -114,12 +115,11 @@ test("garde les formulaires cohérents, affiche le mot de passe et confirme l’
     .poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalWidth))
     .toBeGreaterThan(0);
   expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBe(true);
+
   await page
-    .getByRole("button", { name: "Créer mon compte", exact: true })
+    .getByRole("button", { name: "Créer mon espace", exact: true })
     .filter({ visible: true })
     .first()
     .click();
@@ -140,9 +140,7 @@ test("garde les formulaires cohérents, affiche le mot de passe et confirme l’
     "rgb(8, 117, 245)",
   );
   expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBe(true);
   await page
     .getByRole("button", { name: "Créer mon compte", exact: true })
@@ -168,7 +166,7 @@ test("affiche une erreur de connexion et conserve le lien de récupération", as
   );
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Connexion", exact: true })
+    .getByRole("button", { name: "Se connecter", exact: true })
     .first()
     .click();
   await page.getByLabel("Adresse e-mail").fill("artisan@example.com");
@@ -192,7 +190,7 @@ test("vérifie la mise en page des écrans publics", async ({
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Au même endroit.",
+    "MANUFEO prépare le reste.",
   );
   await expect
     .poll(() =>
@@ -206,7 +204,7 @@ test("vérifie la mise en page des écrans publics", async ({
     fullPage: true,
   });
   await page
-    .getByRole("button", { name: "Connexion", exact: true })
+    .getByRole("button", { name: "Se connecter", exact: true })
     .first()
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
@@ -233,9 +231,7 @@ test("vérifie la mise en page des écrans publics", async ({
     fullPage: true,
   });
   expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBe(true);
   expect(errors).toEqual([]);
 });
