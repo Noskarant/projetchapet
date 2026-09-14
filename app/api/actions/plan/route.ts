@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
+import { hardenPlannedActions } from "@/lib/action-plan-safety";
 import {
   fallbackCommandPlan,
   normalizeModelPlan,
@@ -33,6 +34,8 @@ Si la demande crée un client puis un devis/facture pour ce même nouveau client
 Pour un client existant, utilise customer_hint avec son nom prononcé. N'invente jamais un UUID.
 Chaque prestation distincte d'un devis/facture doit devenir une ligne.
 Les prix sont HT sauf si l'utilisateur dit explicitement TTC. Si TTC est explicitement dit et que la TVA est connue, convertis le prix unitaire en HT. Sinon laisse la valeur telle quelle et ajoute un warning.
+Une prestation sans libellé, quantité ou prix ne doit jamais être considérée comme prête : laisse la donnée manquante vide/null.
+Pour l'agenda, convertis les dates relatives uniquement si elles sont déterminables sans ambiguïté ; sinon laisse date/heure vides et demande une précision.
 
 Réponds uniquement par ce JSON :
 {
@@ -222,9 +225,10 @@ export async function POST(request: Request) {
     requireOrganization(context, organizationId);
     const target = cleanTarget(body.target);
 
-    const actions = target === "command"
+    const planned = target === "command"
       ? await planWithDeepSeek(transcript)
       : [plannedActionFromParsed(target, body.parsed, transcript)];
+    const actions = hardenPlannedActions(planned);
 
     if (actions.length > 12) throw new ApiInputError("La demande contient trop d’actions.", 413);
     const proposals = await persistPlan({
