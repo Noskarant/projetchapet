@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiInputError } from "@/lib/api-guard";
 import type { ActionIntent } from "@/lib/action-engine";
 import type { AuthenticatedRequestContext } from "@/lib/server-auth";
@@ -28,17 +28,6 @@ export type ExecutionResult = {
   clientAction?: "agenda";
   clientPayload?: Record<string, unknown>;
 };
-
-function serviceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRole) {
-    throw new ApiInputError("Moteur d’exécution MANUFEO non configuré.", 503);
-  }
-  return createClient(url, serviceRole, {
-    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-  });
-}
 
 function string(value: unknown, max = 1000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -73,10 +62,6 @@ function addDaysIso(value: string, days: number) {
   const date = new Date(`${value}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
-}
-
-function validUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function normalizedItems(value: unknown) {
@@ -170,8 +155,8 @@ async function resolveQuote(client: SupabaseClient, organizationId: string, payl
   };
 }
 
-async function claimProposal(service: SupabaseClient, proposal: ProposalRow, userId: string) {
-  const { data, error } = await service
+async function claimProposal(client: SupabaseClient, proposal: ProposalRow, userId: string) {
+  const { data, error } = await client
     .from("action_proposals")
     .update({
       status: "confirmed",
@@ -184,18 +169,13 @@ async function claimProposal(service: SupabaseClient, proposal: ProposalRow, use
     .eq("status", "ready")
     .select("id")
     .maybeSingle();
-  if (error) throw new Error("Verrouillage de la proposition impossible.");
+  if (error) throw new Error(error.message || "Verrouillage de la proposition impossible.");
   if (!data) throw new ApiInputError("Cette action a déjà été traitée ou n’est plus exécutable.", 409);
 }
 
-async function finalizeProposal(
-  service: SupabaseClient,
-  proposal: ProposalRow,
-  result: ExecutionResult,
-  userId: string,
-) {
+async function finalizeProposal(client: SupabaseClient, proposal: ProposalRow, result: ExecutionResult) {
   const now = new Date().toISOString();
-  const { error } = await service
+  const { data, error } = await client
     .from("action_proposals")
     .update({
       status: "executed",
@@ -205,29 +185,20 @@ async function finalizeProposal(
     })
     .eq("id", proposal.id)
     .eq("organization_id", proposal.organization_id)
-    .eq("status", "confirmed");
-  if (error) throw new Error("Enregistrement du résultat impossible.");
-
-  await service.from("audit_log").insert({
-    organization_id: proposal.organization_id,
-    user_id: userId,
-    entity_type: result.entityType,
-    entity_id: result.entityId && validUuid(result.entityId) ? result.entityId : null,
-    action: `ai_${proposal.intent_type}_executed`,
-    payload: {
-      proposal_id: proposal.id,
-      source_type: proposal.source_type,
-      result,
-    },
-  });
+    .eq("status", "confirmed")
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message || "Enregistrement du résultat impossible.");
+  if (!data) throw new ApiInputError("La proposition n’est plus dans un état exécutable.", 409);
 }
 
-async function failProposal(service: SupabaseClient, proposal: ProposalRow, error: unknown) {
+async function failProposal(client: SupabaseClient, proposal: ProposalRow, error: unknown) {
   const message = error instanceof Error ? error.message : "Exécution impossible.";
-  await service
+  await client
     .from("action_proposals")
     .update({
       status: "failed",
+      executed_at: null,
       updated_at: new Date().toISOString(),
       execution_result: { error: message },
     })
@@ -488,16 +459,15 @@ export async function executeProposalBatch({
     throw new ApiInputError("Une confirmation explicite est requise pour les actions sensibles.", 409);
   }
 
-  const service = serviceSupabase();
   const results = new Map<string, ExecutionResult>();
   for (const proposal of proposals) {
-    await claimProposal(service, proposal, context.user.id);
+    await claimProposal(context.client, proposal, context.user.id);
     try {
       const result = await executeProposal(context, proposal, results);
-      await finalizeProposal(service, proposal, result, context.user.id);
+      await finalizeProposal(context.client, proposal, result);
       results.set(proposal.id, result);
     } catch (executionError) {
-      await failProposal(service, proposal, executionError);
+      await failProposal(context.client, proposal, executionError);
       throw executionError;
     }
   }
