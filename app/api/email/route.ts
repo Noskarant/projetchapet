@@ -17,6 +17,7 @@ import {
   uniqueValidEmails,
   type EmailDocumentKind,
 } from "@/lib/email-authorization";
+import { supabasePublicConfig } from "@/lib/supabase-config";
 
 export const runtime = "nodejs";
 
@@ -91,11 +92,9 @@ function bearerToken(request: Request) {
 }
 
 function authenticatedSupabase(token: string) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new ApiInputError("Service d’authentification indisponible.", 503);
+  const { url, publishableKey } = supabasePublicConfig;
 
-  return createClient(url, key, {
+  return createClient(url, publishableKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
