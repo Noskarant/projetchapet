@@ -1,14 +1,26 @@
 import type { MobileCustomer, MobileInvoice, MobileQuote } from "./mobile-prototype";
 import { calculateQuotePreviewTotals, type QuoteInternalMeta } from "./mobile-quote-preview";
-import type { CommercialCompanySettings } from "./mobile-commercial-demo";
 import { companyProfileDisplayName, readCompanyProfile, type CompanyProfile } from "./company-profile";
 
 export type MobileBusinessDocument = MobileQuote | MobileInvoice;
 
+export type BusinessDocumentCompany = {
+  displayName?: string;
+  legalName?: string;
+  siret?: string;
+  vat?: string;
+  address?: string;
+  postalCode?: string;
+  city?: string;
+  phone?: string;
+  email?: string;
+  paymentTerms?: string;
+};
+
 export type BusinessDocumentPdfOptions = {
   document: MobileBusinessDocument;
   customer: MobileCustomer | null;
-  company: CommercialCompanySettings;
+  company: BusinessDocumentCompany;
   quoteMeta?: QuoteInternalMeta;
   withoutPrices?: boolean;
 };
@@ -39,6 +51,11 @@ export function isMobileQuote(document: MobileBusinessDocument): document is Mob
   return "expiryDate" in document;
 }
 
+export function businessDocumentTypeLabel(document: MobileBusinessDocument) {
+  if (isMobileQuote(document)) return "DEVIS";
+  return document.status === "Avoir" ? "AVOIR" : "FACTURE";
+}
+
 export function documentFileName(document: MobileBusinessDocument, withoutPrices = false) {
   return `${document.number}${withoutPrices ? "-sans-prix" : ""}.pdf`;
 }
@@ -67,7 +84,8 @@ export async function buildBusinessDocumentPdf({
   const logoDataUrl = profile?.logoDataUrl || "";
   const margin = 15;
   const right = 195;
-  let y = 16;
+  const safeBottom = 266;
+  let y = 15;
   const quote = isMobileQuote(document);
   const quoteTotals = quote
     ? calculateQuotePreviewTotals(document.items, quoteMeta.discountPercent)
@@ -76,8 +94,32 @@ export async function buildBusinessDocumentPdf({
   const taxTotal = quoteTotals?.taxTotal ?? document.taxTotal;
   const total = quoteTotals?.total ?? document.total;
 
+  const lines = (value: string, width: number) => {
+    const normalized = String(value || "").trim();
+    if (!normalized) return [] as string[];
+    const split = pdf.splitTextToSize(normalized, width) as string[] | string;
+    return Array.isArray(split) ? split : [split];
+  };
+
+  const drawWrapped = (
+    value: string,
+    x: number,
+    startY: number,
+    width: number,
+    lineHeight: number,
+    options?: { align?: "left" | "right" | "center" },
+  ) => {
+    const wrapped = lines(value, width);
+    if (!wrapped.length) return startY;
+    pdf.text(wrapped, x, startY, options);
+    return startY + wrapped.length * lineHeight;
+  };
+
   const drawPageHeader = (continuation = false) => {
+    const top = 15;
     const hasLogo = Boolean(logoDataUrl);
+    const logoWidth = 27;
+    const logoHeight = 12;
     if (hasLogo) {
       try {
         const format = logoDataUrl.startsWith("data:image/png")
@@ -85,92 +127,108 @@ export async function buildBusinessDocumentPdf({
           : logoDataUrl.startsWith("data:image/webp")
             ? "WEBP"
             : "JPEG";
-        pdf.addImage(logoDataUrl, format, margin, y - 6, 31, 14, undefined, "FAST");
+        pdf.addImage(logoDataUrl, format, margin, top - 4, logoWidth, logoHeight, undefined, "FAST");
       } catch {
-        // La génération du document reste prioritaire si le logo est incompatible.
+        // Un logo incompatible ne doit jamais empêcher la génération du document.
       }
     }
-    const identityX = hasLogo ? 50 : margin;
+
+    const identityX = hasLogo ? margin + logoWidth + 5 : margin;
+    const identityWidth = hasLogo ? 82 : 112;
+    let leftY = top;
     pdf.setTextColor(17, 46, 72);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(15);
-    pdf.text(identityName, identityX, y);
-    pdf.setFontSize(8.5);
+    pdf.setFontSize(13.5);
+    leftY = drawWrapped(identityName, identityX, leftY, identityWidth, 5.2);
+
     pdf.setFont("helvetica", "normal");
-    const companyLine = [address, postalCode, city]
-      .filter(Boolean)
-      .join(" · ");
-    if (companyLine) pdf.text(companyLine, identityX, y + 5, { maxWidth: 78 });
+    pdf.setFontSize(7.8);
+    const companyLine = [address, postalCode, city].filter(Boolean).join(" · ");
+    if (companyLine) leftY = drawWrapped(companyLine, identityX, leftY + 0.8, identityWidth, 3.6);
     const contactLine = [phone, email].filter(Boolean).join(" · ");
-    if (contactLine) pdf.text(contactLine, identityX, y + 10, { maxWidth: 78 });
+    if (contactLine) leftY = drawWrapped(contactLine, identityX, leftY + 0.6, identityWidth, 3.6);
 
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(18);
-    pdf.text(
-      quote ? "DEVIS" : document.status === "Avoir" ? "AVOIR" : "FACTURE",
-      right,
-      y,
-      { align: "right" },
-    );
-    pdf.setFontSize(10);
-    pdf.text(document.number, right, y + 7, { align: "right" });
+    pdf.setFontSize(17);
+    pdf.text(businessDocumentTypeLabel(document), right, top, { align: "right" });
+    pdf.setFontSize(9.5);
+    const numberLines = lines(document.number, 55);
+    pdf.text(numberLines, right, top + 7, { align: "right" });
+    let rightBottom = top + 7 + Math.max(1, numberLines.length) * 4;
     if (continuation) {
       pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
-      pdf.text("Suite", right, y + 12, { align: "right" });
+      pdf.setFontSize(7.5);
+      pdf.text("Suite", right, rightBottom + 1, { align: "right" });
+      rightBottom += 5;
     }
-    y += 22;
+
+    const logoBottom = hasLogo ? top - 4 + logoHeight : top;
+    y = Math.max(leftY, rightBottom, logoBottom) + 5;
     pdf.setDrawColor(205, 218, 231);
     pdf.line(margin, y, right, y);
     y += 8;
   };
 
   const ensureSpace = (height: number, withHeader = true) => {
-    if (y + height <= 278) return;
+    if (y + height <= safeBottom) return;
     pdf.addPage();
-    y = 16;
+    y = 15;
     if (withHeader) drawPageHeader(true);
   };
 
-  drawPageHeader();
+  const drawInformationBlocks = () => {
+    const top = y;
+    const leftX = margin;
+    const leftWidth = 86;
+    const rightX = 112;
+    const rightWidth = right - rightX;
 
-  pdf.setFontSize(9);
-  pdf.setFont("helvetica", "bold");
-  pdf.text("CLIENT", margin, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10);
-  pdf.text(document.customerName, margin, y + 6);
-  const customerAddress = customer
-    ? [customer.address, customer.postalCode, customer.city].filter(Boolean).join(" · ")
-    : "";
-  if (customerAddress) {
-    pdf.setFontSize(8.5);
-    pdf.text(customerAddress, margin, y + 12, { maxWidth: 85 });
-  }
-  const customerContact = customer
-    ? [customer.emails.find(Boolean), customer.phones.find(Boolean)].filter(Boolean).join(" · ")
-    : "";
-  if (customerContact) {
-    pdf.setFontSize(8);
-    pdf.text(customerContact, margin, y + 18, { maxWidth: 85 });
-  }
+    pdf.setTextColor(20, 42, 65);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.7);
+    pdf.text("CLIENT", leftX, top);
+    let leftY = top + 6;
+    pdf.setFontSize(9.6);
+    leftY = drawWrapped(document.customerName, leftX, leftY, leftWidth, 4.4);
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(9);
-  pdf.text("DOCUMENT", 116, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(8.5);
-  pdf.text(`Émis le : ${dateFr(document.issueDate)}`, 116, y + 6);
-  pdf.text(
-    quote
-      ? `Valable jusqu’au : ${dateFr(document.expiryDate)}`
-      : `Échéance : ${dateFr(document.dueDate)}`,
-    116,
-    y + 12,
-  );
-  pdf.text(`Objet : ${document.title}`, 116, y + 18, { maxWidth: 79 });
-  pdf.text(`Statut : ${document.status}`, 116, y + 24);
-  y += 34;
+    const customerAddress = customer
+      ? [customer.address, customer.postalCode, customer.city].filter(Boolean).join(" · ")
+      : "";
+    if (customerAddress) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8.1);
+      leftY = drawWrapped(customerAddress, leftX, leftY + 1, leftWidth, 3.8);
+    }
+    const customerContact = customer
+      ? [customer.emails.find(Boolean), customer.phones.find(Boolean)].filter(Boolean).join(" · ")
+      : "";
+    if (customerContact) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7.8);
+      leftY = drawWrapped(customerContact, leftX, leftY + 0.7, leftWidth, 3.6);
+    }
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.7);
+    pdf.text("DOCUMENT", rightX, top);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8.1);
+    let rightY = top + 6;
+    rightY = drawWrapped(`Émis le : ${dateFr(document.issueDate)}`, rightX, rightY, rightWidth, 3.8);
+    rightY = drawWrapped(
+      quote
+        ? `Valable jusqu’au : ${dateFr(document.expiryDate)}`
+        : `Échéance : ${dateFr(document.dueDate)}`,
+      rightX,
+      rightY + 0.6,
+      rightWidth,
+      3.8,
+    );
+    rightY = drawWrapped(`Objet : ${document.title}`, rightX, rightY + 0.6, rightWidth, 3.8);
+    rightY = drawWrapped(`Statut : ${document.status}`, rightX, rightY + 0.6, rightWidth, 3.8);
+
+    y = Math.max(leftY, rightY) + 7;
+  };
 
   const drawTableHeader = () => {
     pdf.setFillColor(235, 243, 250);
@@ -189,16 +247,17 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
   };
 
+  drawPageHeader();
+  drawInformationBlocks();
   drawTableHeader();
+
   document.items.forEach((item, index) => {
-    const labelLines = pdf.splitTextToSize(item.label || `Prestation ${index + 1}`, 86);
-    const descriptionLines = item.description
-      ? pdf.splitTextToSize(item.description, 86)
-      : [];
+    const labelLines = lines(item.label || `Prestation ${index + 1}`, 86);
+    const descriptionLines = item.description ? lines(item.description, 86) : [];
     const rowHeight = Math.max(12, labelLines.length * 4.2 + descriptionLines.length * 3.6 + 3);
-    if (y + rowHeight > 270) {
+    if (y + rowHeight > safeBottom) {
       pdf.addPage();
-      y = 16;
+      y = 15;
       drawPageHeader(true);
       drawTableHeader();
     }
@@ -229,7 +288,8 @@ export async function buildBusinessDocumentPdf({
   });
 
   if (!withoutPrices) {
-    ensureSpace(47);
+    const totalsHeight = quoteTotals && quoteTotals.discountPercent > 0 ? 51 : 39;
+    ensureSpace(totalsHeight);
     y += 4;
     const labelX = 129;
     pdf.setFontSize(8.5);
@@ -271,7 +331,7 @@ export async function buildBusinessDocumentPdf({
   }
 
   if (document.notes.trim()) {
-    const noteLines = pdf.splitTextToSize(document.notes.trim(), 174);
+    const noteLines = lines(document.notes.trim(), 174);
     ensureSpace(noteLines.length * 4 + 16);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);
@@ -282,33 +342,51 @@ export async function buildBusinessDocumentPdf({
     y += noteLines.length * 4 + 12;
   }
 
-  ensureSpace(48);
-  pdf.setDrawColor(210, 220, 231);
-  pdf.roundedRect(margin, y, 180, quote ? 37 : 29, 2, 2);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8.5);
-  pdf.text(quote ? "BON POUR ACCORD" : "CONDITIONS DE RÈGLEMENT", margin + 4, y + 7);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(7.6);
   if (quote) {
+    ensureSpace(45);
+    pdf.setDrawColor(210, 220, 231);
+    pdf.roundedRect(margin, y, 180, 37, 2, 2);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.text("BON POUR ACCORD", margin + 4, y + 7);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.6);
     pdf.text("Date :", margin + 4, y + 15);
     pdf.text("Nom et signature précédés de la mention « Bon pour accord » :", margin + 4, y + 22);
+    y += 37;
   } else {
-    pdf.text(company.paymentTerms || "Paiement selon les conditions convenues.", margin + 4, y + 15, {
-      maxWidth: 170,
-    });
+    const paymentText = company.paymentTerms || "Paiement selon les conditions convenues.";
+    const paymentLines = lines(paymentText, 170);
+    const boxHeight = Math.max(29, 15 + paymentLines.length * 3.7);
+    ensureSpace(boxHeight + 4);
+    pdf.setDrawColor(210, 220, 231);
+    pdf.roundedRect(margin, y, 180, boxHeight, 2, 2);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.text("CONDITIONS DE RÈGLEMENT", margin + 4, y + 7);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.6);
+    pdf.text(paymentLines, margin + 4, y + 15);
+    y += boxHeight;
   }
 
   const footer = [legalName, siret ? `SIRET ${siret}` : "", vat ? `TVA ${vat}` : ""]
     .filter(Boolean)
     .join(" · ");
-  pdf.setFont("helvetica", "normal");
-  pdf.setTextColor(105, 118, 132);
-  pdf.setFontSize(7);
-  if (footer) pdf.text(footer, 105, 285, { align: "center", maxWidth: 180 });
-  pdf.text("Généré via FORGEO · les notes personnelles internes sont exclues.", 105, 290, {
-    align: "center",
-  });
+  const pageCount = pdf.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    pdf.setPage(page);
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(105, 118, 132);
+    pdf.setFontSize(6.8);
+    const footerLines = footer ? lines(footer, 170) : [];
+    const footerStart = 285 - Math.max(0, footerLines.length - 1) * 3.2;
+    if (footerLines.length) pdf.text(footerLines, 105, footerStart, { align: "center" });
+    pdf.setFontSize(6.5);
+    pdf.text("Généré via MANUFEO · les notes personnelles internes sont exclues.", 105, 291, {
+      align: "center",
+    });
+  }
 
   return pdf.output("blob");
 }

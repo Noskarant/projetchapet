@@ -10,6 +10,7 @@ import {
   readJsonBody,
   requireString,
 } from "@/lib/api-guard";
+import { buildClassicDocumentEmail } from "@/lib/document-email-template";
 import {
   recipientsAreAuthorized,
   snapshotAccountingEmails,
@@ -209,9 +210,8 @@ export async function POST(request: Request) {
     await authorizeRecipients(request, documentNumber, documentKind, [to, ...cc, ...bcc]);
 
     const subject = optionalString(body.subject, 998) || "Votre document";
-    // La taille globale de la requête reste bornée par readJsonBody ; on ne bloque plus
-    // arbitrairement un e-mail riche (signature, logo, mise en forme) à seulement 30 ko.
-    const html = optionalString(body.html, 10_000_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";
+    const incomingHtml = optionalString(body.html, 10_000_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";
+    const emailContent = buildClassicDocumentEmail(incomingHtml);
     const attachments = cleanAttachments(body.attachments);
 
     const apiKey = process.env.RESEND_API_KEY;
@@ -233,7 +233,8 @@ export async function POST(request: Request) {
         cc,
         bcc,
         subject,
-        html,
+        html: emailContent.html,
+        text: emailContent.text,
         attachments,
       }),
     });
