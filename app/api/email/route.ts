@@ -17,6 +17,7 @@ import {
   uniqueValidEmails,
   type EmailDocumentKind,
 } from "@/lib/email-authorization";
+import { resendProviderErrorMessage, resolveManufeoSender } from "@/lib/resend-email";
 import { supabasePublicConfig } from "@/lib/supabase-config";
 
 export const runtime = "nodejs";
@@ -104,12 +105,6 @@ function authenticatedSupabase(token: string) {
   });
 }
 
-function manufeoSender(value: string) {
-  return value
-    .replace(/^\s*FORGEO\s*(?=<)/i, "MANUFEO ")
-    .replace(/^\s*Projet Chapet\s*(?=<)/i, "MANUFEO ");
-}
-
 async function authorizeRecipients(
   request: Request,
   documentNumber: string,
@@ -191,7 +186,7 @@ async function authorizeRecipients(
 }
 
 export async function GET() {
-  const from = manufeoSender(process.env.RESEND_FROM_EMAIL ?? "");
+  const from = resolveManufeoSender(process.env.RESEND_FROM_EMAIL);
   return NextResponse.json(
     { configured: Boolean(process.env.RESEND_API_KEY && from) },
     { headers: { "Cache-Control": "no-store" } },
@@ -220,9 +215,8 @@ export async function POST(request: Request) {
     const attachments = cleanAttachments(body.attachments);
 
     const apiKey = process.env.RESEND_API_KEY;
-    const configuredFrom = process.env.RESEND_FROM_EMAIL;
-    const from = configuredFrom ? manufeoSender(configuredFrom) : "";
-    if (!apiKey || !from) {
+    const from = resolveManufeoSender(process.env.RESEND_FROM_EMAIL);
+    if (!apiKey) {
       return NextResponse.json(
         { configured: false, error: "Le service d’envoi n’est pas configuré." },
         { status: 503 },
@@ -244,7 +238,11 @@ export async function POST(request: Request) {
       }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`Resend API : ${response.status}`);
+    if (!response.ok) {
+      const safeProviderMessage = resendProviderErrorMessage(response.status, data);
+      if (safeProviderMessage) throw new ApiInputError(safeProviderMessage, 503);
+      throw new Error(`Resend API : ${response.status}`);
+    }
     return NextResponse.json({ configured: true, id: data.id });
   } catch (error) {
     return errorResponse(error, "Envoi impossible.");
