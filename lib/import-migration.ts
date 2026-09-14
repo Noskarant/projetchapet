@@ -1,6 +1,12 @@
 export type ImportEntityType = "customers" | "catalog";
 export type ImportSourceSystem = "generic" | "tolteck" | "obat" | "costructor" | "ebp" | "other";
 
+export type ImportFieldDefinition = {
+  key: string;
+  label: string;
+  required?: boolean;
+};
+
 export type ImportPreviewRow = {
   rowIndex: number;
   sourceId: string | null;
@@ -15,6 +21,32 @@ export type ImportPreview = {
   headers: string[];
   mapping: Record<string, string>;
   rows: ImportPreviewRow[];
+};
+
+export const IMPORT_FIELDS: Record<ImportEntityType, ImportFieldDefinition[]> = {
+  customers: [
+    { key: "source_id", label: "Identifiant source" },
+    { key: "company_name", label: "Raison sociale" },
+    { key: "last_name", label: "Nom" },
+    { key: "first_name", label: "Prénom" },
+    { key: "siret", label: "SIRET" },
+    { key: "vat_number", label: "TVA intracommunautaire" },
+    { key: "email", label: "E-mail" },
+    { key: "phone", label: "Téléphone" },
+    { key: "line1", label: "Adresse" },
+    { key: "postal_code", label: "Code postal" },
+    { key: "city", label: "Ville" },
+    { key: "notes", label: "Notes" },
+  ],
+  catalog: [
+    { key: "source_id", label: "Identifiant source" },
+    { key: "label", label: "Désignation", required: true },
+    { key: "description", label: "Description" },
+    { key: "unit", label: "Unité" },
+    { key: "unit_price", label: "Prix de vente HT" },
+    { key: "cost_price", label: "Prix de revient / achat" },
+    { key: "tax_rate", label: "TVA (%)" },
+  ],
 };
 
 const CUSTOMER_ALIASES: Record<string, string[]> = {
@@ -38,7 +70,7 @@ const CATALOG_ALIASES: Record<string, string[]> = {
   description: ["description", "detail", "details"],
   unit: ["unite", "unit", "u"],
   unit_price: ["prixunitaire", "prixvente", "prixht", "puht", "tarif", "unitprice", "price"],
-  cost_price: ["prixachat", "cout", "coutunitaire", "cost", "costprice"],
+  cost_price: ["prixachat", "prixrevient", "cout", "coutunitaire", "cost", "costprice"],
   tax_rate: ["tva", "tauxtva", "vat", "taxrate"],
 };
 
@@ -175,7 +207,11 @@ function normalizeCatalog(raw: Record<string, string>, mapping: Record<string, s
   const errors: string[] = [];
   if (!label) errors.push("Désignation manquante.");
   if (read(raw, mapping, "unit_price") && unitPrice === null) errors.push("Prix de vente invalide.");
+  if (read(raw, mapping, "cost_price") && costPrice === null) errors.push("Prix de revient invalide.");
+  if (unitPrice !== null && unitPrice < 0) errors.push("Le prix de vente ne peut pas être négatif.");
+  if (costPrice !== null && costPrice < 0) errors.push("Le prix de revient ne peut pas être négatif.");
   if (read(raw, mapping, "tax_rate") && taxRate === null) errors.push("TVA invalide.");
+  if (taxRate !== null && (taxRate < 0 || taxRate > 100)) errors.push("TVA hors plage 0–100 %.");
 
   return {
     data: {
@@ -190,7 +226,39 @@ function normalizeCatalog(raw: Record<string, string>, mapping: Record<string, s
   };
 }
 
-export function buildImportPreview(text: string, requestedType?: ImportEntityType): ImportPreview {
+export function normalizeImportRow(
+  entityType: ImportEntityType,
+  raw: Record<string, string>,
+  mapping: Record<string, string>,
+) {
+  return entityType === "customers" ? normalizeCustomer(raw, mapping) : normalizeCatalog(raw, mapping);
+}
+
+export function catalogDuplicateKey(value: Record<string, unknown>) {
+  const label = String(value.label ?? "").trim().toLocaleLowerCase("fr-FR");
+  const unit = String(value.unit ?? "").trim().toLocaleLowerCase("fr-FR");
+  return label ? `${label}::${unit}` : "";
+}
+
+function safeRequestedMapping(
+  headers: string[],
+  inferred: Record<string, string>,
+  requested?: Record<string, string>,
+) {
+  if (!requested) return inferred;
+  const allowedHeaders = new Set(headers);
+  const next: Record<string, string> = {};
+  for (const [field, header] of Object.entries(requested)) {
+    if (typeof header === "string" && allowedHeaders.has(header)) next[field] = header;
+  }
+  return next;
+}
+
+export function buildImportPreview(
+  text: string,
+  requestedType?: ImportEntityType,
+  requestedMapping?: Record<string, string>,
+): ImportPreview {
   if (text.length > 2_000_000) throw new Error("Fichier trop volumineux pour la prévisualisation.");
   const delimiter = detectDelimiter(text);
   const table = parseDelimitedText(text, delimiter);
@@ -200,10 +268,11 @@ export function buildImportPreview(text: string, requestedType?: ImportEntityTyp
   if (table.length - 1 > 5_000) throw new Error("La prévisualisation est limitée à 5 000 lignes par import.");
 
   const entityType = requestedType ?? inferImportEntityType(headers);
-  const mapping = bestMapping(headers, entityType === "customers" ? CUSTOMER_ALIASES : CATALOG_ALIASES);
+  const inferred = bestMapping(headers, entityType === "customers" ? CUSTOMER_ALIASES : CATALOG_ALIASES);
+  const mapping = safeRequestedMapping(headers, inferred, requestedMapping);
   const rows = table.slice(1).map((cells, rowOffset) => {
     const rawData = Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""]));
-    const normalized = entityType === "customers" ? normalizeCustomer(rawData, mapping) : normalizeCatalog(rawData, mapping);
+    const normalized = normalizeImportRow(entityType, rawData, mapping);
     const sourceId = read(rawData, mapping, "source_id") || null;
     return {
       rowIndex: rowOffset + 1,
