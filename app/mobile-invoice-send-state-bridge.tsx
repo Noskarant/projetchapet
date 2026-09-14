@@ -37,8 +37,9 @@ function invoiceSheet(number: string) {
 function setDeliveryState(sheet: HTMLElement, clientSent: boolean, accountantSent: boolean) {
   const state = sheet.querySelector<HTMLElement>(".rm-accountant-state strong");
   const detail = sheet.querySelector<HTMLElement>(".rm-accountant-state small");
-  if (state) state.textContent = invoiceDeliveryLabel(clientSent, accountantSent);
-  if (detail) detail.textContent = "Suivi des envois e-mail";
+  const label = invoiceDeliveryLabel(clientSent, accountantSent);
+  if (state && state.textContent !== label) state.textContent = label;
+  if (detail && detail.textContent !== "Suivi des envois e-mail") detail.textContent = "Suivi des envois e-mail";
 }
 
 function markVisibleInvoiceSent(sheet: HTMLElement) {
