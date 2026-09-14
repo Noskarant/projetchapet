@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { ApiInputError } from "@/lib/api-guard";
+import { supabasePublicConfig } from "@/lib/supabase-config";
 
 export type OrganizationMembership = {
   organizationId: string;
@@ -22,18 +23,18 @@ export function bearerToken(request: Request) {
 }
 
 export function authenticatedSupabase(token: string) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new ApiInputError("Service d’authentification indisponible.", 503);
-
-  return createClient(url, key, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
+  return createClient(
+    supabasePublicConfig.url,
+    supabasePublicConfig.publishableKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+      global: { headers: { Authorization: `Bearer ${token}` } },
     },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
+  );
 }
 
 export async function authenticateRequest(request: Request): Promise<AuthenticatedRequestContext> {
