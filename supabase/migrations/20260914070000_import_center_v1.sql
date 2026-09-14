@@ -78,8 +78,8 @@ begin
   ) then
     raise exception 'import job forbidden';
   end if;
-  if j.status not in ('preview','failed') then
-    raise exception 'import job is not executable';
+  if j.status <> 'preview' then
+    raise exception 'import job must be previewed before execution';
   end if;
   if j.entity_type not in ('customers','catalog') then
     raise exception 'unsupported import entity type';
@@ -129,8 +129,7 @@ begin
           'label', 'Principale',
           'line1', nullif(r.normalized_data->>'line1',''),
           'postal_code', nullif(r.normalized_data->>'postal_code',''),
-          'city', nullif(r.normalized_data->>'city',''),
-          'country', 'France'
+          'city', nullif(r.normalized_data->>'city','')
         )))
         else '[]'::jsonb
       end;
@@ -298,8 +297,7 @@ begin
           'label', 'Principale',
           'line1', nullif(r.normalized_data->>'line1',''),
           'postal_code', nullif(r.normalized_data->>'postal_code',''),
-          'city', nullif(r.normalized_data->>'city',''),
-          'country', 'France'
+          'city', nullif(r.normalized_data->>'city','')
         )))
         else '[]'::jsonb
       end;
