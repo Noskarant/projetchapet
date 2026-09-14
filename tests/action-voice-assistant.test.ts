@@ -24,6 +24,33 @@ test("l’assistant explique et impose le contrôle humain", () => {
   assert.equal(source.includes("Plusieurs actions"), true);
 });
 
+test("l’écoute vocale affiche un visualiseur relié au niveau sonore réel", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.tsx"), "utf8");
+  const experience = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.tsx"), "utf8");
+  const css = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.css"), "utf8");
+
+  assert.equal(source.includes("const [voiceLevel, setVoiceLevel] = useState(0)"), true);
+  assert.equal(source.includes("const peak = audioPeak(chunk)"), true);
+  assert.equal(source.includes("setVoiceLevel((current) => Math.max(normalized, current * 0.58))"), true);
+  assert.equal(source.includes("<VoiceListeningVisualizer level={voiceLevel} reactive={Boolean(pcmRef.current)} />"), true);
+  assert.equal(experience.includes("data-testid=\"voice-listening-visualizer\""), true);
+  assert.equal(css.includes(".ava-voice-bar"), true);
+  assert.equal(css.includes("@media(prefers-reduced-motion:reduce)"), true);
+});
+
+test("le mode plusieurs actions demande explicitement les informations utiles", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.tsx"), "utf8");
+  const experience = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.tsx"), "utf8");
+
+  assert.equal(source.includes('target === "command" && <CommandPrecisionGuide />'), true);
+  assert.equal(source.includes("tél. 06…"), true);
+  assert.equal(experience.includes("Pour plusieurs actions, soyez précis"), true);
+  assert.equal(experience.includes("téléphone, e-mail, adresse et SIRET"), true);
+  assert.equal(experience.includes("prestations, quantités, unités, prix HT et TVA"), true);
+  assert.equal(experience.includes("date, heure et lieu"), true);
+  assert.equal(experience.includes("Ne l’inventez pas"), true);
+});
+
 test("l’exécuteur ne transforme jamais automatiquement devis facture ou commande en envoi", () => {
   const source = fs.readFileSync(path.join(process.cwd(), "lib/action-execution-server.ts"), "utf8");
   assert.equal(source.includes('p_status: "draft"'), true);
