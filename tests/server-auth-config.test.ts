@@ -27,3 +27,11 @@ test("le backend d'authentification utilise la configuration partagée au lieu d
   assert.doesNotMatch(source, /process\.env\.NEXT_PUBLIC_SUPABASE_(URL|PUBLISHABLE_KEY)/);
   assert.doesNotMatch(source, /Service d’authentification indisponible/);
 });
+
+test("la configuration partagée garde des accès process.env statiques pour l’inlining Next côté navigateur", () => {
+  const source = readFileSync(new URL("../lib/supabase-config.ts", import.meta.url), "utf8");
+
+  assert.match(source, /process\.env\.NEXT_PUBLIC_SUPABASE_URL/);
+  assert.match(source, /process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.doesNotMatch(source, /resolveSupabasePublicConfig\(\)/);
+});
