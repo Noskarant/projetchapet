@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  documentEmailErrorMessage,
+  isClientEmailAddress,
+} from "@/lib/authenticated-email";
 import { supabase } from "@/lib/supabase";
 
 function documentNumberFromPayload(payload: Record<string, unknown>) {
@@ -32,33 +36,53 @@ export default function AuthenticatedEmailFetchBridge() {
         return originalFetch(input, init);
       }
 
-      if (typeof init?.body !== "string") return originalFetch(input, init);
+      if (typeof init?.body !== "string") {
+        throw new Error("La demande d’envoi MANUFEO est invalide. Rechargez l’application puis réessayez.");
+      }
 
       let payload: Record<string, unknown>;
       try {
         payload = JSON.parse(init.body) as Record<string, unknown>;
       } catch {
-        return originalFetch(input, init);
+        throw new Error("La demande d’envoi MANUFEO est invalide. Rechargez l’application puis réessayez.");
+      }
+
+      const recipient = typeof payload.to === "string" ? payload.to.trim() : "";
+      if (!isClientEmailAddress(recipient)) {
+        throw new Error("L’adresse e-mail du destinataire est invalide. Corrigez-la dans la fiche client avant l’envoi.");
       }
 
       const documentNumber = documentNumberFromPayload(payload);
-      const { data } = await supabase.auth.getSession();
+      if (!documentNumber) {
+        throw new Error("Le document à envoyer n’a pas pu être identifié. Fermez cette fenêtre puis réessayez.");
+      }
+
+      const { data, error } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      if (!token) return originalFetch(input, init);
+      if (error || !token) {
+        throw new Error("Votre session a expiré. Reconnectez-vous avant l’envoi.");
+      }
 
       const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
       headers.set("Authorization", `Bearer ${token}`);
       headers.set("Content-Type", "application/json");
 
-      return originalFetch(input, {
+      const response = await originalFetch(input, {
         ...init,
         headers,
         body: JSON.stringify({
           ...payload,
+          to: recipient,
           documentNumber: payload.documentNumber || documentNumber,
           documentKind: payload.documentKind || documentKindFromNumber(documentNumber),
         }),
       });
+
+      if (!response.ok) {
+        throw new Error(await documentEmailErrorMessage(response));
+      }
+
+      return response;
     };
 
     window.fetch = wrappedFetch;
