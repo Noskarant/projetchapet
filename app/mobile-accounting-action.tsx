@@ -2,9 +2,10 @@
 
 import { useEffect } from "react";
 import { sendAuthenticatedDocumentEmail } from "@/lib/authenticated-email";
-import { companyProfileDisplayName, readCompanyProfile, type CompanyProfile } from "@/lib/company-profile";
+import { companyProfileDisplayName, readCompanyProfile } from "@/lib/company-profile";
 import { blobToBase64 } from "@/lib/document-tools";
-import type { MobileInvoice, MobileWorkspace } from "@/lib/mobile-prototype";
+import { buildBusinessDocumentPdf, type BusinessDocumentCompany } from "@/lib/mobile-document-pdf";
+import type { MobileWorkspace } from "@/lib/mobile-prototype";
 
 const STORAGE_KEY = "projetchapet-mobile-workspace-v3";
 
@@ -38,106 +39,6 @@ function persistAccountantState(number: string) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...workspace, invoices }));
 }
 
-function money(value: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(value || 0));
-}
-
-function dateFr(value: string) {
-  return value
-    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(`${value}T12:00:00`))
-    : "—";
-}
-
-async function buildAccountingPdf(invoice: MobileInvoice, profile: CompanyProfile) {
-  const { jsPDF } = await import("jspdf");
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
-  const companyName = companyProfileDisplayName(profile);
-  let y = 18;
-
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(16);
-  pdf.text(companyName, 16, y);
-  pdf.setFontSize(18);
-  pdf.text(invoice.status === "Avoir" ? "AVOIR" : "FACTURE", 194, y, { align: "right" });
-  pdf.setFontSize(10);
-  pdf.text(invoice.number, 194, y + 7, { align: "right" });
-
-  y += 25;
-  pdf.setDrawColor(215, 223, 233);
-  pdf.line(16, y, 194, y);
-  y += 9;
-  pdf.setFontSize(10);
-  pdf.text("Client", 16, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(invoice.customerName, 16, y + 6);
-  pdf.setFont("helvetica", "bold");
-  pdf.text("Document", 122, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(`Émis le : ${dateFr(invoice.issueDate)}`, 122, y + 6);
-  pdf.text(`Échéance : ${dateFr(invoice.dueDate)}`, 122, y + 12);
-
-  y += 27;
-  pdf.setFillColor(239, 245, 251);
-  pdf.rect(16, y, 178, 9, "F");
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8.5);
-  pdf.text("Désignation", 18, y + 6);
-  pdf.text("Qté", 120, y + 6, { align: "right" });
-  pdf.text("PU HT", 148, y + 6, { align: "right" });
-  pdf.text("TVA", 165, y + 6, { align: "right" });
-  pdf.text("Total HT", 192, y + 6, { align: "right" });
-  y += 13;
-  pdf.setFont("helvetica", "normal");
-
-  for (const item of invoice.items) {
-    if (y > 255) {
-      pdf.addPage();
-      y = 18;
-    }
-    const lines = pdf.splitTextToSize(item.label || "Prestation", 90);
-    pdf.text(lines, 18, y);
-    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
-    pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" });
-    pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, y, { align: "right" });
-    pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
-    if (item.description) {
-      pdf.setTextColor(95, 108, 124);
-      pdf.setFontSize(7.5);
-      pdf.text(pdf.splitTextToSize(item.description, 90), 18, y + 5);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(8.5);
-    }
-    y += Math.max(11, lines.length * 4.5 + (item.description ? 5 : 0));
-    pdf.setDrawColor(235, 239, 244);
-    pdf.line(16, y - 4, 194, y - 4);
-  }
-
-  y += 5;
-  pdf.text("Sous-total HT", 134, y);
-  pdf.text(money(invoice.subtotal), 192, y, { align: "right" });
-  y += 7;
-  pdf.text("TVA", 134, y);
-  pdf.text(money(invoice.taxTotal), 192, y, { align: "right" });
-  y += 8;
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text("Total TTC", 134, y);
-  pdf.text(money(invoice.total), 192, y, { align: "right" });
-
-  if (invoice.notes) {
-    y += 14;
-    pdf.setFontSize(9);
-    pdf.text("Notes", 16, y);
-    pdf.setFont("helvetica", "normal");
-    pdf.text(pdf.splitTextToSize(invoice.notes, 176), 16, y + 6);
-  }
-
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(100, 110, 124);
-  pdf.text("Document généré avec FORGEO.", 105, 288, { align: "center" });
-  return pdf.output("blob");
-}
-
 export default function MobileAccountingAction() {
   useEffect(() => {
     const handler = async (event: MouseEvent) => {
@@ -157,9 +58,22 @@ export default function MobileAccountingAction() {
       const profile = readCompanyProfile(window.localStorage);
 
       try {
-        if (!invoice) throw new Error("Facture introuvable dans votre espace.");
+        if (!workspace || !invoice) throw new Error("Facture introuvable dans votre espace.");
         if (!profile.accountingEmail) throw new Error("Renseignez l’e-mail du comptable dans le profil de votre entreprise.");
-        const blob = await buildAccountingPdf(invoice, profile);
+
+        const customer = workspace.customers.find((item) => item.id === invoice.customerId) ?? null;
+        const company: BusinessDocumentCompany = {
+          displayName: profile.displayName,
+          legalName: profile.legalName,
+          siret: profile.siret,
+          vat: profile.vatNumber,
+          address: profile.address,
+          postalCode: profile.postalCode,
+          city: profile.city,
+          phone: profile.phone,
+          email: profile.email,
+        };
+        const blob = await buildBusinessDocumentPdf({ document: invoice, customer, company });
         const response = await sendAuthenticatedDocumentEmail({
           documentNumber: invoice.number,
           documentKind: "invoice",
