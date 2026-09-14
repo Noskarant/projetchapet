@@ -6,6 +6,7 @@ import {
   superPdpConfiguration,
   type SuperPdpTokenResponse,
 } from "@/lib/einvoice/superpdp";
+import { supabasePublicConfig } from "@/lib/supabase-config";
 
 export type EInvoiceOrganizationAccess = {
   userId: string;
@@ -43,19 +44,17 @@ export function eInvoiceBearerToken(request: Request) {
 }
 
 function publicSupabase(token: string) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new ApiInputError("Service d’authentification indisponible.", 503);
-  return createClient(url, key, {
+  const { url, publishableKey } = supabasePublicConfig;
+  return createClient(url, publishableKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
 }
 
 export function eInvoiceServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const { url } = supabasePublicConfig;
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRole) {
+  if (!serviceRole) {
     throw new ApiInputError("Stockage sécurisé de facturation non configuré.", 503);
   }
   return createClient(url, serviceRole, {
