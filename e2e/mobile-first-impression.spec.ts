@@ -151,7 +151,7 @@ test(unknownCustomer
 
   await magic.click();
   await expect(magic).toHaveAttribute("data-state", "processing");
-  await expect(magic).toContainText("FORGEO prépare votre devis");
+  await expect(magic).toContainText("MANUFEO prépare votre devis");
   await expect(assistant.getByLabel("Demande à analyser")).toBeHidden();
   releaseTranscription();
   if (unknownCustomer) {
