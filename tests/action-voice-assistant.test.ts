@@ -38,6 +38,18 @@ test("l’écoute vocale affiche un visualiseur relié au niveau sonore réel", 
   assert.equal(css.includes("@media(prefers-reduced-motion:reduce)"), true);
 });
 
+test("pendant la dictée le visualiseur remplace le gros bouton rouge et permet de terminer", () => {
+  const experience = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.tsx"), "utf8");
+  const css = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.css"), "utf8");
+
+  assert.equal(experience.includes('aria-label="J’ai fini de parler"'), true);
+  assert.equal(experience.includes('document.querySelector<HTMLButtonElement>(".ava-overlay .ava-mic.recording")?.click()'), true);
+  assert.equal(experience.includes("const barPattern = [0.42, 0.62, 0.82, 1, 0.76, 0.94, 0.7, 1, 0.82, 0.62, 0.42]"), true);
+  assert.equal(css.includes(".ava-capture>.ava-mic.recording{display:none}"), true);
+  assert.equal(css.includes(".ava-voice-visualizer:focus-visible"), true);
+  assert.equal(css.includes(".ava-voice-visualizer:active{transform:scale(.97)}"), true);
+});
+
 test("le mode plusieurs actions demande explicitement les informations utiles", () => {
   const source = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.tsx"), "utf8");
   const experience = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.tsx"), "utf8");
