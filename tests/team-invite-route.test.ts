@@ -11,12 +11,15 @@ test("l’invitation équipe ne dépend plus de la service-role Vercel", () => {
   assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY/);
 });
 
-test("l’envoi d’invitation possède un fallback SMTP Supabase", () => {
+test("l’envoi d’invitation possède un fallback SMTP Supabase indépendant des variables runtime", () => {
   assert.match(route, /sendViaResend/);
   assert.match(route, /MANUFEO <no-reply@manufeo\.fr>/);
   assert.match(route, /signInWithOtp/);
   assert.match(route, /shouldCreateUser:\s*true/);
   assert.match(route, /emailRedirectTo:\s*publicSiteUrl\(request\)/);
+  assert.match(route, /supabasePublicConfig\.url/);
+  assert.match(route, /supabasePublicConfig\.publishableKey/);
+  assert.doesNotMatch(route, /process\.env\.NEXT_PUBLIC_SUPABASE_(URL|PUBLISHABLE_KEY)/);
 });
 
 test("seuls owner et admin peuvent inviter un membre", () => {
