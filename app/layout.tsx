@@ -23,6 +23,7 @@ import "./mobile-status-colors.css";
 import "./mobile-commercial-demo.css";
 import "./mobile-premium-polish.css";
 import "./public-auth-redesign.css";
+import "./manufeo-landing-v2.css";
 import "./desktop-product-ui-polish.css";
 import "./mobile-overlay-safety.css";
 import "./manufeo-brand.css";
@@ -31,8 +32,9 @@ import "./first-run-onboarding-form.css";
 import "./manufeo-legal-public.css";
 
 export const metadata: Metadata = {
-  title: "MANUFEO — gestion simple pour artisans du bâtiment",
-  description: "Devis, factures, clients et suivi de chantier dans un outil pensé pour les artisans du bâtiment.",
+  title: "MANUFEO — l’assistant métier des artisans du bâtiment",
+  description:
+    "MANUFEO prépare vos devis, chantiers et actions administratives avec l’IA : vous parlez, il structure et prépare, vous gardez la validation.",
   applicationName: "MANUFEO",
   manifest: "/manifest.webmanifest",
   icons: {
