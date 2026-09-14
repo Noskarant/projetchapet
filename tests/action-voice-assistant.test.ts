@@ -44,10 +44,13 @@ test("pendant la dictée le visualiseur remplace le gros bouton rouge et permet 
 
   assert.equal(experience.includes('aria-label="J’ai fini de parler"'), true);
   assert.equal(experience.includes('document.querySelector<HTMLButtonElement>(".ava-overlay .ava-mic.recording")?.click()'), true);
-  assert.equal(experience.includes("const barPattern = [0.42, 0.62, 0.82, 1, 0.76, 0.94, 0.7, 1, 0.82, 0.62, 0.42]"), true);
+  assert.equal(experience.includes("const barPattern = [0.3, 0.42, 0.58, 0.76, 0.94, 0.72, 0.88, 1, 0.88, 0.72, 0.94, 0.76, 0.58, 0.42, 0.3]"), true);
+  assert.equal(experience.includes("Appuyez ici quand vous avez terminé"), true);
   assert.equal(css.includes(".ava-capture>.ava-mic.recording{display:none}"), true);
+  assert.equal(css.includes("Appuyez pour parler · puis appuyez sur l’animation quand vous avez terminé"), true);
+  assert.equal(css.includes(".ava-voice-glow"), true);
+  assert.equal(css.includes("cubic-bezier(.16,1,.3,1)"), true);
   assert.equal(css.includes(".ava-voice-visualizer:focus-visible"), true);
-  assert.equal(css.includes(".ava-voice-visualizer:active{transform:scale(.97)}"), true);
 });
 
 test("le mode plusieurs actions demande explicitement les informations utiles", () => {
