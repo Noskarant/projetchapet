@@ -14,6 +14,7 @@ import {
   type AuthenticatedRequestContext,
 } from "@/lib/server-auth";
 import { publicSiteUrl } from "@/lib/server-organization";
+import { supabasePublicConfig } from "@/lib/supabase-config";
 
 export const runtime = "nodejs";
 
@@ -87,13 +88,13 @@ async function sendViaResend(request: Request, email: string, organizationName: 
 }
 
 async function sendViaSupabaseMagicLink(request: Request, email: string) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
-  if (!url || !key) throw new ApiInputError("Le service d’invitation est momentanément indisponible.", 503);
-
-  const client = createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-  });
+  const client = createClient(
+    supabasePublicConfig.url,
+    supabasePublicConfig.publishableKey,
+    {
+      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    },
+  );
   const { error } = await client.auth.signInWithOtp({
     email,
     options: {
