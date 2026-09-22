@@ -1,50 +1,85 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
-import type { CSSProperties } from "react";
+import { Sparkles, X } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
 import "./action-voice-experience.css";
 
 type VoiceListeningVisualizerProps = {
   level: number;
   reactive: boolean;
+  onFinish: () => void;
+  onClose: () => void;
 };
 
-const barPattern = [0.3, 0.42, 0.58, 0.76, 0.94, 0.72, 0.88, 1, 0.88, 0.72, 0.94, 0.76, 0.58, 0.42, 0.3];
+type VoiceProcessingVisualizerProps = {
+  onClose: () => void;
+};
 
-export function VoiceListeningVisualizer({ level, reactive }: VoiceListeningVisualizerProps) {
+function VoiceOrb({ processing = false }: { processing?: boolean }) {
+  return (
+    <span className={`ava-voice-orb ${processing ? "processing" : "listening"}`} aria-hidden="true">
+      <span className="ava-voice-bloom ava-voice-bloom-a" />
+      <span className="ava-voice-bloom ava-voice-bloom-b" />
+      <span className="ava-voice-bloom ava-voice-bloom-c" />
+      <span className="ava-voice-bloom ava-voice-bloom-d" />
+      <span className="ava-voice-core" />
+      <span className="ava-voice-speck ava-voice-speck-one" />
+      <span className="ava-voice-speck ava-voice-speck-two" />
+      <span className="ava-voice-speck ava-voice-speck-three" />
+    </span>
+  );
+}
+
+export function VoiceListeningVisualizer({ level, reactive, onFinish, onClose }: VoiceListeningVisualizerProps) {
   const normalized = Math.min(1, Math.max(0, level));
-
-  function finishDictation() {
-    document.querySelector<HTMLButtonElement>(".ava-overlay .ava-mic.recording")?.click();
-  }
+  const style = {
+    "--ava-voice-energy": (0.08 + normalized * 0.92).toFixed(3),
+  } as CSSProperties;
 
   return (
-    <button
-      type="button"
-      className={`ava-voice-visualizer ${reactive ? "reactive" : "fallback"}`}
-      aria-label="J’ai fini de parler"
-      title="Appuyez lorsque vous avez terminé"
+    <div
+      className={`ava-voice-immersive ava-voice-listening ${reactive ? "reactive" : "fallback"}`}
       data-testid="voice-listening-visualizer"
-      onClick={finishDictation}
+      style={style}
     >
-      <span className="ava-voice-glow" aria-hidden="true" />
-      <span className="ava-voice-bars" aria-hidden="true">
-        {barPattern.map((weight, index) => {
-          const distanceFromCenter = Math.abs(index - (barPattern.length - 1) / 2);
-          const centerBoost = 1 - distanceFromCenter / ((barPattern.length - 1) / 2);
-          const barLevel = reactive
-            ? Math.max(0.12, Math.min(1, 0.12 + normalized * (weight * 0.76 + centerBoost * 0.24)))
-            : 0.24 + weight * 0.2;
-          const style = {
-            "--ava-level": barLevel.toFixed(3),
-            "--ava-delay": `${index * -68}ms`,
-          } as CSSProperties;
-          return <span className="ava-voice-bar" style={style} key={`${weight}-${index}`} />;
-        })}
-      </span>
-      <span className="ava-voice-stop-hint" aria-hidden="true">Appuyez ici quand vous avez terminé</span>
-      <span className="ava-sr-only">Terminer la dictée</span>
-    </button>
+      <button
+        type="button"
+        className="ava-voice-fullscreen-action"
+        aria-label="J’ai fini de parler"
+        title="Appuyez lorsque vous avez terminé"
+        onClick={onFinish}
+      >
+        <VoiceOrb />
+        <span className="ava-voice-stop-hint">Appuyez lorsque vous avez terminé</span>
+        <span className="ava-sr-only">Terminer la dictée</span>
+      </button>
+      <button type="button" className="ava-voice-immersive-close" aria-label="Fermer" onClick={onClose}>
+        <X size={20} />
+      </button>
+    </div>
+  );
+}
+
+export function VoiceProcessingVisualizer({ onClose }: VoiceProcessingVisualizerProps) {
+  const [longWait, setLongWait] = useState(false);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setLongWait(true), 6500);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  return (
+    <div className="ava-voice-immersive ava-voice-processing" data-testid="voice-processing-visualizer">
+      <div className="ava-voice-processing-surface" role="status" aria-live="polite">
+        <VoiceOrb processing />
+        <span className="ava-voice-processing-message">
+          {longWait ? "Encore un peu de patience, MANUFEO finalise…" : "MANUFEO prépare votre demande…"}
+        </span>
+      </div>
+      <button type="button" className="ava-voice-immersive-close" aria-label="Fermer" onClick={onClose}>
+        <X size={20} />
+      </button>
+    </div>
   );
 }
 
