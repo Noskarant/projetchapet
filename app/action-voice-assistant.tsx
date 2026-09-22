@@ -9,7 +9,6 @@ import {
   Mic,
   ReceiptText,
   ShoppingCart,
-  Square,
   Sparkles,
   UserRound,
   X,
@@ -23,7 +22,7 @@ import {
 } from "@/lib/action-client";
 import type { VoiceActionTarget } from "@/lib/action-planner";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
-import { CommandPrecisionGuide, VoiceListeningVisualizer } from "./action-voice-experience";
+import { CommandPrecisionGuide, VoiceListeningVisualizer, VoiceProcessingVisualizer } from "./action-voice-experience";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 
@@ -496,7 +495,17 @@ export default function ActionVoiceAssistant() {
       </button>
 
       {open && (
-        <div className="ava-overlay" role="dialog" aria-modal="true" aria-label="Assistant vocal MANUFEO">
+        <div className={`ava-overlay ${stage === "recording" || stage === "transcribing" || stage === "analysing" ? "ava-overlay-immersive" : ""}`} role="dialog" aria-modal="true" aria-label="Assistant vocal MANUFEO">
+          {stage === "recording" ? (
+            <VoiceListeningVisualizer
+              level={voiceLevel}
+              reactive={Boolean(pcmRef.current)}
+              onFinish={() => void stopRecording()}
+              onClose={close}
+            />
+          ) : stage === "transcribing" || stage === "analysing" ? (
+            <VoiceProcessingVisualizer onClose={close} />
+          ) : (
           <section className="ava-panel">
             <header className="ava-header">
               <div><small>MANUFEO IA</small><h2>Parlez, MANUFEO prépare.</h2></div>
@@ -514,20 +523,19 @@ export default function ActionVoiceAssistant() {
               </div>
             )}
 
-            {(stage === "ready" || stage === "recording" || stage === "requesting" || stage === "transcribing" || stage === "analysing" || stage === "error") && (
+            {(stage === "ready" || stage === "requesting" || stage === "error") && (
               <div className="ava-capture">
                 <span className="ava-target">{choices.find((choice) => choice.id === target)?.label ?? "Demande"}</span>
                 <button
                   type="button"
-                  className={`ava-mic ${stage === "recording" ? "recording" : ""}`}
-                  disabled={busy && stage !== "recording"}
-                  onClick={stage === "recording" ? () => void stopRecording() : () => void startRecording()}
-                  aria-label={stage === "recording" ? "Arrêter la dictée" : "Commencer la dictée"}
+                  className="ava-mic"
+                  disabled={stage === "requesting"}
+                  onClick={() => void startRecording()}
+                  aria-label="Commencer la dictée"
                 >
-                  {stage === "recording" ? <Square size={28} /> : busy ? <Loader2 size={32} className="ava-spin" /> : <Mic size={34} />}
+                  {stage === "requesting" ? <Loader2 size={32} className="ava-spin" /> : <Mic size={34} />}
                 </button>
-                {stage === "recording" && <VoiceListeningVisualizer level={voiceLevel} reactive={Boolean(pcmRef.current)} />}
-                <h3>{stage === "recording" ? "Je vous écoute…" : stage === "transcribing" ? "Transcription…" : stage === "analysing" ? "MANUFEO prépare les actions…" : "Dictez naturellement"}</h3>
+                <h3>{stage === "requesting" ? "Activation du micro…" : "Dictez naturellement"}</h3>
                 <p>Rien n’est exécuté avant votre validation.</p>
                 {target === "command" && <CommandPrecisionGuide />}
                 <textarea
@@ -588,6 +596,7 @@ export default function ActionVoiceAssistant() {
               </div>
             )}
           </section>
+          )}
         </div>
       )}
     </>
