@@ -1,39 +1,100 @@
 "use client";
 
 import { Sparkles, X } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import "./action-voice-experience.css";
 
 type VoiceListeningVisualizerProps = {
   level: number;
+  activity: number;
   reactive: boolean;
   onFinish: () => void;
   onClose: () => void;
 };
 
-type VoiceProcessingVisualizerProps = {
+type VoicePreviewButtonProps = {
+  onStart: () => void;
+  disabled?: boolean;
+};
+
+type VoiceOverlayProps = {
   onClose: () => void;
 };
 
-function VoiceOrb({ processing = false }: { processing?: boolean }) {
+type VoiceOrbMode = "preview" | "starting" | "listening" | "processing";
+
+function VoiceOrb({ mode }: { mode: VoiceOrbMode }) {
   return (
-    <span className={`ava-voice-orb ${processing ? "processing" : "listening"}`} aria-hidden="true">
+    <span className={`ava-voice-orb ava-voice-orb-${mode}`} aria-hidden="true">
+      <span className="ava-voice-color-wash" />
+      <span className="ava-construction-shell ava-construction-shell-a" />
+      <span className="ava-construction-shell ava-construction-shell-b" />
+      <span className="ava-orbit-ring ava-orbit-ring-a"><i /></span>
+      <span className="ava-orbit-ring ava-orbit-ring-b"><i /></span>
+      <span className="ava-orbit-ring ava-orbit-ring-c"><i /></span>
       <span className="ava-voice-bloom ava-voice-bloom-a" />
       <span className="ava-voice-bloom ava-voice-bloom-b" />
       <span className="ava-voice-bloom ava-voice-bloom-c" />
       <span className="ava-voice-bloom ava-voice-bloom-d" />
       <span className="ava-voice-core" />
+      <span className="ava-voice-filament ava-voice-filament-a" />
+      <span className="ava-voice-filament ava-voice-filament-b" />
+      <span className="ava-voice-filament ava-voice-filament-c" />
       <span className="ava-voice-speck ava-voice-speck-one" />
       <span className="ava-voice-speck ava-voice-speck-two" />
       <span className="ava-voice-speck ava-voice-speck-three" />
+      <span className="ava-voice-speck ava-voice-speck-four" />
+      <span className="ava-build-sweep" />
     </span>
   );
 }
 
-export function VoiceListeningVisualizer({ level, reactive, onFinish, onClose }: VoiceListeningVisualizerProps) {
+export function VoicePreviewButton({ onStart, disabled = false }: VoicePreviewButtonProps) {
+  return (
+    <button
+      type="button"
+      className="ava-voice-preview"
+      data-testid="voice-preview-button"
+      onClick={onStart}
+      disabled={disabled}
+      aria-label="Démarrer la dictée vocale"
+    >
+      <span className="ava-voice-preview-stage">
+        <VoiceOrb mode="preview" />
+      </span>
+      <span className="ava-voice-preview-copy">
+        <strong>Appuyez pour parler</strong>
+        <small>MANUFEO vous écoute et prépare ensuite votre demande.</small>
+      </span>
+    </button>
+  );
+}
+
+export function VoiceStartingVisualizer({ onClose }: VoiceOverlayProps) {
+  return (
+    <div className="ava-voice-immersive ava-voice-starting" data-testid="voice-starting-visualizer">
+      <div className="ava-voice-processing-surface" role="status" aria-live="polite">
+        <VoiceOrb mode="starting" />
+        <span className="ava-voice-processing-message">Activation du micro…</span>
+      </div>
+      <button type="button" className="ava-voice-immersive-close" aria-label="Fermer" onClick={onClose}>
+        <X size={20} />
+      </button>
+    </div>
+  );
+}
+
+export function VoiceListeningVisualizer({ level, activity, reactive, onFinish, onClose }: VoiceListeningVisualizerProps) {
   const normalized = Math.min(1, Math.max(0, level));
+  const normalizedActivity = Math.min(1, Math.max(0, activity));
+  const previousLevel = useRef(0);
+  const cadence = Math.min(1, normalizedActivity * 0.72 + Math.abs(normalized - previousLevel.current) * 1.9);
+  previousLevel.current = normalized;
+
   const style = {
     "--ava-voice-energy": (0.08 + normalized * 0.92).toFixed(3),
+    "--ava-voice-cadence": (0.08 + cadence * 0.92).toFixed(3),
+    "--ava-react-speed": `${(3.15 - cadence * 1.35).toFixed(2)}s`,
   } as CSSProperties;
 
   return (
@@ -49,7 +110,8 @@ export function VoiceListeningVisualizer({ level, reactive, onFinish, onClose }:
         title="Appuyez lorsque vous avez terminé"
         onClick={onFinish}
       >
-        <VoiceOrb />
+        <VoiceOrb mode="listening" />
+        <span className="ava-voice-listening-state">MANUFEO écoute</span>
         <span className="ava-voice-stop-hint">Appuyez lorsque vous avez terminé</span>
         <span className="ava-sr-only">Terminer la dictée</span>
       </button>
@@ -60,7 +122,7 @@ export function VoiceListeningVisualizer({ level, reactive, onFinish, onClose }:
   );
 }
 
-export function VoiceProcessingVisualizer({ onClose }: VoiceProcessingVisualizerProps) {
+export function VoiceProcessingVisualizer({ onClose }: VoiceOverlayProps) {
   const [longWait, setLongWait] = useState(false);
 
   useEffect(() => {
@@ -69,11 +131,11 @@ export function VoiceProcessingVisualizer({ onClose }: VoiceProcessingVisualizer
   }, []);
 
   return (
-    <div className="ava-voice-immersive ava-voice-processing" data-testid="voice-processing-visualizer">
+    <div className={`ava-voice-immersive ava-voice-processing ${longWait ? "long-wait" : ""}`} data-testid="voice-processing-visualizer">
       <div className="ava-voice-processing-surface" role="status" aria-live="polite">
-        <VoiceOrb processing />
+        <VoiceOrb mode="processing" />
         <span className="ava-voice-processing-message">
-          {longWait ? "Encore un peu de patience, MANUFEO finalise…" : "MANUFEO prépare votre demande…"}
+          {longWait ? "Encore un peu de patience, MANUFEO finalise…" : "MANUFEO construit votre demande…"}
         </span>
       </div>
       <button type="button" className="ava-voice-immersive-close" aria-label="Fermer" onClick={onClose}>
