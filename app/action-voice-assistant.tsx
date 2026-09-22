@@ -22,7 +22,7 @@ import {
 } from "@/lib/action-client";
 import type { VoiceActionTarget } from "@/lib/action-planner";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
-import { CommandPrecisionGuide, VoiceListeningVisualizer, VoiceProcessingVisualizer } from "./action-voice-experience";
+import { CommandPrecisionGuide, VoiceListeningVisualizer, VoicePreviewButton, VoiceProcessingVisualizer, VoiceStartingVisualizer } from "./action-voice-experience";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 
@@ -191,6 +191,8 @@ export default function ActionVoiceAssistant() {
   const [explicitConfirmed, setExplicitConfirmed] = useState(false);
   const [groqReady, setGroqReady] = useState(false);
   const [voiceLevel, setVoiceLevel] = useState(0);
+  const [voiceActivity, setVoiceActivity] = useState(0);
+  const previousVoiceLevelRef = useRef(0);
   const transcriptRef = useRef("");
   const targetRef = useRef<VoiceActionTarget | null>(null);
   const pcmRef = useRef<PcmSession | null>(null);
@@ -210,6 +212,8 @@ export default function ActionVoiceAssistant() {
     const session = pcmRef.current;
     pcmRef.current = null;
     setVoiceLevel(0);
+    setVoiceActivity(0);
+    previousVoiceLevelRef.current = 0;
     if (session) tearDown(session);
   }, []);
 
@@ -355,6 +359,8 @@ export default function ActionVoiceAssistant() {
   async function startRecording() {
     setMessage("");
     setVoiceLevel(0);
+    setVoiceActivity(0);
+    previousVoiceLevelRef.current = 0;
     updateTranscript("");
     setProposals([]);
     if (!groqReady || !navigator.mediaDevices?.getUserMedia) {
@@ -384,8 +390,12 @@ export default function ActionVoiceAssistant() {
         const chunk = new Float32Array(event.inputBuffer.getChannelData(0));
         buffers.push(chunk);
         const peak = audioPeak(chunk);
-        const normalized = Math.min(1, Math.max(0, (peak - 0.006) / 0.12));
-        setVoiceLevel((current) => Math.max(normalized, current * 0.58));
+        const normalized = Math.min(1, Math.max(0, (peak - 0.004) / 0.105));
+        const delta = Math.abs(normalized - previousVoiceLevelRef.current);
+        const activity = Math.min(1, normalized * 0.7 + delta * 2.4);
+        previousVoiceLevelRef.current = normalized;
+        setVoiceLevel((current) => Math.max(normalized, current * 0.48));
+        setVoiceActivity((current) => Math.max(activity, current * 0.42));
       };
       source.connect(processor);
       processor.connect(silentGain);
@@ -413,6 +423,8 @@ export default function ActionVoiceAssistant() {
     }
     pcmRef.current = null;
     setVoiceLevel(0);
+    setVoiceActivity(0);
+    previousVoiceLevelRef.current = 0;
     setStage("transcribing");
     await new Promise((resolve) => window.setTimeout(resolve, 120));
     tearDown(session);
@@ -495,10 +507,13 @@ export default function ActionVoiceAssistant() {
       </button>
 
       {open && (
-        <div className={`ava-overlay ${stage === "recording" || stage === "transcribing" || stage === "analysing" ? "ava-overlay-immersive" : ""}`} role="dialog" aria-modal="true" aria-label="Assistant vocal MANUFEO">
-          {stage === "recording" ? (
+        <div className={`ava-overlay ${stage === "requesting" || stage === "recording" || stage === "transcribing" || stage === "analysing" ? "ava-overlay-immersive" : ""}`} role="dialog" aria-modal="true" aria-label="Assistant vocal MANUFEO">
+          {stage === "requesting" ? (
+            <VoiceStartingVisualizer onClose={close} />
+          ) : stage === "recording" ? (
             <VoiceListeningVisualizer
               level={voiceLevel}
+              activity={voiceActivity}
               reactive={Boolean(pcmRef.current)}
               onFinish={() => void stopRecording()}
               onClose={close}
@@ -523,19 +538,10 @@ export default function ActionVoiceAssistant() {
               </div>
             )}
 
-            {(stage === "ready" || stage === "requesting" || stage === "error") && (
+            {(stage === "ready" || stage === "error") && (
               <div className="ava-capture">
                 <span className="ava-target">{choices.find((choice) => choice.id === target)?.label ?? "Demande"}</span>
-                <button
-                  type="button"
-                  className="ava-mic"
-                  disabled={stage === "requesting"}
-                  onClick={() => void startRecording()}
-                  aria-label="Commencer la dictée"
-                >
-                  {stage === "requesting" ? <Loader2 size={32} className="ava-spin" /> : <Mic size={34} />}
-                </button>
-                <h3>{stage === "requesting" ? "Activation du micro…" : "Dictez naturellement"}</h3>
+                <VoicePreviewButton onStart={() => void startRecording()} />
                 <p>Rien n’est exécuté avant votre validation.</p>
                 {target === "command" && <CommandPrecisionGuide />}
                 <textarea
