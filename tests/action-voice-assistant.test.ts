@@ -31,16 +31,37 @@ test("l’écoute vocale pilote une expérience immersive reliée au niveau sono
 
   assert.equal(source.includes("const [voiceLevel, setVoiceLevel] = useState(0)"), true);
   assert.equal(source.includes("const peak = audioPeak(chunk)"), true);
-  assert.equal(source.includes("setVoiceLevel((current) => Math.max(normalized, current * 0.58))"), true);
+  assert.equal(source.includes("const [voiceActivity, setVoiceActivity] = useState(0)"), true);
+  assert.equal(source.includes("const delta = Math.abs(normalized - previousVoiceLevelRef.current)"), true);
+  assert.equal(source.includes("setVoiceLevel((current) => Math.max(normalized, current * 0.48))"), true);
+  assert.equal(source.includes("setVoiceActivity((current) => Math.max(activity, current * 0.42))"), true);
   assert.equal(source.includes("level={voiceLevel}"), true);
+  assert.equal(source.includes("activity={voiceActivity}"), true);
   assert.equal(source.includes("reactive={Boolean(pcmRef.current)}"), true);
   assert.equal(source.includes("onFinish={() => void stopRecording()}"), true);
   assert.equal(experience.includes("data-testid=\"voice-listening-visualizer\""), true);
   assert.equal(experience.includes('aria-label="J’ai fini de parler"'), true);
   assert.equal(experience.includes("Appuyez lorsque vous avez terminé"), true);
   assert.equal(css.includes(".ava-voice-immersive"), true);
-  assert.equal(css.includes("width:120vmax"), true);
+  assert.equal(css.includes("width:118vmax"), true);
   assert.equal(css.includes("@media(prefers-reduced-motion:reduce)"), true);
+});
+
+test("chaque type vocal démarre depuis un aperçu animé de la boule", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.tsx"), "utf8");
+  const experience = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.tsx"), "utf8");
+  const css = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.css"), "utf8");
+
+  for (const id of ["command", "quote", "invoice", "customer", "agenda"]) {
+    assert.equal(source.includes(`id: "${id}"`), true);
+  }
+  assert.equal(source.includes("<VoicePreviewButton onStart={() => void startRecording()} />"), true);
+  assert.equal(source.includes("<VoiceStartingVisualizer onClose={close} />"), true);
+  assert.equal(experience.includes('data-testid="voice-preview-button"'), true);
+  assert.equal(experience.includes("Appuyez pour parler"), true);
+  assert.equal(css.includes(".ava-voice-preview-stage"), true);
+  assert.equal(css.includes(".ava-construction-shell"), true);
+  assert.equal(css.includes(".ava-orbit-ring"), true);
 });
 
 test("la même boule reste à l’écran pendant le traitement et affiche un message de patience si nécessaire", () => {
@@ -53,7 +74,7 @@ test("la même boule reste à l’écran pendant le traitement et affiche un mes
   assert.equal(experience.includes("data-testid=\"voice-processing-visualizer\""), true);
   assert.equal(experience.includes("window.setTimeout(() => setLongWait(true), 6500)"), true);
   assert.equal(experience.includes("Encore un peu de patience, MANUFEO finalise…"), true);
-  assert.equal(experience.includes("MANUFEO prépare votre demande…"), true);
+  assert.equal(experience.includes("MANUFEO construit votre demande…"), true);
   assert.equal(css.includes(".ava-voice-processing .ava-voice-orb"), true);
   assert.equal(css.includes(".ava-voice-bloom-a"), true);
   assert.equal(css.includes(".ava-voice-speck-three"), true);
