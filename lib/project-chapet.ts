@@ -113,7 +113,7 @@ export async function fetchWorkspace() {
   const organizationId = await getActiveOrganizationId();
   const [customersResult, quotesResult, invoicesResult, billedQuotesResult] = await Promise.all([
     supabase.from("customers").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
-    supabase.from("quotes").select("*, customer:customers(*), items:quote_items(*)").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("quotes").select("*, customer:customers(*), items:quote_items(*)").eq("organization_id", organizationId).is("archived_at", null).order("created_at", { ascending: false }),
     supabase.from("invoices").select("*, customer:customers(*), items:invoice_items(*)").eq("organization_id", organizationId).is("archived_at", null).order("created_at", { ascending: false }),
     supabase.from("invoices").select("quote_id").eq("organization_id", organizationId).not("quote_id", "is", null).neq("status", "cancelled"),
   ]);
