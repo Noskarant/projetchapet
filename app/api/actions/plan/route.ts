@@ -9,6 +9,7 @@ import {
   type VoiceActionTarget,
 } from "@/lib/action-planner";
 import { authenticateRequest, requireOrganization } from "@/lib/server-auth";
+import { normalizeVoiceTranscript } from "@/lib/voice-facts";
 
 function cleanTarget(value: unknown): VoiceActionTarget {
   return ["command", "quote", "invoice", "customer", "agenda"].includes(String(value))
@@ -31,9 +32,10 @@ Intentions autorisées exactement :
 - prepare_email : préparer un brouillon de message, jamais l'envoyer.
 
 Si la demande crée un client puis un devis/facture pour ce même nouveau client, place create_customer avant le document et mets customer_from_position à l'index (base 0) de l'action client dans le payload du document.
-Pour un client existant, utilise customer_hint avec son nom prononcé. N'invente jamais un UUID.
+Pour un client existant, utilise customer_hint avec son nom prononcé. Les noms, prénoms, sociétés et e-mails épelés lettre par lettre prévalent sur une transcription phonétique ; respecte le nombre de lettres répétées (deux E, trois R). Ne devine pas une lettre que l'audio ou le texte ne contient pas. N'invente jamais un UUID.
 Chaque prestation distincte explicitement demandée d'un devis/facture doit devenir une ligne. Une pièce citée, une répétition ou un fragment incompris ne suffit pas à créer une autre prestation. Reformule clairement les libellés malgré les erreurs évidentes de transcription, sans exiger une formule précise ni transformer une précision en nouvelle ligne.
-Les prix sont HT sauf si l'utilisateur dit explicitement TTC. Si TTC est explicitement dit et que la TVA est connue, convertis le prix unitaire en HT. Sinon laisse la valeur telle quelle et ajoute un warning.
+Recopie exactement les libellés dictés, y compris virgules et ponctuation utiles (ex. « Chambre 2, plafond »). Une virgule entre chiffres fait partie d'un nombre : 18,50 m² = 18.5, jamais 18 ni 50 ; « 18 mètres 50 » signifie 18,50 mètres, sans inventer « carrés » si ce n'est pas dit. N'attribue jamais à une autre pièce un métrage ou un prix dicté pour celle-ci.
+Pour chaque ligne recopie la courte expression exacte de la dictée dans quantity_evidence, price_evidence et tax_evidence si présente. Conserve la somme prononcée dans unit_price et indique price_type « ht », « ttc » ou « unknown » ; ne convertis PAS le TTC, le serveur le convertira seulement avec une TVA explicite. « Hors taxes » = HT, « toutes taxes comprises » = TTC. Si le type n'est pas précisé, laisse unknown ; si la TVA n'est pas donnée, laisse tax_rate à null. Une TVA globale s'applique à toutes les lignes seulement si elle est clairement annoncée comme telle.
 Un devis ou une facture est seulement un brouillon : conserve les prestations explicitement demandées même si leur libellé, quantité ou prix manque ; laisse la valeur absente vide/null et ajoute un warning clair. Ne bloque le brouillon que si le client ou toute prestation exploitable manque. Ne mets pas de chemins techniques comme items[3].quantity dans missing_fields.
 Pour l'agenda, convertis les dates relatives uniquement si elles sont déterminables sans ambiguïté ; sinon laisse date/heure vides et demande une précision.
 
@@ -52,7 +54,7 @@ Réponds uniquement par ce JSON :
 
 Schémas de payload utiles :
 create_customer: {"kind":"business|individual","company_name":"","civility":"M.|Mme|M. et Mme","last_name":"","first_name":"","siret":"","vat_number":"","emails":[],"phones":[],"addresses":[{"line1":"","postal_code":"","city":"","country":"France"}],"notes":""}
-prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","items":[{"label":"","description":"","quantity":null,"unit":null,"unit_price":null,"tax_rate":null}]}
+prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","items":[{"label":"","description":"","quantity":null,"quantity_evidence":"","unit":null,"unit_price":null,"price_evidence":"","price_type":"ht|ttc|unknown","tax_rate":null,"tax_evidence":""}]}
 schedule_task: {"customer_hint":"","title":"","date":"YYYY-MM-DD","time":"HH:MM","location":"","type":"Chantier|Commande|Facturation|Relance","notes":""}
 update_project_note: {"project_id":"","body":""}
 prepare_supplier_order: {"project_id":"","supplier_name":"","supplier_email":"","label":"","quantity":1,"unit_price":0,"notes":""}
@@ -216,7 +218,7 @@ export async function POST(request: Request) {
       parsed?: unknown;
     }>(request, 40_000);
     const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
-    const transcript = typeof body.transcript === "string" ? body.transcript.trim() : "";
+    const transcript = typeof body.transcript === "string" ? normalizeVoiceTranscript(body.transcript) : "";
     if (!organizationId) throw new ApiInputError("Entreprise manquante.");
     if (!transcript) throw new ApiInputError("La demande est vide.");
     if (transcript.length > 14_000) throw new ApiInputError("La demande est trop longue.", 413);

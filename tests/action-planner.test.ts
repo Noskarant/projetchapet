@@ -26,6 +26,14 @@ test("un client dicté devient une proposition prête et normalisée", () => {
   assert.deepEqual(action.payload.phones, ["06 12 34 56 78"]);
 });
 
+test("le prénom et le nom épelés prévalent sur l'orthographe devinée par le modèle", () => {
+  const action = plannedActionFromParsed("customer", {
+    kind: "individual", first_name: "Piere", last_name: "Vigon",
+  }, "Prénom P I E R R E, nom V I G N O N");
+  assert.equal(action.payload.first_name, "Pierre");
+  assert.equal(action.payload.last_name, "Vignon");
+});
+
 test("une facture reste une action sensible même quand le modèle ne le demande pas", () => {
   const action = plannedActionFromParsed("invoice", {
     customer_hint: "Dupont",

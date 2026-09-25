@@ -17,13 +17,15 @@ const ALLOWED_AUDIO_TYPES = new Set([
 ]);
 
 const BTP_PROMPT =
-  "Dictée professionnelle d'un artisan français du bâtiment. Le locuteur peut hésiter, se reprendre, annuler une ligne et corriger un nom, une quantité, un prix ou une TVA. La dictée peut être un segment d'un devis plus long : respecte strictement l'ordre et ne conclus pas prématurément. Vocabulaire possible : devis, facture, client, chantier, plâtrerie, peinture, ratissage, rebouchage, ponçage, impression, sous-couche, finition, fût, deux passes, préparation des supports, protection, fourniture et pose, dépose, évacuation, mètre carré, mètre linéaire, forfait, heure, main-d'œuvre, TVA, HT, TTC, SIRET.";
+  "Dictée de devis d'un artisan français : virgules décimales et centimes exacts, par exemple 18,50 mètres carrés à 21 euros hors taxes, TVA à 10 %, ou 21 euros TTC. Conserver chaque chiffre, chaque virgule, les noms et prénoms épelés lettre par lettre, les e-mails dictés avec arobase et point. Vocabulaire : client, chantier, peinture, papier peint, rouleau, fourniture, pose, mètre carré, mètre linéaire, HT, TTC.";
+
+const TRANSCRIPTION_MODEL = "whisper-large-v3";
 
 function buildGroqForm(file: File) {
   const safeName = (file.name || "dictee.wav").replace(/[\\/:*?"<>|]/g, "-").slice(0, 120);
   const form = new FormData();
   form.append("file", file, safeName);
-  form.append("model", process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo");
+  form.append("model", TRANSCRIPTION_MODEL);
   form.append("language", "fr");
   form.append("response_format", "verbose_json");
   form.append("temperature", "0");
@@ -146,7 +148,7 @@ export async function POST(request: Request) {
     }).length;
 
     return NextResponse.json({
-      provider: process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo",
+      provider: TRANSCRIPTION_MODEL,
       text: String(data.text ?? "").trim().slice(0, 30_000),
       language: data.language ?? "fr",
       duration: data.duration ?? null,

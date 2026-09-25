@@ -67,6 +67,7 @@ export function hardenPlannedActions(actions: PlannedAction[]) {
 
     if (action.intentType === "prepare_quote" || action.intentType === "prepare_invoice") {
       const items = Array.isArray(payload.items) ? payload.items : [];
+      let unspecifiedPriceType = false;
       items.forEach((rawLine, index) => {
         const line = record(rawLine);
         const position = index + 1;
@@ -75,11 +76,19 @@ export function hardenPlannedActions(actions: PlannedAction[]) {
         const quantity = finiteNumber(line.quantity);
         if (quantity === null || quantity <= 0) details.push("quantité");
         if (finiteNumber(line.unit_price) === null) details.push("prix HT");
+        if (finiteNumber(line.spoken_price_ttc) !== null) {
+          warnings.push(`Prestation ${position} : prix TTC de ${line.spoken_price_ttc} € conservé ; TVA à préciser avant de calculer le HT.`);
+        }
+        if (finiteNumber(line.spoken_price_ambiguous) !== null) {
+          warnings.push(`Prestation ${position} : ${line.spoken_price_ambiguous} € dictés, mais HT/TTC ambigu entre plusieurs lignes. Précisez ce point dans le brouillon.`);
+        }
+        if (finiteNumber(line.unit_price) !== null && line.price_type === "unknown") unspecifiedPriceType = true;
         if (details.length) warnings.push(`Prestation ${position} à compléter dans le brouillon : ${details.join(", ")}.`);
         if (line.tax_rate === null || line.tax_rate === undefined) {
           warnings.push(`TVA à vérifier sur la prestation ${position}.`);
         }
       });
+      if (unspecifiedPriceType) warnings.push("Prix sans mention HT/TTC : interprétés en HT dans le brouillon. À vérifier.");
       if (!items.length && !text(payload.quote_id) && !text(payload.quote_number)) missing.push("prestations");
     }
 

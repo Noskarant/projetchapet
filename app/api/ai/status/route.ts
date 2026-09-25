@@ -7,8 +7,7 @@ export async function GET() {
     {
       groq: Boolean(process.env.GROQ_API_KEY),
       deepseek: Boolean(process.env.DEEPSEEK_API_KEY),
-      transcriptionModel:
-        process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo",
+      transcriptionModel: "whisper-large-v3",
       structuringModel: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
     },
     {

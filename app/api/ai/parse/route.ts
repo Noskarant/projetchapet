@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import { robustArtisanDictation } from "@/lib/robust-artisan-dictation";
 import { strictDocumentToLegacy } from "@/lib/strict-voice-document";
+import { normalizeVoiceTranscript } from "@/lib/voice-facts";
 
 type ParseKind = "customer" | "document";
 type PriceType = "ht" | "ttc" | "unknown";
@@ -88,7 +89,7 @@ function normalizeLine(value: unknown, index: number) {
 
   let unitPrice = spokenPrice;
   if (priceType === "ttc") {
-    if (taxRate !== null && taxRate > 0 && spokenPrice !== null) unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
+    if (taxRate !== null && spokenPrice !== null) unitPrice = Math.round((spokenPrice / (1 + taxRate / 100)) * 100) / 100;
     else warnings.push(`Ligne ${index + 1} : prix TTC détecté mais taux de TVA absent, conversion HT impossible.`);
   }
 
@@ -201,7 +202,7 @@ function systemPrompt(kind: ParseKind, target: string) {
   if (kind === "customer") {
     return `Tu es un extracteur de données pour un logiciel français de devis et facturation destiné aux artisans.
 Transforme une dictée orale en un objet JSON strict. N'invente aucune donnée. Une donnée non prononcée doit rester vide et être signalée dans warnings.
-Interprète naturellement les hésitations et variantes de langage, sans exiger de formule précise pour identifier le client.
+Interprète naturellement les hésitations et variantes de langage, sans exiger de formule précise pour identifier le client. Respecte les prénoms, noms et e-mails épelés lettre par lettre, y compris les lettres répétées ; un « E » ou un « R » supplémentaire change le nom.
 Schéma exact :
 {
   "kind":"business|individual",
@@ -227,8 +228,9 @@ Les nombres dictés chiffre par chiffre doivent être réunis sans inventer de c
   return `Tu structures une dictée d'artisan français pour créer un ${target === "invoice" ? "brouillon de facture" : "brouillon de devis"}.
 Comprends les formulations orales naturelles, les hésitations, répétitions et erreurs probables de transcription dans tous les métiers. Reformule sobrement les désignations compréhensibles sans exiger le libellé exact d'un catalogue. Si le contexte lève clairement une erreur de transcription, utilise le sens métier sans changer les chiffres.
 Comprends notamment plâtrerie-peinture, plomberie, électricité, carrelage, menuiserie, couverture, isolation et rénovation : ratissage, rebouchage, ponçage, impression, sous-couche, deux passes, protection, fourniture et pose, dépose, évacuation, m², mètre linéaire, heure, forfait, acompte, franchise, RSE.
-N'invente jamais un client, une désignation, une quantité, une unité, un prix ou une TVA. Conserve les termes métier prononcés. Les prix sont HT uniquement si "HT" est explicite ou si aucun type n'est précisé. Si "TTC" est prononcé, mets price_type à "ttc"; la conversion HT sera faite côté serveur seulement si la TVA est explicite.
-Chaque prestation distincte explicitement demandée doit devenir une ligne séparée. Une pièce, une précision, une répétition ou un fragment de phrase ne crée pas à lui seul une prestation supplémentaire. Ne crée pas de ligne générique « Prestation » à partir d'un fragment incompris. Pour une prestation explicitement demandée mais incomplète, conserve les données présentes et signale seulement les valeurs réellement absentes. Ne signale pas comme ambigu un libellé dont le sens est clair malgré la transcription.
+N'invente jamais un client, une désignation, une quantité, une unité, un prix ou une TVA. Conserve les termes métier prononcés. Si le type de prix n'est pas précisé, indique "unknown" et laisse le montant prononcé ; le logiciel le traitera comme HT en signalant cette hypothèse. Si "TTC" est prononcé, mets price_type à "ttc" ; la conversion HT sera faite côté serveur seulement si la TVA est explicite.
+Chaque prestation distincte explicitement demandée doit devenir une ligne séparée. Une pièce, une précision, une répétition ou un fragment de phrase ne crée pas à lui seul une prestation supplémentaire. Ne crée pas de ligne générique « Prestation » à partir d'un fragment incompris. Pour une prestation explicitement demandée mais incomplète, conserve les données présentes et signale seulement les valeurs réellement absentes. Ne signale pas comme ambigu un libellé dont le sens est clair malgré la transcription. Conserve les virgules utiles des libellés et les décimales sans les tronquer : 18,50 m² = 18.5 ; « 18 mètres 50 » = 18,50 mètres. N'attribue pas à une autre pièce le métrage dicté pour une ligne.
+Hors taxes ou HT : conserve le prix prononcé. Toutes taxes comprises ou TTC : price_type « ttc » et conserve le prix prononcé, la conversion HT sera calculée côté serveur si la TVA est explicite. Si aucun type n'est dit, price_type « unknown » ; ne devine pas la TVA.
 Schéma exact :
 {
   "customer_hint":"",
@@ -260,7 +262,7 @@ export async function POST(request: Request) {
     const kind: ParseKind = body.kind === "customer" ? "customer" : "document";
     const target = ["customer", "quote", "invoice", "current"].includes(String(body.target)) ? String(body.target) : "quote";
     if (typeof body.transcript !== "string") throw new ApiInputError("La dictée est invalide.");
-    const transcript = body.transcript.trim();
+    const transcript = normalizeVoiceTranscript(body.transcript);
     if (!transcript) throw new ApiInputError("La dictée est vide.");
     if (transcript.length > 14_000) throw new ApiInputError("La dictée est trop longue.", 413);
 

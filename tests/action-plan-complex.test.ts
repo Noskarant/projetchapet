@@ -138,6 +138,70 @@ test("une ligne générique inventée par le modèle ne pollue pas le brouillon"
   assert.equal((action.payload.items as unknown[]).length, 1);
 });
 
+test("une proposition multi-actions récupère 18,50 m² sur la bonne ligne et garde le prix HT et la TVA", () => {
+  const actions = hardenPlannedActions(normalizeModelPlan({ actions: [
+    { intent_type: "create_customer", payload: { kind: "individual", last_name: "Vignon", first_name: "Pierre" } },
+    { intent_type: "prepare_quote", payload: {
+      customer_from_position: 0,
+      items: [
+        { label: "Remplacement papier peint - Couloir, plafond", quantity: 18, unit: "m²", unit_price: 21, tax_rate: 10, price_type: "ht" },
+        { label: "Remplacement papier peint - Chambre 2, plafond", quantity: null, unit: "m²", unit_price: 21, tax_rate: 10, price_type: "ht",
+          quantity_evidence: "18,50 m²", price_evidence: "21 euros hors taxes", tax_evidence: "TVA 10 %" },
+        { label: "Remplacement papier peint - Chambre 3, plafond", quantity: 11, unit: "m²", unit_price: 21, tax_rate: 10, price_type: "ht" },
+      ],
+    } },
+  ] }, "Client Pierre Vignon. Couloir, plafond à vérifier. Chambre 2, plafond : 18,50 m² à 21 euros hors taxes, TVA 10 %. Chambre 3, plafond : 11 m² à 21 euros hors taxes."));
+  const lines = actions[1].payload.items as Array<{ label: string; quantity: number | null; unit_price: number | null; tax_rate: number | null }>;
+  assert.deepEqual(lines.map((line) => line.quantity), [null, 18.5, 11]);
+  assert.equal(lines[1].unit_price, 21);
+  assert.equal(lines[1].tax_rate, 10);
+  assert.match(lines[1].label, /Chambre 2, plafond/);
+  assert.equal(actions[1].status, "ready");
+});
+
+test("le TTC explicite est converti une fois et un TTC sans TVA reste inconnu en HT", () => {
+  const [action] = hardenPlannedActions(normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+    customer_hint: "Dupont",
+    items: [
+      { label: "Pose cuisine", quantity: 1, unit_price: 120, tax_rate: 20, price_type: "ttc", price_evidence: "120 euros TTC", tax_evidence: "TVA 20 %" },
+      { label: "Pose salle de bain", quantity: 1, unit_price: 55, tax_rate: null, price_type: "ttc", price_evidence: "55 euros TTC" },
+    ],
+  } }] }, "Pose cuisine, 120 euros TTC TVA 20 %. Pose salle de bain, 55 euros TTC."));
+  const lines = action.payload.items as Array<{ unit_price: number | null; spoken_price_ttc: number | null; tax_rate: number | null }>;
+  assert.equal(lines[0].unit_price, 100);
+  assert.equal(lines[0].tax_rate, 20);
+  assert.equal(lines[1].unit_price, null);
+  assert.equal(lines[1].spoken_price_ttc, 55);
+  assert.equal(lines[1].tax_rate, null);
+  assert.ok(action.warnings.some((warning) => /TTC de 55/.test(warning)));
+});
+
+test("un mélange HT/TTC sans attribution claire ne fabrique pas un prix HT", () => {
+  const [action] = hardenPlannedActions(normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+    customer_hint: "Dupont", items: [{ label: "Fourniture", quantity: 1, unit_price: 21, tax_rate: 10 }],
+  } }] }, "Un prix à 21 euros HT et un autre à 30 euros TTC, fourniture à préciser."));
+  const [line] = action.payload.items as Array<{ unit_price: number | null; spoken_price_ambiguous: number | null }>;
+  assert.equal(line.unit_price, null);
+  assert.equal(line.spoken_price_ambiguous, 21);
+  assert.ok(action.warnings.some((warning) => /HT\/TTC ambigu/.test(warning)));
+});
+
+test("la TVA dictée à 5,5 % convertit le TTC et une TVA non dictée reste absente", () => {
+  const [reduced] = hardenPlannedActions(normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+    customer_hint: "Durand", items: [{ label: "Pose", quantity: 1, unit_price: 105.5, tax_rate: 5.5, price_type: "ttc" }],
+  } }] }, "Pose à 105,50 euros TTC avec TVA 5,5 % pour Durand."));
+  const [reducedLine] = reduced.payload.items as Array<{ unit_price: number; tax_rate: number }>;
+  assert.equal(reducedLine.unit_price, 100);
+  assert.equal(reducedLine.tax_rate, 5.5);
+
+  const [unspecified] = hardenPlannedActions(normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+    customer_hint: "Durand", items: [{ label: "Pose", quantity: 1, unit_price: 100, tax_rate: 20, price_type: "ht" }],
+  } }] }, "Pose à 100 euros HT pour Durand."));
+  const [unspecifiedLine] = unspecified.payload.items as Array<{ tax_rate: number | null }>;
+  assert.equal(unspecifiedLine.tax_rate, null);
+  assert.ok(unspecified.warnings.some((warning) => /TVA à vérifier/.test(warning)));
+});
+
 test("une date ou heure ambiguë/incorrecte est bloquée avant agenda", () => {
   const [action] = hardenPlannedActions(normalizeModelPlan({
     actions: [{

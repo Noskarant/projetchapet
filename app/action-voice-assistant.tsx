@@ -22,9 +22,11 @@ import {
 } from "@/lib/action-client";
 import type { VoiceActionTarget } from "@/lib/action-planner";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
+import { normalizeVoiceTranscript } from "@/lib/voice-facts";
 import { CommandPrecisionGuide, VoiceListeningVisualizer, VoicePreviewButton, VoiceProcessingVisualizer, VoiceStartingVisualizer } from "./action-voice-experience";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
+import "./action-voice-replay.css";
 
 type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "error";
 
@@ -111,6 +113,15 @@ function euro(value: unknown) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(parsed);
 }
 
+function quantityLabel(value: unknown) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  return new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 3,
+  }).format(amount);
+}
+
 function proposalSummary(proposal: ActionProposalView) {
   const payload = proposal.payload ?? {};
   if (proposal.intent_type === "create_customer") {
@@ -125,8 +136,12 @@ function proposalSummary(proposal: ActionProposalView) {
     const lineDetails = items.slice(0, 6).map((entry) => {
       const row = entry && typeof entry === "object" && !Array.isArray(entry) ? entry as Record<string, unknown> : {};
       const label = clean(row.label) || "Prestation";
-      const quantity = row.quantity === null || row.quantity === undefined ? "qté ?" : `${row.quantity}${clean(row.unit) ? ` ${clean(row.unit)}` : ""}`;
-      const price = row.unit_price === null || row.unit_price === undefined ? "prix ?" : `${euro(row.unit_price)} HT`;
+      const quantity = row.quantity === null || row.quantity === undefined ? "qté ?" : `${quantityLabel(row.quantity)}${clean(row.unit) ? ` ${clean(row.unit)}` : ""}`;
+      const price = row.unit_price === null || row.unit_price === undefined
+        ? row.spoken_price_ttc !== null && row.spoken_price_ttc !== undefined ? `${euro(row.spoken_price_ttc)} TTC · TVA à préciser`
+          : row.spoken_price_ambiguous !== null && row.spoken_price_ambiguous !== undefined ? `${euro(row.spoken_price_ambiguous)} · HT/TTC à préciser`
+            : "prix ?"
+        : `${euro(row.unit_price)} ${row.price_type === "unknown" ? "(HT supposé)" : "HT"}`;
       const tax = row.tax_rate === null || row.tax_rate === undefined ? "TVA ?" : `TVA ${row.tax_rate} %`;
       return `${label}: ${quantity} × ${price} (${tax})`;
     });
@@ -192,6 +207,8 @@ export default function ActionVoiceAssistant() {
   const [groqReady, setGroqReady] = useState(false);
   const [voiceLevel, setVoiceLevel] = useState(0);
   const [voiceActivity, setVoiceActivity] = useState(0);
+  const [recordingUrl, setRecordingUrl] = useState("");
+  const recordingUrlRef = useRef("");
   const previousVoiceLevelRef = useRef(0);
   const transcriptRef = useRef("");
   const targetRef = useRef<VoiceActionTarget | null>(null);
@@ -219,6 +236,9 @@ export default function ActionVoiceAssistant() {
 
   const reset = useCallback((preset?: VoiceActionTarget | null) => {
     stopCapture();
+    if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+    recordingUrlRef.current = "";
+    setRecordingUrl("");
     targetRef.current = preset ?? null;
     setTarget(preset ?? null);
     setStage(preset ? "ready" : "choose");
@@ -232,6 +252,9 @@ export default function ActionVoiceAssistant() {
   const close = useCallback(() => {
     const shouldRefresh = stage === "success" && results.some((result) => result.entityId || result.entityType === "payment");
     stopCapture();
+    if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+    recordingUrlRef.current = "";
+    setRecordingUrl("");
     setOpen(false);
     if (shouldRefresh) window.setTimeout(() => window.location.reload(), 80);
   }, [results, stage, stopCapture]);
@@ -275,7 +298,10 @@ export default function ActionVoiceAssistant() {
     };
   }, [reset]);
 
-  useEffect(() => () => stopCapture(), [stopCapture]);
+  useEffect(() => () => {
+    stopCapture();
+    if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+  }, [stopCapture]);
 
   function choose(next: VoiceActionTarget) {
     targetRef.current = next;
@@ -291,6 +317,8 @@ export default function ActionVoiceAssistant() {
       setStage("ready");
       return;
     }
+    const normalized = normalizeVoiceTranscript(text);
+    updateTranscript(normalized);
     setStage("analysing");
     setMessage("");
     setProposals([]);
@@ -300,10 +328,10 @@ export default function ActionVoiceAssistant() {
     const timeout = window.setTimeout(() => controller.abort(), 35_000);
     try {
       const organizationId = await getActiveOrganizationId();
-      const parsed = selected === "command" ? undefined : await parseSingleTarget(selected, text);
+      const parsed = selected === "command" ? undefined : await parseSingleTarget(selected, normalized);
       const planned = await planVoiceActions({
         organizationId,
-        transcript: text,
+        transcript: normalized,
         target: selected,
         parsed,
       });
@@ -337,7 +365,7 @@ export default function ActionVoiceAssistant() {
     recognition.interimResults = false;
     recognition.onresult = (event) => {
       const text = Array.from(event.results).map((result) => result[0]?.transcript ?? "").join(" ").trim();
-      if (text) updateTranscript(`${transcriptRef.current} ${text}`.trim());
+      if (text) updateTranscript(text);
     };
     recognition.onerror = (event) => {
       setVoiceLevel(0);
@@ -348,8 +376,8 @@ export default function ActionVoiceAssistant() {
       recognitionRef.current = null;
       setVoiceLevel(0);
       const text = transcriptRef.current.trim();
-      if (text) void prepare(text);
-      else setStage("ready");
+      setStage("ready");
+      if (text) setMessage("Vérifiez la transcription, surtout les virgules et les noms épelés, avant de préparer le brouillon.");
     };
     recognitionRef.current = recognition;
     setStage("recording");
@@ -363,6 +391,9 @@ export default function ActionVoiceAssistant() {
     previousVoiceLevelRef.current = 0;
     updateTranscript("");
     setProposals([]);
+    if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+    recordingUrlRef.current = "";
+    setRecordingUrl("");
     if (!groqReady || !navigator.mediaDevices?.getUserMedia) {
       browserDictation();
       return;
@@ -437,6 +468,9 @@ export default function ActionVoiceAssistant() {
     }
     try {
       const blob = encodeMonoWav(samples, session.sampleRate);
+      if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+      recordingUrlRef.current = URL.createObjectURL(blob);
+      setRecordingUrl(recordingUrlRef.current);
       const form = new FormData();
       form.append("file", new File([blob], "dictee.wav", { type: "audio/wav" }));
       const response = await fetch("/api/transcribe", { method: "POST", body: form });
@@ -444,8 +478,9 @@ export default function ActionVoiceAssistant() {
       if (!response.ok) throw new Error(result?.error || "Transcription impossible.");
       const text = clean(result.text);
       if (!text) throw new Error("Aucun texte reconnu.");
-      updateTranscript(text);
-      await prepare(text);
+      updateTranscript(normalizeVoiceTranscript(text));
+      setStage("ready");
+      setMessage("Vérifiez la transcription, surtout les virgules, les noms épelés, HT/TTC et la TVA. Vous pouvez corriger le texte avant de préparer le brouillon.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Transcription impossible.");
       setStage("error");
@@ -551,6 +586,7 @@ export default function ActionVoiceAssistant() {
                   aria-label="Demande à MANUFEO"
                   disabled={busy}
                 />
+                {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
                 {(stage === "ready" || stage === "error") && transcript.trim() && (
                   <button type="button" className="ava-primary" onClick={() => void prepare(transcriptRef.current)}>Préparer les actions</button>
@@ -564,6 +600,7 @@ export default function ActionVoiceAssistant() {
             {(stage === "review" || stage === "executing") && (
               <div className="ava-review">
                 <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length} action{proposals.length > 1 ? "s" : ""} préparée{proposals.length > 1 ? "s" : ""}</strong><small>Vérifiez tout avant de valider.</small></div></div>
+                <details className="ava-transcript"><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>
                 <div className="ava-action-list">
                   {proposals.map((proposal, index) => (
                     <article key={proposal.id} className={proposal.status === "needs_input" ? "blocked" : ""}>
