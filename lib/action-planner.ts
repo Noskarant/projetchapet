@@ -104,7 +104,11 @@ function normalizeCustomerPayload(source: RecordLike) {
 }
 
 function normalizeDocumentPayload(source: RecordLike) {
-  const items = Array.isArray(source.items) ? source.items.slice(0, 100).map(normalizeLine) : [];
+  const items = Array.isArray(source.items) ? source.items.slice(0, 100).map(normalizeLine).filter((line) =>
+    // A trailing empty placeholder from the model is not a requested service.
+    Boolean(line.label && !/^prestation(?:\s+à\s+compléter)?$/i.test(line.label))
+      || (line.quantity !== null && line.quantity > 0) || line.unit_price !== null,
+  ) : [];
   const customerFromPosition = numberOrNull(source.customer_from_position);
   return {
     customer_id: text(source.customer_id, 80) || null,
@@ -283,10 +287,11 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
     const rawPayload = record(source.payload);
     const payload = payloadForIntent(intentType, rawPayload);
     const warnings = stringArray(source.warnings, 20);
-    const missingFields = [
-      ...missingForIntent(intentType, payload as RecordLike),
-      ...stringArray(source.missing_fields, 20),
-    ];
+    // The model can report stale, duplicate or invented field paths. Documents are
+    // drafts: derive their blocking requirements from the normalized payload.
+    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice"
+      ? missingForIntent(intentType, payload as RecordLike)
+      : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)];
     const customerFromPosition = numberOrNull(rawPayload.customer_from_position);
     actions.push(finalizeAction({
       intentType,

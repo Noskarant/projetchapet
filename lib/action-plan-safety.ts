@@ -70,14 +70,17 @@ export function hardenPlannedActions(actions: PlannedAction[]) {
       items.forEach((rawLine, index) => {
         const line = record(rawLine);
         const position = index + 1;
-        if (!text(line.label)) missing.push(`prestation_${position}_libelle`);
+        const details: string[] = [];
+        if (!text(line.label)) details.push("désignation");
         const quantity = finiteNumber(line.quantity);
-        if (quantity === null || quantity <= 0) missing.push(`prestation_${position}_quantite`);
-        if (finiteNumber(line.unit_price) === null) missing.push(`prestation_${position}_prix_ht`);
+        if (quantity === null || quantity <= 0) details.push("quantité");
+        if (finiteNumber(line.unit_price) === null) details.push("prix HT");
+        if (details.length) warnings.push(`Prestation ${position} à compléter dans le brouillon : ${details.join(", ")}.`);
         if (line.tax_rate === null || line.tax_rate === undefined) {
           warnings.push(`TVA à vérifier sur la prestation ${position}.`);
         }
       });
+      if (!items.length && !text(payload.quote_id) && !text(payload.quote_number)) missing.push("prestations");
     }
 
     if (action.intentType === "schedule_task") {

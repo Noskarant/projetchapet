@@ -201,6 +201,7 @@ function systemPrompt(kind: ParseKind, target: string) {
   if (kind === "customer") {
     return `Tu es un extracteur de données pour un logiciel français de devis et facturation destiné aux artisans.
 Transforme une dictée orale en un objet JSON strict. N'invente aucune donnée. Une donnée non prononcée doit rester vide et être signalée dans warnings.
+Interprète naturellement les hésitations et variantes de langage, sans exiger de formule précise pour identifier le client.
 Schéma exact :
 {
   "kind":"business|individual",
@@ -224,9 +225,10 @@ Les nombres dictés chiffre par chiffre doivent être réunis sans inventer de c
   }
 
   return `Tu structures une dictée d'artisan français pour créer un ${target === "invoice" ? "brouillon de facture" : "brouillon de devis"}.
-Comprends le vocabulaire BTP et les formulations orales, notamment plâtrerie-peinture, plomberie, électricité, carrelage, menuiserie, couverture, isolation et rénovation : ratissage, rebouchage, ponçage, impression, sous-couche, deux passes, protection, fourniture et pose, dépose, évacuation, m², mètre linéaire, heure, forfait, acompte, franchise, RSE.
+Comprends les formulations orales naturelles, les hésitations, répétitions et erreurs probables de transcription dans tous les métiers. Reformule sobrement les désignations compréhensibles sans exiger le libellé exact d'un catalogue. Si le contexte lève clairement une erreur de transcription, utilise le sens métier sans changer les chiffres.
+Comprends notamment plâtrerie-peinture, plomberie, électricité, carrelage, menuiserie, couverture, isolation et rénovation : ratissage, rebouchage, ponçage, impression, sous-couche, deux passes, protection, fourniture et pose, dépose, évacuation, m², mètre linéaire, heure, forfait, acompte, franchise, RSE.
 N'invente jamais un client, une désignation, une quantité, une unité, un prix ou une TVA. Conserve les termes métier prononcés. Les prix sont HT uniquement si "HT" est explicite ou si aucun type n'est précisé. Si "TTC" est prononcé, mets price_type à "ttc"; la conversion HT sera faite côté serveur seulement si la TVA est explicite.
-Chaque prestation distincte doit devenir une ligne séparée.
+Chaque prestation distincte explicitement demandée doit devenir une ligne séparée. Une pièce, une précision, une répétition ou un fragment de phrase ne crée pas à lui seul une prestation supplémentaire. Ne crée pas de ligne générique « Prestation » à partir d'un fragment incompris. Pour une prestation explicitement demandée mais incomplète, conserve les données présentes et signale seulement les valeurs réellement absentes. Ne signale pas comme ambigu un libellé dont le sens est clair malgré la transcription.
 Schéma exact :
 {
   "customer_hint":"",

@@ -80,7 +80,7 @@ test("les actions financières et messages incomplets restent bloqués", () => {
   assert.ok(actions[2].missingFields.includes("quantite"));
 });
 
-test("un devis avec une ligne inexploitable ne peut plus passer en ready", () => {
+test("un document sans prestation exploitable reste bloqué", () => {
   const [action] = hardenPlannedActions(normalizeModelPlan({
     actions: [{
       intent_type: "prepare_quote",
@@ -92,10 +92,50 @@ test("un devis avec une ligne inexploitable ne peut plus passer en ready", () =>
   }, "Fais un devis pour Martin"));
 
   assert.equal(action.status, "needs_input");
-  assert.ok(action.missingFields.includes("prestation_1_libelle"));
-  assert.ok(action.missingFields.includes("prestation_1_quantite"));
-  assert.ok(action.missingFields.includes("prestation_1_prix_ht"));
-  assert.ok(action.warnings.some((warning) => /TVA/.test(warning)));
+  assert.deepEqual(action.payload.items, []);
+  assert.deepEqual(action.missingFields, ["prestations"]);
+});
+
+test("une dictée naturelle prépare un brouillon même avec une prestation partielle et des champs fantômes du modèle", () => {
+  for (const intent_type of ["prepare_quote", "prepare_invoice"] as const) {
+    const [action] = hardenPlannedActions(normalizeModelPlan({
+      actions: [{
+        intent_type,
+        missing_fields: ["items[3].label", "prestation_4_quantite", "prestation_4_prix_ht"],
+        payload: {
+          customer_hint: "Martin",
+          items: [
+            { label: "Remplacement papier peint plafond chambre 1", quantity: 13, unit: "m²", unit_price: 21, tax_rate: 10 },
+            { label: "Remplacement papier peint plafond chambre 2", quantity: 11, unit: "m²", unit_price: 21, tax_rate: 10 },
+            { label: "Remplacement papier peint chambre 3", quantity: 15.87, unit: "m²", unit_price: 21, tax_rate: 10 },
+            { label: "Couloir, papier peint", quantity: null, unit_price: null, tax_rate: 10 },
+          ],
+        },
+      }],
+    }, "Chez Martin, remplace le papier peint des chambres 1, 2 et 3 ; le couloir est à revoir"));
+
+    assert.equal(action.status, "ready");
+    assert.deepEqual(action.missingFields, []);
+    assert.equal((action.payload.items as unknown[]).length, 4);
+    assert.match(action.warnings.join(" "), /Prestation 4 à compléter.*quantité, prix HT/);
+  }
+});
+
+test("une ligne générique inventée par le modèle ne pollue pas le brouillon", () => {
+  const [action] = hardenPlannedActions(normalizeModelPlan({
+    actions: [{
+      intent_type: "prepare_quote",
+      missing_fields: ["items[1].quantity", "items[1].unit_price"],
+      payload: { customer_hint: "Martin", items: [
+        { label: "Peinture", quantity: 12, unit_price: 30, tax_rate: 10 },
+        { label: "Prestation", quantity: null, unit_price: null },
+      ] },
+    }],
+  }, "Peinture 12 m² à 30 euros pour Martin"));
+
+  assert.equal(action.status, "ready");
+  assert.deepEqual(action.missingFields, []);
+  assert.equal((action.payload.items as unknown[]).length, 1);
 });
 
 test("une date ou heure ambiguë/incorrecte est bloquée avant agenda", () => {
