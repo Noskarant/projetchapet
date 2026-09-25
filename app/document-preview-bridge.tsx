@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Loader2, Mail, X } from "lucide-react";
+import { Download, Expand, Loader2, Mail, Share2, X } from "lucide-react";
 import { fetchWorkspace, customerName, type Invoice, type Quote } from "@/lib/project-chapet";
 import { blobToBase64, buildDocumentPdf, downloadDocumentPdf } from "@/lib/document-tools";
 
@@ -19,10 +19,12 @@ function isQuote(document: BusinessDocument): document is Quote {
 export default function DocumentPreviewBridge() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
   const [loadingNumber, setLoadingNumber] = useState("");
   const handledRef = useRef<string>("");
 
   const closePreview = useCallback(() => {
+    setFullScreen(false);
     setPreview((current) => {
       if (current) URL.revokeObjectURL(current.url);
       return null;
@@ -130,7 +132,17 @@ export default function DocumentPreviewBridge() {
                 <h2>{preview.document.number}</h2>
                 <p>{customerName(preview.document.customer)}</p>
               </div>
-              <div className="pc-pdf-preview-actions">
+            <div className="pc-pdf-preview-actions">
+                <button className="pc-secondary" onClick={() => setFullScreen(true)}><Expand size={16} /> Plein écran</button>
+                <button className="pc-secondary" onClick={async () => {
+                  if (!preview) return;
+                  const blob = await buildDocumentPdf(preview.document);
+                  const file = new File([blob], `${preview.document.number}.pdf`, { type: "application/pdf" });
+                  try {
+                    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) await navigator.share({ files: [file] });
+                    else await downloadDocumentPdf(preview.document);
+                  } catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) await downloadDocumentPdf(preview.document); }
+                }}><Share2 size={16} /> Partager / Fichiers</button>
                 <button className="pc-secondary" onClick={() => void downloadDocumentPdf(preview.document)}>
                   <Download size={16} /> Télécharger
                 </button>
@@ -146,6 +158,7 @@ export default function DocumentPreviewBridge() {
             <div className="pc-pdf-frame-wrap">
               <iframe src={preview.url} title={`Aperçu PDF ${preview.document.number}`} />
             </div>
+            {fullScreen && <div className="rm-document-fullscreen" role="dialog" aria-modal="true" aria-label={`PDF ${preview.document.number}`}><header><strong>{preview.document.number}</strong><button onClick={() => setFullScreen(false)} aria-label="Fermer le PDF plein écran"><X size={22} /></button></header><iframe src={preview.url} title={`PDF plein écran ${preview.document.number}`} /></div>}
           </section>
         </div>
       )}

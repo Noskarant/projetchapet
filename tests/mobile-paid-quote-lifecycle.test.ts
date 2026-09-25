@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { convertQuoteToInvoice, seedMobileWorkspace, upsertInvoice } from "../lib/mobile-prototype";
 
-test("un devis validé reste accepté après sa transformation en facture", () => {
+test("un devis validé devient terminé dès sa transformation en facture", () => {
   const workspace = seedMobileWorkspace();
   const quote = workspace.quotes.find((item) => item.id === "Q-377");
   assert.ok(quote);
@@ -15,9 +15,9 @@ test("un devis validé reste accepté après sa transformation en facture", () =
   const result = convertQuoteToInvoice(withoutExistingInvoice, quote);
   const storedQuote = result.workspace.quotes.find((item) => item.id === quote.id);
 
-  assert.equal(storedQuote?.status, "Validé");
+  assert.equal(storedQuote?.status, "Terminé");
   assert.equal(result.invoice.sourceQuoteId, quote.id);
-  assert.equal(result.invoice.status, "Brouillon");
+  assert.equal(result.invoice.status, "En cours");
 });
 
 test("le paiement retire le devis du filtre Validé sans le supprimer de l’historique", () => {

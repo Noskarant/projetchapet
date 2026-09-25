@@ -9,6 +9,7 @@ import {
   normalizeMobileWorkspace,
 } from "./mobile-workspace-storage";
 import type { MobileWorkspace } from "./mobile-prototype";
+import { QUOTE_META_STORAGE_KEY } from "./mobile-quote-preview";
 
 export const PILOT_SNAPSHOT_SCHEMA_VERSION = 1;
 export const PILOT_SYNC_STATE_KEY = "forgeo:pilot-cloud-sync:v1";
@@ -66,6 +67,7 @@ export function writePilotLocalSnapshot(storage: PilotStorage, snapshot: PilotLo
 export function clearPilotLocalSnapshot(storage: PilotStorage) {
   storage.removeItem(MOBILE_WORKSPACE_STORAGE_KEY);
   storage.removeItem(COMPANY_PROFILE_STORAGE_KEY);
+  storage.removeItem(QUOTE_META_STORAGE_KEY);
   storage.removeItem(PILOT_SYNC_STATE_KEY);
 }
 

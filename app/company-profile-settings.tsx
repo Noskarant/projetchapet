@@ -3,6 +3,7 @@
 import { Building2, Check, Database, ImagePlus, Loader2, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { defaultCompanyProfile, readCompanyProfile, writeCompanyProfile, type CompanyProfile } from "@/lib/company-profile";
+import { prepareCompanyLogo } from "@/lib/company-logo";
 
 type LookupCompany = {
   companyName: string;
@@ -12,15 +13,6 @@ type LookupCompany = {
   postalCode: string;
   city: string;
 };
-
-function asDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("Lecture du logo impossible."));
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function CompanyProfileSettings() {
   const [open, setOpen] = useState(false);
@@ -86,12 +78,8 @@ export default function CompanyProfileSettings() {
       setMessage("Utilisez un logo PNG, JPEG ou WebP.");
       return;
     }
-    if (file.size > 550_000) {
-      setMessage("Le logo doit faire moins de 550 Ko pour rester rapide sur mobile.");
-      return;
-    }
     try {
-      const dataUrl = await asDataUrl(file);
+      const dataUrl = await prepareCompanyLogo(file);
       setProfile((current) => ({ ...current, logoDataUrl: dataUrl }));
       setMessage("Logo prêt à être enregistré.");
     } catch (error) {
@@ -142,6 +130,7 @@ export default function CompanyProfileSettings() {
             <p>Définissez le premier et le dernier jour de votre exercice.</p>
             <div className="cps-two"><label>Début (MM-JJ)<input value={profile.accountingStart} onChange={(event) => setProfile({ ...profile, accountingStart: event.target.value })} placeholder="01-01" /></label><label>Fin (MM-JJ)<input value={profile.accountingEnd} onChange={(event) => setProfile({ ...profile, accountingEnd: event.target.value })} placeholder="12-31" /></label></div>
             <label>E-mail du comptable<input type="email" value={profile.accountingEmail} onChange={(event) => setProfile({ ...profile, accountingEmail: event.target.value })} placeholder="compta@cabinet.fr" /></label>
+            <label><span><input type="checkbox" checked={profile.monthlyAccountingEnabled} onChange={(event) => setProfile({ ...profile, monthlyAccountingEnabled: event.target.checked })} style={{ width: 18, marginRight: 8 }} />Envoyer automatiquement le relevé du mois précédent au comptable</span></label>
           </section>
 
           <section className="cps-card">

@@ -19,6 +19,8 @@ import {
   normalizeMobileWorkspace,
 } from "@/lib/mobile-workspace-storage";
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
+import { readQuoteInternalMeta, writeQuoteInternalMeta } from "@/lib/mobile-quote-preview";
+import { savePrivateQuoteMeta } from "@/lib/quote-private-cloud";
 import {
   applyWorkspaceAliases,
   coreWorkspaceSignature,
@@ -49,6 +51,18 @@ function readWorkspace(): MobileWorkspace {
 
 function writeWorkspace(workspace: MobileWorkspace) {
   window.localStorage.setItem(MOBILE_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
+}
+
+function migrateQuoteMetaNumbers(local: MobileWorkspace, server: Awaited<ReturnType<typeof fetchWorkspace>>, aliases: WorkspaceAliases) {
+  for (const quote of local.quotes) {
+    const storedId = aliases.quotes.get(quote.id) ?? quote.id;
+    const canonical = server.quotes.find((item) => item.id === storedId);
+    if (!canonical || canonical.number === quote.number) continue;
+    const meta = readQuoteInternalMeta(window.localStorage, quote.number);
+    if (!meta.internalNotes.trim() && !meta.discountPercent) continue;
+    writeQuoteInternalMeta(window.localStorage, canonical.number, meta);
+    void savePrivateQuoteMeta(canonical.number, meta).catch((error) => console.warn("[MANUFEO] Notes privées en attente de synchronisation", error));
+  }
 }
 
 function hasCoreData(workspace: MobileWorkspace) {
@@ -172,6 +186,7 @@ export async function hydrateMobileCoreFromDesktop() {
     const aliases = emptyWorkspaceAliases();
     await synchronizeLocalChanges(serverCanonical, merged, aliases);
     const migrated = await fetchWorkspace();
+    migrateQuoteMetaNumbers(merged, migrated, aliases);
     const canonical = normalizedWorkspaceToMobile(migrated, applyWorkspaceAliases(merged, aliases));
     writeWorkspace(canonical);
     return canonical;
@@ -233,6 +248,7 @@ export default function MobileDesktopSyncBridge() {
           // on la laisse strictement en place et on retentera plus tard au lieu de l'écraser.
           await synchronizeLocalChanges(baseline.current, local, aliases.current);
           const server = await fetchWorkspace();
+          migrateQuoteMetaNumbers(rawLocal, server, aliases.current);
           const aliasedLocal = applyWorkspaceAliases(rawLocal, aliases.current);
           const canonical = normalizedWorkspaceToMobile(server, aliasedLocal);
           writeWorkspace(canonical);

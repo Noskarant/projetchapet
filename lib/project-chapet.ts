@@ -111,19 +111,33 @@ export async function getActiveOrganizationId() {
 
 export async function fetchWorkspace() {
   const organizationId = await getActiveOrganizationId();
-  const [customersResult, quotesResult, invoicesResult] = await Promise.all([
+  const [customersResult, quotesResult, invoicesResult, billedQuotesResult] = await Promise.all([
     supabase.from("customers").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("quotes").select("*, customer:customers(*), items:quote_items(*)").eq("organization_id", organizationId).order("created_at", { ascending: false }),
-    supabase.from("invoices").select("*, customer:customers(*), items:invoice_items(*)").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("invoices").select("*, customer:customers(*), items:invoice_items(*)").eq("organization_id", organizationId).is("archived_at", null).order("created_at", { ascending: false }),
+    supabase.from("invoices").select("quote_id").eq("organization_id", organizationId).not("quote_id", "is", null).neq("status", "cancelled"),
   ]);
-  const error = customersResult.error || quotesResult.error || invoicesResult.error;
+  const error = customersResult.error || quotesResult.error || invoicesResult.error || billedQuotesResult.error;
   if (error) throw error;
   return {
     organizationId,
     customers: (customersResult.data ?? []) as Customer[],
     quotes: ((quotesResult.data ?? []) as unknown as Quote[]).map((quote) => ({ ...quote, items: [...(quote.items ?? [])].sort((a, b) => a.position - b.position) })),
     invoices: ((invoicesResult.data ?? []) as unknown as Invoice[]).map((invoice) => ({ ...invoice, items: [...(invoice.items ?? [])].sort((a, b) => a.position - b.position) })),
+    billedQuoteIds: (billedQuotesResult.data ?? []).map((invoice) => invoice.quote_id as string),
   };
+}
+
+export async function fetchArchivedInvoices() {
+  const organizationId = await getActiveOrganizationId();
+  const { data, error } = await supabase.from("invoices")
+    .select("*, customer:customers(*), items:invoice_items(*)")
+    .eq("organization_id", organizationId).not("archived_at", "is", null)
+    .order("issue_date", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as unknown as Invoice[]).map((invoice) => ({
+    ...invoice, items: [...(invoice.items ?? [])].sort((a, b) => a.position - b.position),
+  }));
 }
 
 export async function saveCustomer(input: CustomerInput, id?: string) {
@@ -217,6 +231,11 @@ export async function saveInvoice(input: DocumentInput, existingNumbers: string[
 
 export async function deleteInvoice(id: string) {
   const { error } = await supabase.rpc("delete_invoice_draft", { p_invoice_id: id });
+  if (error) throw error;
+}
+
+export async function archiveInvoice(id: string) {
+  const { error } = await supabase.rpc("archive_invoice_document", { p_invoice_id: id });
   if (error) throw error;
 }
 

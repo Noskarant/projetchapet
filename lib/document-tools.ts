@@ -42,13 +42,24 @@ export async function buildDocumentPdf(document: BusinessDocument) {
     ? [profile.address, profile.postalCode, profile.city].filter(Boolean).join(" · ")
     : "";
 
+  let identityX = margin;
+  if (profile?.logoDataUrl) {
+    try {
+      const image = pdf.getImageProperties(profile.logoDataUrl);
+      const scale = Math.min(26 / image.width, 14 / image.height);
+      const format = profile.logoDataUrl.startsWith("data:image/png") ? "PNG" : profile.logoDataUrl.startsWith("data:image/webp") ? "WEBP" : "JPEG";
+      pdf.addImage(profile.logoDataUrl, format, margin, y - 5, image.width * scale, image.height * scale);
+      identityX = margin + 31;
+    } catch { /* Un logo invalide ne bloque pas le document. */ }
+  }
+
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
-  pdf.text(companyName, margin, y);
+  pdf.text(companyName, identityX, y, { maxWidth: 95 - (identityX - margin) });
   if (companyLocation) {
     pdf.setFontSize(9);
     pdf.setFont("helvetica", "normal");
-    pdf.text(companyLocation, margin, y + 6, { maxWidth: 95 });
+    pdf.text(companyLocation, identityX, y + 6, { maxWidth: 95 - (identityX - margin) });
   }
 
   pdf.setFont("helvetica", "bold");
@@ -127,9 +138,23 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   pdf.text("Sous-total HT", totalsX, y);
   pdf.text(money(document.subtotal), 192, y, { align: "right" });
   y += 7;
-  pdf.text("TVA", totalsX, y);
-  pdf.text(money(document.tax_total), 192, y, { align: "right" });
-  y += 8;
+  const taxGroups = new Map<number, number>();
+  for (const item of document.items) {
+    if (item.tax_rate === null || item.tax_rate === undefined) continue;
+    const rate = Number(item.tax_rate);
+    taxGroups.set(rate, (taxGroups.get(rate) || 0) + Number(item.quantity || 0) * Number(item.unit_price || 0) * rate / 100);
+  }
+  for (const [rate, amount] of [...taxGroups].sort(([a], [b]) => a - b)) {
+    pdf.text(`TVA (${new Intl.NumberFormat("fr-FR").format(rate)} %)`, totalsX, y);
+    pdf.text(money(Math.round(amount * 100) / 100), 192, y, { align: "right" });
+    y += 7;
+  }
+  if (!taxGroups.size) {
+    pdf.text("TVA", totalsX, y);
+    pdf.text(money(document.tax_total), 192, y, { align: "right" });
+    y += 7;
+  }
+  y += 1;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(11);
   pdf.setCharSpace(0);

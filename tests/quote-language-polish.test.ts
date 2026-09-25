@@ -40,3 +40,9 @@ test("conserve les inconnues nulles", () => {
     tax_rate: null,
   });
 });
+
+test("les quantités commandent le pluriel des libellés courants", () => {
+  assert.equal(polishFrenchTradeDesignation("pose de 15 rouleau et 2 seau"), "Pose de 15 rouleaux et 2 seaux");
+  assert.equal(polishFrenchTradeDesignation("1 rouleaux et 1 pots"), "1 rouleau et 1 pot");
+  assert.equal(polishFrenchTradeDesignation("chambre 2, plafond"), "Chambre 2, plafond");
+});

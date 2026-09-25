@@ -452,8 +452,8 @@ export default function MobileVoiceEditAssistant() {
     await new Promise((resolve) => window.setTimeout(resolve, 100));
     tearDown(session);
     const samples = mergeFloat32Buffers(session.buffers);
-    if (samples.length < session.sampleRate * 0.35 || audioPeak(samples) < 0.0015) {
-      setMessage("Aucun son exploitable n’a été détecté.");
+    if (samples.length < session.sampleRate * 0.15 || audioPeak(samples) < 0.0005) {
+      setMessage("Le micro n’a pas capté votre voix. Vérifiez son autorisation et réessayez.");
       setStage("ready");
       return;
     }

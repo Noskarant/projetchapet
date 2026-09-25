@@ -461,8 +461,8 @@ export default function ActionVoiceAssistant() {
     tearDown(session);
     const samples = mergeFloat32Buffers(session.buffers);
     const duration = samples.length / session.sampleRate;
-    if (duration < 0.45 || audioPeak(samples) < 0.0015) {
-      setMessage("Aucun son exploitable. Parlez au moins une seconde et réessayez.");
+    if (duration < 0.15 || audioPeak(samples) < 0.0005) {
+      setMessage("Le micro n’a pas capté votre voix. Vérifiez l’autorisation du micro et réessayez.");
       setStage("ready");
       return;
     }

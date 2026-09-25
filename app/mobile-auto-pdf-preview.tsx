@@ -8,12 +8,16 @@ import {
   GripVertical,
   LockKeyhole,
   ReceiptText,
+  Share2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { companyProfileDisplayName, readCompanyProfile } from "@/lib/company-profile";
+import { loadPrivateQuoteMeta, savePrivateQuoteMeta } from "@/lib/quote-private-cloud";
 import {
   calculateQuotePreviewTotals,
+  QUOTE_META_STORAGE_KEY,
+  quoteTaxBreakdown,
   findQuoteByNumber,
   parseMobileWorkspace,
   readQuoteInternalMeta,
@@ -201,9 +205,13 @@ function enhanceQuoteEditor(editor: HTMLElement) {
   };
   const save = () => {
     const number = numberInput.value.trim();
-    writeQuoteInternalMeta(window.localStorage, number, {
+    const meta = {
       internalNotes: notes.value,
       discountPercent: Number(discount.value),
+    };
+    writeQuoteInternalMeta(window.localStorage, number, meta);
+    void savePrivateQuoteMeta(number, meta).catch((error) => {
+      console.warn("[MANUFEO] Notes privées non synchronisées", error);
     });
     window.dispatchEvent(
       new CustomEvent("projetchapet:quote-meta-changed", { detail: { number } }),
@@ -240,7 +248,9 @@ async function buildQuotePdf(
           : profile.logoDataUrl.startsWith("data:image/webp")
             ? "WEBP"
             : "JPEG";
-        pdf.addImage(profile.logoDataUrl, format, margin, y - 7, 31, 14, undefined, "FAST");
+        const dimensions = pdf.getImageProperties(profile.logoDataUrl);
+        const scale = Math.min(31 / dimensions.width, 14 / dimensions.height);
+        pdf.addImage(profile.logoDataUrl, format, margin, y - 7, dimensions.width * scale, dimensions.height * scale, undefined, "FAST");
       } catch {
         // Un logo incompatible ne doit jamais empêcher la génération du devis.
       }
@@ -340,8 +350,17 @@ async function buildQuotePdf(
   pdf.text("Total HT", totalX, y);
   pdf.text(money(totals.subtotal), 192, y, { align: "right" });
   y += 7;
-  pdf.text("TVA", totalX, y);
-  pdf.text(money(totals.taxTotal), 192, y, { align: "right" });
+  const taxes = quoteTaxBreakdown(quote.items, meta.discountPercent);
+  if (taxes.length) {
+    taxes.forEach((group, index) => {
+      if (index) y += 7;
+      pdf.text(`TVA (${new Intl.NumberFormat("fr-FR").format(group.rate)} %)`, totalX, y);
+      pdf.text(money(group.amount), 192, y, { align: "right" });
+    });
+  } else {
+    pdf.text("TVA", totalX, y);
+    pdf.text(money(totals.taxTotal), 192, y, { align: "right" });
+  }
   y += 8;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(11);
@@ -389,9 +408,20 @@ type PreviewState = {
 
 export default function MobileAutoPdfPreview() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [fullScreen, setFullScreen] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    const saved = (() => { try { return JSON.parse(window.localStorage.getItem(QUOTE_META_STORAGE_KEY) || "{}"); } catch { return {}; } })() as Record<string, QuoteInternalMeta>;
+    void loadPrivateQuoteMeta(window.localStorage).then((cloud) => {
+      for (const [number, meta] of Object.entries(saved)) {
+        if (!cloud[number]) void savePrivateQuoteMeta(number, meta).catch(() => undefined);
+      }
+    }).catch((error) => console.warn("[MANUFEO] Chargement des notes privées impossible", error));
+  }, []);
+
   const closePreview = useCallback(() => {
+    setFullScreen(false);
     setPreview((current) => {
       if (current?.pdfUrl) URL.revokeObjectURL(current.pdfUrl);
       return null;
@@ -545,7 +575,7 @@ export default function MobileAutoPdfPreview() {
           </button>
           <button
             className={preview.tab === "page" ? "active" : ""}
-            onClick={() => setPreview({ ...preview, tab: "page" })}
+            onClick={() => preview.tab === "page" && preview.pdfUrl ? setFullScreen(true) : setPreview({ ...preview, tab: "page" })}
           >
             <FileText size={17} /> Page complète
           </button>
@@ -620,13 +650,10 @@ export default function MobileAutoPdfPreview() {
 
         <aside className="rm-philippe-totals" aria-label="Totaux du devis">
           <div>
-            <small>Total HT</small>
+            <small>Sous-total HT</small>
             <strong>{money(totals.subtotal)}</strong>
           </div>
-          <div>
-            <small>TVA</small>
-            <strong>{money(totals.taxTotal)}</strong>
-          </div>
+          {quoteTaxBreakdown(preview.quote.items, preview.meta.discountPercent).map((group) => <div key={group.rate}><small>TVA ({new Intl.NumberFormat("fr-FR").format(group.rate)} %)</small><strong>{money(group.amount)}</strong></div>)}
           <div className="primary">
             <small>Total TTC</small>
             <strong>{money(totals.total)}</strong>
@@ -658,8 +685,17 @@ export default function MobileAutoPdfPreview() {
           >
             <Download size={18} /> Télécharger
           </button>
+          <button disabled={!preview.pdfBlob} onClick={async () => {
+            if (!preview.pdfBlob) return;
+            const file = new File([preview.pdfBlob], `${preview.quote.number}.pdf`, { type: "application/pdf" });
+            try {
+              if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) await navigator.share({ files: [file], title: preview.quote.number });
+              else downloadBlob(preview.pdfBlob, file.name);
+            } catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) downloadBlob(preview.pdfBlob, file.name); }
+          }}><Share2 size={18} /> Partager / Fichiers</button>
         </footer>
       </section>
+      {fullScreen && preview.pdfUrl && <div className="rm-document-fullscreen" role="dialog" aria-modal="true" aria-label={`PDF ${preview.quote.number}`}><header><strong>{preview.quote.number}</strong><button onClick={() => setFullScreen(false)} aria-label="Fermer le PDF plein écran"><X size={22} /></button></header><iframe src={preview.pdfUrl} title={`PDF plein écran ${preview.quote.number}`} /></div>}
     </div>
   );
 }

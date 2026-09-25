@@ -13,6 +13,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { prepareCompanyLogo } from "@/lib/company-logo";
 import {
   defaultCompanyProfile,
   readCompanyProfile,
@@ -81,15 +82,6 @@ const tutorialSlides = [
     note: "Vous êtes prêt. Le tutoriel pourra évoluer avec les nouvelles fonctions de MANUFEO.",
   },
 ];
-
-function asDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("Lecture du logo impossible."));
-    reader.readAsDataURL(file);
-  });
-}
 
 function humanMissingField(field: string) {
   const labels: Record<string, string> = {
@@ -196,12 +188,8 @@ export default function FirstRunOnboarding() {
       setMessage("Utilisez un logo PNG, JPEG ou WebP.");
       return;
     }
-    if (file.size > 550_000) {
-      setMessage("Le logo doit faire moins de 550 Ko.");
-      return;
-    }
     try {
-      const logoDataUrl = await asDataUrl(file);
+      const logoDataUrl = await prepareCompanyLogo(file);
       setProfile((current) => ({ ...current, logoDataUrl }));
       setMessage("Logo ajouté.");
     } catch (error) {

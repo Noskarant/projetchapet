@@ -169,6 +169,7 @@ function syncPrimaryStatusButton(preview: HTMLElement, button: HTMLButtonElement
 export default function MobilePhilippeQuoteActionsMenu() {
   const [activeNumber, setActiveNumber] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sendChoiceOpen, setSendChoiceOpen] = useState(false);
 
   useEffect(() => {
     const onOpen = () => setMenuOpen(true);
@@ -178,6 +179,8 @@ export default function MobilePhilippeQuoteActionsMenu() {
 
       switch (action) {
         case "send":
+          setSendChoiceOpen(true);
+          return;
         case "share":
           runUnderlyingQuoteAction(/^envoyer pdf$/);
           return;
@@ -344,6 +347,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
 
   return (
     <>
+      {sendChoiceOpen && activeNumber && <div className="rm-unified-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Envoyer le devis" onMouseDown={(event) => { if (event.target === event.currentTarget) setSendChoiceOpen(false); }}><section className="rm-unified-sheet"><header><div><small>DEVIS {activeNumber}</small><strong>Envoyer le devis</strong></div><button type="button" onClick={() => setSendChoiceOpen(false)} aria-label="Fermer">×</button></header><div className="rm-unified-sheet-list">{([false, true] as const).map((withoutPrices) => <button key={String(withoutPrices)} type="button" onClick={() => { setSendChoiceOpen(false); window.dispatchEvent(new CustomEvent("manufeo:send-quote", { detail: { number: activeNumber, withoutPrices } })); }}><span aria-hidden="true">✉</span><span>{withoutPrices ? "Sans les prix" : "Avec les prix"}</span></button>)}</div></section></div>}
       <style>{`
         @media (max-width: 820px) {
           body.rm-philippe-quote-actions-enabled .rm-philippe-preview-header { position: relative; }

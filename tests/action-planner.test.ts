@@ -45,6 +45,20 @@ test("une facture reste une action sensible même quand le modèle ne le demande
   assert.equal(action.status, "ready");
 });
 
+test("TVA 10 % annoncée au début reste appliquée aux lignes suivantes", () => {
+  const [action] = normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+    customer_hint: "Philippe",
+    items: [
+      { label: "Peinture salon", quantity: 18.5, unit: "m²", unit_price: 21, price_type: "ht" },
+      { label: "Pose de 15 rouleau", quantity: 15, unit: "rouleau", unit_price: 12, price_type: "ht" },
+    ],
+  } }] }, "TVA 10 % pour tout le devis, 18,50 m² de peinture salon à 21 euros HT, pose de 15 rouleaux à 12 euros HT pour Philippe");
+  const items = action.payload.items as Array<{ tax_rate: number; quantity: number; label: string }>;
+  assert.deepEqual(items.map((item) => item.tax_rate), [10, 10]);
+  assert.equal(items[0].quantity, 18.5);
+  assert.equal(items[1].label, "Pose de 15 rouleaux");
+});
+
 test("le plan multi-actions conserve la dépendance nouveau client vers devis", () => {
   const actions = normalizeModelPlan({
     actions: [

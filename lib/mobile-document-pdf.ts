@@ -1,5 +1,5 @@
 import type { MobileCustomer, MobileInvoice, MobileQuote } from "./mobile-prototype";
-import { calculateQuotePreviewTotals, type QuoteInternalMeta } from "./mobile-quote-preview";
+import { calculateQuotePreviewTotals, quoteTaxBreakdown, type QuoteInternalMeta } from "./mobile-quote-preview";
 import { companyProfileDisplayName, readCompanyProfile, type CompanyProfile } from "./company-profile";
 
 export type MobileBusinessDocument = MobileQuote | MobileInvoice;
@@ -127,7 +127,9 @@ export async function buildBusinessDocumentPdf({
           : logoDataUrl.startsWith("data:image/webp")
             ? "WEBP"
             : "JPEG";
-        pdf.addImage(logoDataUrl, format, margin, top - 4, logoWidth, logoHeight, undefined, "FAST");
+        const dimensions = pdf.getImageProperties(logoDataUrl);
+        const ratio = Math.min(logoWidth / dimensions.width, logoHeight / dimensions.height);
+        pdf.addImage(logoDataUrl, format, margin, top - 4, dimensions.width * ratio, dimensions.height * ratio, undefined, "FAST");
       } catch {
         // Un logo incompatible ne doit jamais empêcher la génération du document.
       }
@@ -288,7 +290,8 @@ export async function buildBusinessDocumentPdf({
   });
 
   if (!withoutPrices) {
-    const totalsHeight = quoteTotals && quoteTotals.discountPercent > 0 ? 51 : 39;
+    const taxLines = quoteTaxBreakdown(document.items, quoteMeta.discountPercent);
+    const totalsHeight = (quoteTotals && quoteTotals.discountPercent > 0 ? 51 : 39) + Math.max(0, taxLines.length - 1) * 6;
     ensureSpace(totalsHeight);
     y += 4;
     const labelX = 129;
@@ -304,11 +307,19 @@ export async function buildBusinessDocumentPdf({
       pdf.setTextColor(20, 42, 65);
       y += 6;
     }
-    pdf.text("Total HT", labelX, y);
+    pdf.text("Sous-total HT", labelX, y);
     pdf.text(money(subtotal), 192, y, { align: "right" });
     y += 6;
-    pdf.text("TVA", labelX, y);
-    pdf.text(money(taxTotal), 192, y, { align: "right" });
+    if (taxLines.length) {
+      taxLines.forEach((group, index) => {
+        if (index) y += 6;
+        pdf.text(`TVA (${new Intl.NumberFormat("fr-FR").format(group.rate)} %)`, labelX, y);
+        pdf.text(money(group.amount), 192, y, { align: "right" });
+      });
+    } else {
+      pdf.text("TVA", labelX, y);
+      pdf.text(money(taxTotal), 192, y, { align: "right" });
+    }
     y += 7;
     pdf.setFillColor(17, 46, 72);
     pdf.roundedRect(126, y - 5, 69, 12, 2, 2, "F");

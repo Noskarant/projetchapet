@@ -10,6 +10,8 @@ import {
   FileText,
   HardHat,
   MapPin,
+  Plus,
+  Search,
   ShieldCheck,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -71,6 +73,7 @@ export default function MobileCommercialProjects({
   onChange,
   onNotify,
   onDownloadDocument,
+  onCreateQuote,
 }: {
   state: CommercialDemoState;
   selectedProjectId: string;
@@ -78,9 +81,11 @@ export default function MobileCommercialProjects({
   onChange: (state: CommercialDemoState) => void;
   onNotify: (message: string) => void;
   onDownloadDocument: (projectId: string, withoutPrices: boolean) => void;
+  onCreateQuote: (customerId: string, title: string) => void;
 }) {
   const [tab, setTab] = useState<ProjectTab>("suivi");
   const [workerMode, setWorkerMode] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [issueDraft, setIssueDraft] = useState<
     Pick<CommercialProjectIssue, "title" | "detail" | "severity">
@@ -89,6 +94,11 @@ export default function MobileCommercialProjects({
   const project = useMemo(
     () => state.projects.find((item) => item.id === selectedProjectId) ?? state.projects[0] ?? null,
     [selectedProjectId, state.projects],
+  );
+  const filteredProjects = state.projects.filter((item) =>
+    `${item.name} ${item.subtitle} ${item.address} ${item.status}`
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+      .includes(projectSearch.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()),
   );
 
   if (!project) {
@@ -200,6 +210,8 @@ export default function MobileCommercialProjects({
         <button className="rm-worker-back" type="button" onClick={() => setWorkerMode(false)}>
           ← Retour direction
         </button>
+        <label className="rm-project-search"><Search size={17} /><input type="search" value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} placeholder="Rechercher un chantier" /></label>
+        <div className="rm-project-switcher">{filteredProjects.map((item) => <button type="button" key={item.id} className={project.id === item.id ? "active" : ""} onClick={() => onSelectProject(item.id)}>{item.name}</button>)}</div>
 
         <section className="rm-worker-hero">
           <span className="rm-worker-badge"><HardHat size={17} /> ESPACE ÉQUIPE</span>
@@ -259,8 +271,9 @@ export default function MobileCommercialProjects({
 
   return (
     <div className="rm-commercial-body rm-project-body">
+      <label className="rm-project-search"><Search size={17} /><input type="search" value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} placeholder="Rechercher un chantier" /></label>
       <div className="rm-project-switcher">
-        {state.projects.map((item) => (
+        {filteredProjects.map((item) => (
           <button
             type="button"
             key={item.id}
@@ -289,6 +302,7 @@ export default function MobileCommercialProjects({
           </button>
         </div>
         <h3>{project.name}</h3>
+        <button className="rm-project-create-quote" type="button" onClick={() => onCreateQuote(project.customerId, project.name)}><Plus size={17} /> Créer un devis pour ce chantier</button>
         <p>{project.subtitle}</p>
         <div className="rm-project-location"><MapPin size={16} /> {project.address}</div>
         <div className="rm-project-progress">

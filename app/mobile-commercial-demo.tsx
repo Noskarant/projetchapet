@@ -15,6 +15,7 @@ import {
   type CommercialCloudSnapshot,
 } from "@/lib/commercial-cloud";
 import { blobToBase64 } from "@/lib/document-tools";
+import { sendAuthenticatedDocumentEmail } from "@/lib/authenticated-email";
 import {
   COMMERCIAL_DEMO_STORAGE_KEY,
   appendActivity,
@@ -663,6 +664,39 @@ export default function MobileCommercialDemo() {
     }
   };
 
+  useEffect(() => {
+    const sendDirectly = async (event: Event) => {
+      const { number, withoutPrices } = (event as CustomEvent<{ number: string; withoutPrices: boolean }>).detail || {};
+      const currentWorkspace = readWorkspace();
+      const quote = currentWorkspace?.quotes.find((item) => item.number === number);
+      const customer = quote && currentWorkspace ? findCustomer(currentWorkspace, quote.customerId) : null;
+      const recipient = customer?.emails.find(Boolean)?.trim();
+      if (!quote || !recipient) { notify("Ajoutez l’adresse e-mail du client dans sa fiche pour envoyer ce devis."); return; }
+      if (quote.items.some((item) => !withoutPrices && (item.quantity === null || item.unitPrice === null || item.taxRate === null))) {
+        notify("Complétez les quantités et tarifs avant d’envoyer le devis avec les prix."); return;
+      }
+      if (emailBusy) return;
+      setEmailBusy(true);
+      try {
+        const blob = await buildBusinessDocumentPdf({
+          document: quote, customer, company: commercial.company,
+          quoteMeta: readQuoteInternalMeta(window.localStorage, quote.number), withoutPrices,
+        });
+        await sendAuthenticatedDocumentEmail({
+          documentNumber: quote.number, documentKind: "quote", to: recipient,
+          subject: `Votre devis ${quote.number}`,
+          html: `<p>Bonjour,</p><p>Veuillez trouver votre devis ${quote.number.replaceAll("&", "&amp;").replaceAll("<", "&lt;")} en pièce jointe.</p><p>Cordialement,<br>${commercial.company.displayName.replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</p>`,
+          attachments: [{ filename: documentFileName(quote, withoutPrices), content: await blobToBase64(blob) }],
+        });
+        notify(`Devis envoyé à ${recipient}.`);
+        logActivity({ kind: "email", message: `${quote.number} envoyé à ${recipient}.`, documentNumber: quote.number });
+      } catch (error) { notify(error instanceof Error ? error.message : "Envoi du devis impossible."); }
+      finally { setEmailBusy(false); }
+    };
+    window.addEventListener("manufeo:send-quote", sendDirectly);
+    return () => window.removeEventListener("manufeo:send-quote", sendDirectly);
+  }, [commercial.company, emailBusy, logActivity, notify]);
+
   const saveCompany = () => {
     const company = {
       ...companyDraft,
@@ -766,6 +800,10 @@ export default function MobileCommercialDemo() {
                 onSelectProject={setSelectedProjectId}
                 onChange={setCommercial}
                 onNotify={notify}
+                onCreateQuote={(customerId, title) => {
+                  setOverlay(null);
+                  window.setTimeout(() => window.dispatchEvent(new CustomEvent("manufeo:create-project-quote", { detail: { customerId, title } })), 0);
+                }}
                 onDownloadDocument={(projectId, withoutPrices) =>
                   void downloadProjectDocument(projectId, withoutPrices)
                 }

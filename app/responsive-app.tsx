@@ -16,6 +16,7 @@ import FunctionalPrototype from "./functional-prototype";
 import GuidedFirstRunTour from "./guided-first-run-tour";
 import ImportCenter from "./import-center";
 import ManufeoBrandingBridge from "./manufeo-branding-bridge";
+import ManufeoSplash from "./manufeo-splash";
 import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
 import PilotOperationsCenter from "./pilot-operations-center";
@@ -40,26 +41,12 @@ export default function ResponsiveApp() {
   }, []);
 
   if (!mode) {
-    return (
-      <main
-        aria-label="Chargement de MANUFEO"
-        style={{
-          minHeight: "100dvh",
-          display: "grid",
-          placeItems: "center",
-          background: "#f3f6f9",
-          color: "#102a43",
-          fontFamily: "Arial, sans-serif",
-          fontWeight: 800,
-        }}
-      >
-        MANUFEO
-      </main>
-    );
+    return <ManufeoSplash />;
   }
 
   return (
     <AppErrorBoundary>
+      <ManufeoSplash />
       <PwaRegister />
       <ManufeoBrandingBridge />
       <PilotAuthGate>

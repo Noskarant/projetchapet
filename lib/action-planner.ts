@@ -14,6 +14,7 @@ import {
   spelledName,
   spokenPriceType,
 } from "@/lib/voice-facts";
+import { polishFrenchTradeDesignation } from "@/lib/quote-language-polish";
 
 export type VoiceActionTarget = "command" | "quote" | "invoice" | "customer" | "agenda";
 
@@ -72,11 +73,20 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const spokenPrice = alreadyConverted && sourcePrice !== null
     ? sourcePrice : (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
   const taxesInTranscript = [...transcript.matchAll(/(?:tva|taxe\s+sur\s+la\s+valeur\s+ajoutée)\s*(?:à|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/giu)]
-    .map((match) => explicitTax(match[0]));
+    .map((match) => ({ rate: explicitTax(match[0]), position: match.index }));
   const taxInRoom = roomSegment ? explicitTax(roomSegment) : null;
   const suppliedTax = numberOrNull(source.tax_rate);
-  const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? taxInRoom
-    ?? (taxesInTranscript.includes(suppliedTax) ? suppliedTax : null);
+  const segmentPosition = roomSegment ? transcript.indexOf(roomSegment) : -1;
+  const firstPricePosition = transcript.search(/\d+(?:[,.]\d+)?\s*(?:€|euros?)/iu);
+  const carryTax = taxesInTranscript.length > 1
+    || (taxesInTranscript[0] && (firstPricePosition < 0 || taxesInTranscript[0].position < firstPricePosition));
+  const priorTax = segmentPosition >= 0 && carryTax
+    ? taxesInTranscript.filter((match) => match.position <= segmentPosition).at(-1)?.rate ?? null : null;
+  const initialTax = taxesInTranscript.length === 1
+    && (firstPricePosition < 0 || taxesInTranscript[0].position < firstPricePosition)
+    ? taxesInTranscript[0].rate : null;
+  const confirmedTax = taxesInTranscript.length === 1 && taxesInTranscript[0].rate === suppliedTax ? suppliedTax : null;
+  const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? taxInRoom ?? priorTax ?? initialTax ?? confirmedTax;
   const roomPriceType = roomSegment ? spokenPriceType(roomSegment) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(transcript)
     && /(?:\bht\b|hors taxes?)/iu.test(transcript);
@@ -89,7 +99,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     ? normalizedTax === null || spokenPrice === null ? null : Math.round(spokenPrice / (1 + normalizedTax / 100) * 100) / 100
     : spokenPrice;
   return {
-    label: text(source.label, 240),
+    label: polishFrenchTradeDesignation(text(source.label, 240)),
     description: text(source.description, 800),
     quantity,
     unit: text(source.unit, 40) || null,

@@ -36,7 +36,7 @@ export function calculateQuotePreviewTotals(
   const multiplier = 1 - normalizedDiscount / 100;
   const pricedItems = items.filter(
     (item): item is PricedLineItem =>
-      !item.incomplete && item.quantity !== null && item.unitPrice !== null,
+      item.quantity !== null && item.unitPrice !== null,
   );
   const grossSubtotal = round(
     pricedItems.reduce(
@@ -68,6 +68,23 @@ export function calculateQuotePreviewTotals(
   };
 }
 
+export function quoteTaxBreakdown(items: LineItem[], discountPercent = 0) {
+  const multiplier = 1 - normalizeDiscountPercent(discountPercent) / 100;
+  const groups = new Map<number, number>();
+  for (const item of items) {
+    if (item.quantity === null || item.unitPrice === null || item.taxRate === null) continue;
+    const rate = Number(item.taxRate);
+    groups.set(rate, (groups.get(rate) || 0) + item.quantity * item.unitPrice * rate / 100 * multiplier);
+  }
+  const breakdown = [...groups].sort(([a], [b]) => a - b).map(([rate, tax]) => ({ rate, amount: round(tax) }));
+  if (breakdown.length) {
+    const expected = calculateQuotePreviewTotals(items, discountPercent).taxTotal;
+    const delta = round(expected - breakdown.reduce((sum, group) => sum + group.amount, 0));
+    breakdown[breakdown.length - 1].amount = round(breakdown[breakdown.length - 1].amount + delta);
+  }
+  return breakdown;
+}
+
 function parseMetaMap(raw: string | null): Record<string, QuoteInternalMeta> {
   if (!raw) return {};
   try {
@@ -86,6 +103,20 @@ function parseMetaMap(raw: string | null): Record<string, QuoteInternalMeta> {
   } catch {
     return {};
   }
+}
+
+export function normalizeQuoteMetaMap(value: unknown): Record<string, QuoteInternalMeta> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([number, meta]) => number.length <= 80 && meta && typeof meta === "object" && !Array.isArray(meta))
+    .slice(0, 2_000)
+    .map(([number, raw]) => {
+      const meta = raw as Record<string, unknown>;
+      return [number, {
+        discountPercent: normalizeDiscountPercent(meta.discountPercent),
+        internalNotes: typeof meta.internalNotes === "string" ? meta.internalNotes.slice(0, 5_000) : "",
+      }];
+    }));
 }
 
 export function readQuoteInternalMeta(

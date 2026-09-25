@@ -93,7 +93,7 @@ export function makeId(prefix: string) {
 }
 
 export function calculateLineTotal(item: LineItem) {
-  if (item.incomplete || item.quantity === null || item.unitPrice === null) return 0;
+  if (item.quantity === null || item.unitPrice === null) return 0;
   return round(item.quantity * item.unitPrice);
 }
 
@@ -144,7 +144,7 @@ export function upsertInvoice(workspace: MobileWorkspace, invoice: MobileInvoice
     ? workspace.invoices.map((item) => item.id === invoice.id ? normalized : item)
     : [normalized, ...workspace.invoices];
 
-  const quotes = normalized.status === "Payée" && normalized.sourceQuoteId
+  const quotes = normalized.sourceQuoteId
     ? workspace.quotes.map((quote) => quote.id === normalized.sourceQuoteId
       ? normalizeQuote({ ...quote, status: "Terminé" })
       : quote)
@@ -161,13 +161,14 @@ export function upsertAgenda(workspace: MobileWorkspace, entry: MobileAgendaEntr
 export function convertQuoteToInvoice(workspace: MobileWorkspace, quote: MobileQuote): { workspace: MobileWorkspace; invoice: MobileInvoice } {
   const existing = workspace.invoices.find((item) => item.sourceQuoteId === quote.id);
   if (existing) return { workspace, invoice: existing };
-  const issueDate = new Date().toISOString().slice(0, 10);
-  const due = new Date();
+  const now = new Date();
+  const issueDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  const due = new Date(`${issueDate}T12:00:00`);
   due.setDate(due.getDate() + 30);
   const invoice = normalizeInvoice({
     id: makeId("invoice"), number: nextNumber(workspace.invoices, "F"), customerId: quote.customerId,
     customerName: quote.customerName, title: quote.title, issueDate, dueDate: due.toISOString().slice(0, 10),
-    status: "Brouillon", items: quote.items.map((item) => ({ ...item, id: makeId("line") })), notes: quote.notes,
+    status: "En cours", items: quote.items.map((item) => ({ ...item, id: makeId("line") })), notes: quote.notes,
     subtotal: 0, taxTotal: 0, total: 0, paidTotal: 0, accountantSent: false, sourceQuoteId: quote.id,
   });
   return { workspace: upsertInvoice(workspace, invoice), invoice };

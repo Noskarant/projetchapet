@@ -852,3 +852,4 @@
     .rm-project-gallery { grid-template-columns: 1fr; }
   }
 }
+.rm-project-search{display:flex;align-items:center;gap:8px;margin:12px 0;padding:0 12px;border:1px solid #cbd9e5;border-radius:12px;background:white;color:#47718f}.rm-project-search input{width:100%;min-height:42px;border:0;background:transparent;color:#102a43;font:inherit;outline:none}.rm-project-create-quote{display:inline-flex;align-items:center;gap:7px;margin:9px 0;padding:10px 12px;border:0;border-radius:10px;background:#126b4d;color:white;font-weight:800;cursor:pointer}

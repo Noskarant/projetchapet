@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { COMPANY_PROFILE_STORAGE_KEY } from "../lib/company-profile";
 import { MOBILE_WORKSPACE_STORAGE_KEY } from "../lib/mobile-workspace-storage";
+import { QUOTE_META_STORAGE_KEY } from "../lib/mobile-quote-preview";
 import {
   PILOT_SYNC_STATE_KEY,
   clearPilotLocalSnapshot,
@@ -110,6 +111,13 @@ test("un snapshot cloud réhydrate workspace et profil entreprise sans perte", (
   assert.equal(restored.companyProfile.legalName, "Atelier Martin SARL");
   assert.equal(restored.companyProfile.siret, "12345678901234");
   assert.deepEqual(restored.workspace, snapshot.workspace);
+});
+
+test("les notes privées sont effacées du cache à la déconnexion", () => {
+  const storage = new MemoryStorage();
+  storage.setItem(QUOTE_META_STORAGE_KEY, JSON.stringify({ "D-2026-021": { internalNotes: "Marge interne", discountPercent: 0 } }));
+  clearPilotLocalSnapshot(storage as unknown as Storage);
+  assert.equal(storage.getItem(QUOTE_META_STORAGE_KEY), null);
 });
 
 test("un état local sale ne prend priorité que pour la même entreprise", () => {

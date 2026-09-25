@@ -22,6 +22,7 @@ export type NormalizedWorkspace = {
   customers: Customer[];
   quotes: Quote[];
   invoices: Invoice[];
+  billedQuoteIds?: string[];
 };
 
 export type EntityDiff<T extends { id: string }> = {
@@ -265,11 +266,12 @@ export function normalizedWorkspaceToMobile(
   const previousQuotes = new Map(previous.quotes.map((item) => [item.id, item]));
   const previousInvoices = new Map(previous.invoices.map((item) => [item.id, item]));
   const quoteTitles = new Map(workspace.quotes.map((quote) => [quote.id, quote.title]));
-  const paidQuoteIds = new Set(
-    workspace.invoices
-      .filter((invoice) => invoice.status === "paid" && invoice.quote_id)
+  const billedQuoteIds = new Set([
+    ...(workspace.billedQuoteIds ?? []),
+    ...workspace.invoices
+      .filter((invoice) => invoice.status !== "cancelled" && invoice.quote_id)
       .map((invoice) => invoice.quote_id as string),
-  );
+  ]);
   const serverInvoices = workspace.invoices.map((invoice) =>
     invoiceToMobile(invoice, previousInvoices.get(invoice.id), invoice.quote_id ? quoteTitles.get(invoice.quote_id) : undefined),
   );
@@ -281,7 +283,7 @@ export function normalizedWorkspaceToMobile(
     customers: workspace.customers.map((customer) => customerToMobile(customer)),
     quotes: workspace.quotes.map((quote) => {
       const mobile = quoteToMobile(quote, previousQuotes.get(quote.id));
-      if (quote.status === "accepted" && paidQuoteIds.has(quote.id)) return { ...mobile, status: "Terminé" as const };
+      if (billedQuoteIds.has(quote.id)) return { ...mobile, status: "Terminé" as const };
       return mobile;
     }),
     invoices: [...serverInvoices, ...localOnlyInvoices],
@@ -291,7 +293,9 @@ export function normalizedWorkspaceToMobile(
 
 function mergeById<T extends { id: string }>(server: T[], local: T[]) {
   const serverIds = new Set(server.map((item) => item.id));
-  return [...server, ...local.filter((item) => !serverIds.has(item.id))];
+  // Un UUID absent du serveur représente un enregistrement supprimé : ne jamais le
+  // recréer depuis un vieux snapshot d'appareil après une reconnexion.
+  return [...server, ...local.filter((item) => !serverIds.has(item.id) && !isDatabaseId(item.id))];
 }
 
 export function mergeInitialMobileWorkspace(server: MobileWorkspace, local: MobileWorkspace): MobileWorkspace {

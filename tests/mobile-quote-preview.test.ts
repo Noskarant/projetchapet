@@ -3,10 +3,11 @@ import test from "node:test";
 import {
   QUOTE_META_STORAGE_KEY,
   calculateQuotePreviewTotals,
+  quoteTaxBreakdown,
   readQuoteInternalMeta,
   writeQuoteInternalMeta,
 } from "../lib/mobile-quote-preview";
-import type { LineItem } from "../lib/mobile-prototype";
+import { calculateTotals, type LineItem } from "../lib/mobile-prototype";
 
 class MemoryStorage {
   private values = new Map<string, string>();
@@ -51,6 +52,17 @@ test("calcule la remise sur le HT et la TVA correspondante", () => {
     taxTotal: 54,
     total: 504,
   });
+});
+
+test("additionne toutes les prestations et affiche les TVA 10 % et 20 % séparément", () => {
+  assert.deepEqual(quoteTaxBreakdown(items, 10), [{ rate: 10, amount: 36 }, { rate: 20, amount: 18 }]);
+  assert.equal(calculateQuotePreviewTotals(items, 0).grossSubtotal, 500);
+});
+
+test("une unité manquante ne masque pas la deuxième prestation chiffrée", () => {
+  const second = { ...items[1], unit: null, incomplete: true };
+  assert.deepEqual(calculateTotals([items[0], second]), { subtotal: 500, taxTotal: 60, total: 560 });
+  assert.equal(calculateQuotePreviewTotals([items[0], second], 0).grossSubtotal, 500);
 });
 
 test("borne une remise invalide", () => {

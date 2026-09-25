@@ -8,6 +8,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { blobToBase64 } from "@/lib/document-tools";
+import { buildBusinessDocumentPdf } from "@/lib/mobile-document-pdf";
+import { archiveInvoice, deleteInvoice as deleteCloudInvoice, deleteQuote as deleteCloudQuote, fetchArchivedInvoices } from "@/lib/project-chapet";
+import { invoiceToMobile } from "@/lib/mobile-desktop-sync";
+import { isDatabaseId } from "@/lib/mobile-desktop-sync";
 import {
   calculateTotals, convertQuoteToInvoice, createCreditNote, customerDisplayName, deleteInvoiceFromWorkspace,
   deleteQuoteFromWorkspace, filterAgenda, makeId, nextNumber, seedMobileWorkspace, upsertAgenda, upsertCustomer,
@@ -30,14 +34,14 @@ type EmailState = { document: BusinessDocument; withoutPrices: boolean; recipien
 type PdfChoice = { document: BusinessDocument; mode: "email" | "preview" } | null;
 
 const STORAGE_KEY = "projetchapet-mobile-workspace-v3";
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10); };
 const addDays = (date: string, days: number) => { const value = new Date(`${date}T12:00:00`); value.setDate(value.getDate() + days); return value.toISOString().slice(0, 10); };
 const money = (value: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(value || 0));
 const dateFr = (value: string) => value ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(`${value}T12:00:00`)) : "—";
 const isQuote = (value: BusinessDocument): value is MobileQuote => "expiryDate" in value;
 const cloneLines = (items: LineItem[]) => items.map((item) => ({ ...item, id: makeId("line") }));
 const emptyLine = (): LineItem => ({ id: makeId("line"), label: "", description: "", quantity: null, unit: null, unitPrice: null, taxRate: null, incomplete: true, provenance: "unknown" });
-const incompleteLines = (documentData: BusinessDocument) => documentData.items.filter((item) => item.incomplete || item.quantity === null || item.unitPrice === null);
+const incompleteLines = (documentData: BusinessDocument) => documentData.items.filter((item) => item.quantity === null || item.unitPrice === null || item.taxRate === null);
 
 function StatusPill({ status }: { status: QuoteStatus | InvoiceStatus }) {
   const slug = status.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replaceAll(" ", "-");
@@ -45,40 +49,7 @@ function StatusPill({ status }: { status: QuoteStatus | InvoiceStatus }) {
 }
 
 async function buildPdf(documentData: BusinessDocument, withoutPrices = false) {
-  const { jsPDF } = await import("jspdf");
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
-  let y = 18;
-  pdf.setFont("helvetica", "bold"); pdf.setFontSize(16); pdf.text("CHAPET SAS", 16, y);
-  pdf.setFontSize(18); pdf.text(isQuote(documentData) ? "DEVIS" : documentData.status === "Avoir" ? "AVOIR" : "FACTURE", 194, y, { align: "right" });
-  pdf.setFontSize(10); pdf.text(documentData.number, 194, y + 7, { align: "right" });
-  y += 25; pdf.setDrawColor(215, 223, 233); pdf.line(16, y, 194, y); y += 9;
-  pdf.setFontSize(10); pdf.text("Client", 16, y); pdf.setFont("helvetica", "normal"); pdf.text(documentData.customerName, 16, y + 6);
-  pdf.setFont("helvetica", "bold"); pdf.text("Document", 122, y); pdf.setFont("helvetica", "normal");
-  pdf.text(`Émis le : ${dateFr(documentData.issueDate)}`, 122, y + 6);
-  pdf.text(isQuote(documentData) ? `Valable jusqu’au : ${dateFr(documentData.expiryDate)}` : `Échéance : ${dateFr(documentData.dueDate)}`, 122, y + 12);
-  y += 27;
-  pdf.setFillColor(239, 245, 251); pdf.rect(16, y, 178, 9, "F"); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8.5);
-  pdf.text("Désignation", 18, y + 6); pdf.text("Qté", 120, y + 6, { align: "right" });
-  if (!withoutPrices) { pdf.text("PU HT", 148, y + 6, { align: "right" }); pdf.text("TVA", 165, y + 6, { align: "right" }); pdf.text("Total HT", 192, y + 6, { align: "right" }); }
-  y += 13; pdf.setFont("helvetica", "normal");
-  for (const item of documentData.items) {
-    if (y > 255) { pdf.addPage(); y = 18; }
-    const lines = pdf.splitTextToSize(item.label || "Prestation", 90); pdf.text(lines, 18, y);
-    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
-    if (!withoutPrices) { pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" }); pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, y, { align: "right" }); pdf.text(item.incomplete || item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" }); }
-    if (item.description) { pdf.setTextColor(95, 108, 124); pdf.setFontSize(7.5); pdf.text(pdf.splitTextToSize(item.description, 90), 18, y + 5); pdf.setTextColor(0, 0, 0); pdf.setFontSize(8.5); }
-    y += Math.max(11, lines.length * 4.5 + (item.description ? 5 : 0)); pdf.setDrawColor(235, 239, 244); pdf.line(16, y - 4, 194, y - 4);
-  }
-  if (!withoutPrices) {
-    y += 5; pdf.text("Sous-total HT", 134, y); pdf.text(money(documentData.subtotal), 192, y, { align: "right" });
-    y += 7; pdf.text("TVA", 134, y); pdf.text(money(documentData.taxTotal), 192, y, { align: "right" });
-    y += 8; pdf.setFont("helvetica", "bold"); pdf.setFontSize(11); pdf.text("Total TTC", 134, y); pdf.text(money(documentData.total), 192, y, { align: "right" });
-  } else {
-    y += 8; pdf.setFont("helvetica", "bold"); pdf.text("Document interne sans prix", 16, y);
-  }
-  if (documentData.notes) { y += 14; pdf.setFontSize(9); pdf.setFont("helvetica", "bold"); pdf.text("Notes", 16, y); pdf.setFont("helvetica", "normal"); pdf.text(pdf.splitTextToSize(documentData.notes, 176), 16, y + 6); }
-  pdf.setFontSize(7.5); pdf.setTextColor(100, 110, 124); pdf.text("Document généré par CHAPET SAS.", 105, 288, { align: "center" });
-  return pdf.output("blob");
+  return buildBusinessDocumentPdf({ document: documentData, customer: null, company: {}, withoutPrices });
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -93,6 +64,8 @@ export default function RappidosMobileShellV2() {
   const [query, setQuery] = useState("");
   const [quoteFilter, setQuoteFilter] = useState<"Tous" | QuoteStatus>("Tous");
   const [invoiceFilter, setInvoiceFilter] = useState<"Toutes" | InvoiceStatus>("Toutes");
+  const [showArchives, setShowArchives] = useState(false);
+  const [archivedInvoices, setArchivedInvoices] = useState<MobileInvoice[]>([]);
   const [agendaFilter, setAgendaFilter] = useState<AgendaFilter>("today");
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -106,6 +79,7 @@ export default function RappidosMobileShellV2() {
   const [toast, setToast] = useState("");
   const [utility, setUtility] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
+  const customerReturnEditor = useRef<Extract<Editor, { kind: "quote" | "invoice" }> | null>(null);
 
   useEffect(() => {
     try { const stored = window.localStorage.getItem(STORAGE_KEY); if (stored) setWorkspace(JSON.parse(stored) as MobileWorkspace); } catch { /* seed conservé */ }
@@ -136,17 +110,28 @@ export default function RappidosMobileShellV2() {
   }, [workspace.customers, query]);
   const filteredAgenda = useMemo(() => filterAgenda(workspace.agenda, agendaFilter), [workspace.agenda, agendaFilter]);
 
+  async function toggleInvoiceArchives() {
+    if (showArchives) { setShowArchives(false); return; }
+    try {
+      const invoices = await fetchArchivedInvoices();
+      setArchivedInvoices(invoices.map((invoice) => invoiceToMobile(invoice)));
+      setShowArchives(true);
+    } catch (error) { notify(error instanceof Error ? error.message : "Archives indisponibles."); }
+  }
+
   function switchTab(next: Tab) { setTab(next); setQuery(""); setDrawer(null); setQuoteFilter("Tous"); setInvoiceFilter("Toutes"); }
   function findCustomerName(id: string) { const customer = workspace.customers.find((item) => item.id === id); return customer ? customerDisplayName(customer) : "Client à sélectionner"; }
 
   function newQuote(prefill?: Partial<MobileQuote>) {
     const issueDate = todayIso();
-    const customerId = prefill?.customerId || workspace.customers[0]?.id || "";
+    const customerId = prefill?.customerId
+      ? workspace.customers.some((customer) => customer.id === prefill.customerId) ? prefill.customerId : ""
+      : workspace.customers[0]?.id || "";
     const items = prefill?.items?.length ? prefill.items : [emptyLine()];
     const totals = calculateTotals(items);
     setEditor({ kind: "quote", isNew: true, value: {
-      id: makeId("quote"), number: nextNumber(workspace.quotes, "D"), customerId, customerName: findCustomerName(customerId), title: "Travaux",
-      issueDate, expiryDate: addDays(issueDate, 60), status: "En attente", notes: "", ...prefill, items, ...totals,
+      id: makeId("quote"), number: nextNumber(workspace.quotes, "D"), customerName: findCustomerName(customerId), title: "Travaux",
+      issueDate, expiryDate: addDays(issueDate, 60), status: "En attente", notes: "", ...prefill, customerId, items, ...totals,
     }});
   }
   function newInvoice(prefill?: Partial<MobileInvoice>) {
@@ -161,6 +146,11 @@ export default function RappidosMobileShellV2() {
   }
   function newCustomer(prefill?: Partial<MobileCustomer>) {
     setEditor({ kind: "customer", isNew: true, value: { id: makeId("customer"), kind: "Professionnel", companyName: "", civility: "M.", lastName: "", firstName: "", emails: ["", ""], phones: ["", ""], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "", ...prefill }});
+  }
+  function createCustomerForDocument() {
+    if (editor?.kind !== "quote" && editor?.kind !== "invoice") return;
+    customerReturnEditor.current = editor;
+    newCustomer();
   }
   function newAgenda(prefill?: Partial<MobileAgendaEntry>) {
     const customerId = prefill?.customerId || workspace.customers[0]?.id || "";
@@ -189,6 +179,58 @@ export default function RappidosMobileShellV2() {
     window.addEventListener("projetchapet:ai-apply", handler);
     return () => window.removeEventListener("projetchapet:ai-apply", handler);
   }, [workspace.customers, workspace.invoices, workspace.quotes]);
+
+  useEffect(() => {
+    const duplicate = (event: Event) => {
+      const number = (event as CustomEvent<string>).detail;
+      const source = workspace.quotes.find((quote) => quote.number === number);
+      if (source) { setSelectedQuoteId(null); newQuote({ ...source, id: makeId("quote"), number: nextNumber(workspace.quotes, "D"), status: "En attente", items: cloneLines(source.items) }); }
+    };
+    const openLinkedInvoice = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      if (!workspace.invoices.some((invoice) => invoice.id === id)) return;
+      setSelectedQuoteId(null);
+      setSelectedInvoiceId(id);
+      setTab("invoices");
+    };
+    const createProjectQuote = (event: Event) => {
+      const detail = (event as CustomEvent<{ customerId?: string; title?: string }>).detail;
+      if (!detail) return;
+      setSelectedQuoteId(null);
+      newQuote({ customerId: detail.customerId || "", title: detail.title || "Travaux" });
+    };
+    window.addEventListener("manufeo:duplicate-quote", duplicate);
+    window.addEventListener("manufeo:open-linked-invoice", openLinkedInvoice);
+    window.addEventListener("manufeo:create-project-quote", createProjectQuote);
+    return () => {
+      window.removeEventListener("manufeo:duplicate-quote", duplicate);
+      window.removeEventListener("manufeo:open-linked-invoice", openLinkedInvoice);
+      window.removeEventListener("manufeo:create-project-quote", createProjectQuote);
+    };
+  }, [workspace.quotes, workspace.invoices, workspace.customers]);
+
+  async function removeSelectedQuote() {
+    if (!selectedQuote || !window.confirm(`Supprimer ${selectedQuote.number} ?`)) return;
+    try {
+      if (isDatabaseId(selectedQuote.id)) await deleteCloudQuote(selectedQuote.id);
+      setWorkspace((current) => deleteQuoteFromWorkspace(current, selectedQuote.id));
+      setSelectedQuoteId(null);
+      notify("Devis supprimé et enregistré.");
+    } catch (error) { notify(error instanceof Error ? error.message : "Suppression du devis impossible."); }
+  }
+
+  async function removeSelectedInvoice() {
+    if (!selectedInvoice || !window.confirm(`Supprimer ${selectedInvoice.number} ?`)) return;
+    try {
+      if (isDatabaseId(selectedInvoice.id)) {
+        if (selectedInvoice.status === "Brouillon") await deleteCloudInvoice(selectedInvoice.id);
+        else await archiveInvoice(selectedInvoice.id);
+      }
+      setWorkspace((current) => deleteInvoiceFromWorkspace(current, selectedInvoice.id));
+      setSelectedInvoiceId(null);
+      notify(selectedInvoice.status === "Brouillon" ? "Brouillon supprimé et enregistré." : "Facture retirée de la liste et conservée aux archives comptables.");
+    } catch (error) { notify(error instanceof Error ? error.message : "Suppression de la facture impossible."); }
+  }
 
   function updateEditorDocument(updater: (value: MobileQuote | MobileInvoice) => MobileQuote | MobileInvoice) {
     setEditor((current) => {
@@ -240,7 +282,17 @@ export default function RappidosMobileShellV2() {
     if (!editor) return;
     if (editor.kind === "customer") {
       const name = customerDisplayName(editor.value); if (!name || name.includes("sans nom")) { notify("Renseignez le nom du client."); return; }
-      setWorkspace((current) => upsertCustomer(current, editor.value)); setSelectedCustomerId(editor.value.id); setTab("clients"); setEditor(null); notify(editor.isNew ? "Client créé et affiché." : "Client modifié."); return;
+      setWorkspace((current) => upsertCustomer(current, editor.value));
+      const parent = customerReturnEditor.current;
+      customerReturnEditor.current = null;
+      if (parent) {
+        setEditor({ ...parent, value: { ...parent.value, customerId: editor.value.id, customerName: name } } as Editor);
+        notify("Client créé et ajouté au devis.");
+      } else {
+        setSelectedCustomerId(editor.value.id); setTab("clients"); setEditor(null);
+        notify(editor.isNew ? "Client créé et affiché." : "Client modifié.");
+      }
+      return;
     }
     if (editor.kind === "agenda") {
       const customerName = findCustomerName(editor.value.customerId); const saved = { ...editor.value, customerName };
@@ -298,7 +350,7 @@ export default function RappidosMobileShellV2() {
 
           {tab === "quotes" && <section className="rm-section"><div className="rm-search"><Search size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher un devis" /></div><div className="rm-segmented">{(["Tous", "En attente", "Validé", "Terminé"] as const).map((item) => <button key={item} className={quoteFilter === item ? "active" : ""} onClick={() => setQuoteFilter(item)}>{item}</button>)}</div><div className="rm-scroll-area rm-list-scroll"><section className="rm-list">{filteredQuotes.map((quote) => <button className="rm-document-card" key={quote.id} onClick={() => setSelectedQuoteId(quote.id)}><div className="rm-document-main"><strong>{quote.customerName}</strong><small>{quote.number}</small><StatusPill status={quote.status} /></div><div className="rm-document-side"><strong>{money(quote.total)}</strong><small>Exp. {dateFr(quote.expiryDate)}</small><ChevronRight size={18} /></div></button>)}</section></div></section>}
 
-          {tab === "invoices" && <section className="rm-section"><div className="rm-search"><Search size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher une facture" /></div><div className="rm-segmented rm-four">{(["Toutes", "Brouillon", "En cours", "Payée"] as const).map((item) => <button key={item} className={invoiceFilter === item ? "active" : ""} onClick={() => setInvoiceFilter(item)}>{item}</button>)}</div><div className="rm-scroll-area rm-list-scroll"><section className="rm-list">{filteredInvoices.map((invoice) => <button className="rm-document-card" key={invoice.id} onClick={() => setSelectedInvoiceId(invoice.id)}><div className="rm-document-main"><strong>{invoice.customerName}</strong><small>{invoice.number}</small><StatusPill status={invoice.status} /></div><div className="rm-document-side"><strong>{money(invoice.total)}</strong><small>Éch. {dateFr(invoice.dueDate)}</small><ChevronRight size={18} /></div></button>)}</section></div></section>}
+          {tab === "invoices" && <section className="rm-section"><button type="button" className="rm-outline-button" onClick={() => void toggleInvoiceArchives()}>{showArchives ? "Factures en cours" : "Archives mensuelles"}</button><div className="rm-search"><Search size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher une facture" /></div><div className="rm-segmented rm-four">{(["Toutes", "Brouillon", "En cours", "Payée"] as const).map((item) => <button key={item} className={invoiceFilter === item ? "active" : ""} onClick={() => setInvoiceFilter(item)}>{item}</button>)}</div><div className="rm-scroll-area rm-list-scroll"><section className="rm-list">{(showArchives ? archivedInvoices : filteredInvoices).filter((invoice) => !query.trim() || `${invoice.customerName} ${invoice.number} ${invoice.title}`.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => b.issueDate.localeCompare(a.issueDate)).map((invoice, index, invoices) => <div key={invoice.id}>{(index === 0 || invoice.issueDate.slice(0, 7) !== invoices[index - 1].issueDate.slice(0, 7)) && <h3 className="rm-invoice-month">{new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(`${invoice.issueDate}T12:00:00`))}</h3>}<button className="rm-document-card" onClick={() => showArchives ? void openPreview(invoice) : setSelectedInvoiceId(invoice.id)}><div className="rm-document-main"><strong>{invoice.customerName}</strong><small>{invoice.number}</small><StatusPill status={invoice.status} /></div><div className="rm-document-side"><strong>{money(invoice.total)}</strong><small>Éch. {dateFr(invoice.dueDate)}</small><ChevronRight size={18} /></div></button></div>)}</section></div></section>}
 
           {tab === "clients" && <section className="rm-section"><div className="rm-search"><Search size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher un client" /></div><div className="rm-client-count"><span>{filteredCustomers.length} clients</span><small>Pros et particuliers</small></div><div className="rm-scroll-area rm-list-scroll"><section className="rm-list rm-client-list">{filteredCustomers.map((customer) => <button className="rm-client-card" key={customer.id} onClick={() => setSelectedCustomerId(customer.id)}><span className="rm-client-avatar"><CircleUserRound size={24} /></span><div><strong>{customerDisplayName(customer)}</strong><small>{customer.kind} · {customer.city}</small><span>{customer.phones[0] || "Téléphone à compléter"}</span></div><ChevronRight size={19} /></button>)}</section></div></section>}
 
@@ -320,24 +372,24 @@ export default function RappidosMobileShellV2() {
       {editor && <div className="rm-modal-backdrop"><section className="rm-create-sheet rm-v2-editor"><header><button onClick={() => setEditor(null)}><X size={20} /></button><h2>{editor.isNew ? "Créer" : "Modifier"} {editor.kind === "quote" ? "le devis" : editor.kind === "invoice" ? "la facture" : editor.kind === "customer" ? "le client" : "l’événement"}</h2><span /></header>
         {(editor.kind === "quote" || editor.kind === "invoice") && <>
           <div className="rm-form-stack">
-            <label>Client<select value={editor.value.customerId} onChange={(event) => updateEditorDocument((value) => ({ ...value, customerId: event.target.value, customerName: findCustomerName(event.target.value) }))}>{workspace.customers.map((customer) => <option key={customer.id} value={customer.id}>{customerDisplayName(customer)}</option>)}</select></label>
+            <label>Client<select value={editor.value.customerId} onChange={(event) => updateEditorDocument((value) => ({ ...value, customerId: event.target.value, customerName: findCustomerName(event.target.value) }))}>{workspace.customers.map((customer) => <option key={customer.id} value={customer.id}>{customerDisplayName(customer)}</option>)}</select></label>{editor.kind === "quote" && <button type="button" className="rm-outline-button" onClick={createCustomerForDocument}><Plus size={16} /> Créer un client ici</button>}
             <div className="rm-v2-two"><label>Numéro<input value={editor.value.number} onChange={(event) => updateEditorDocument((value) => ({ ...value, number: event.target.value }))} /></label><label>Statut<select value={editor.value.status} onChange={(event) => updateEditorDocument((value) => ({ ...value, status: event.target.value as never }))}>{(editor.kind === "quote" ? ["En attente", "Validé", "Terminé", "Refusé"] : ["Brouillon", "En cours", "Payée", "En retard", "Avoir"]).map((status) => <option key={status}>{status}</option>)}</select></label></div>
             <label>Objet / chantier<input value={editor.value.title} onChange={(event) => updateEditorDocument((value) => ({ ...value, title: event.target.value }))} /></label>
-            <div className="rm-v2-two"><label>Date d’émission<input type="date" value={editor.value.issueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, issueDate: event.target.value }))} /></label>{editor.kind === "quote" ? <label>Date d’expiration<input type="date" value={editor.value.expiryDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, expiryDate: event.target.value }))} /></label> : <label>Date d’échéance<input type="date" value={editor.value.dueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, dueDate: event.target.value }))} /></label>}</div>
+            <div className="rm-v2-two"><label>Date d’émission<input type="date" value={editor.value.issueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, issueDate: event.target.value, ...(!isQuote(value) && editor.isNew && event.target.value ? { dueDate: addDays(event.target.value, 30) } : {}) }))} /></label>{editor.kind === "quote" ? <label>Date d’expiration<input type="date" value={editor.value.expiryDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, expiryDate: event.target.value }))} /></label> : <label>Date d’échéance<input type="date" value={editor.value.dueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, dueDate: event.target.value }))} /></label>}</div>
             <label>Notes<textarea value={editor.value.notes} onChange={(event) => updateEditorDocument((value) => ({ ...value, notes: event.target.value }))} /></label>
           </div>
           <div className="rm-products-title"><span>Produits et services</span><button onClick={() => updateEditorDocument((value) => ({ ...value, items: [...value.items, emptyLine()] }))}><Plus size={21} /></button></div>
-          <div className="rm-v2-lines">{editor.value.items.map((item, index) => <article key={item.id}><header><strong>Ligne {index + 1}</strong><button onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity ?? ""} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={item.unit ?? ""} onChange={(event) => updateLine(index, "unit", event.target.value)} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice ?? ""} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate ?? ""} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{item.incomplete || item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
+          <div className="rm-v2-lines">{editor.value.items.map((item, index) => <article key={item.id}><header><strong>Ligne {index + 1}</strong><button onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity ?? ""} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={item.unit ?? ""} onChange={(event) => updateLine(index, "unit", event.target.value)} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice ?? ""} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate ?? ""} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
           <div className="rm-ai-create-row"><button className="rm-ai-create-text" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><span>Créer avec l’IA</span><small>Dicter et préremplir toutes les lignes</small></button><button className="rm-voice-button" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><Mic size={25} /><small>IA</small></button></div>
           <footer><div><small>Total HT</small><strong>{money(editor.value.subtotal)}</strong><small>TVA : {money(editor.value.taxTotal)} · TTC : {money(editor.value.total)}</small></div><div><button className="rm-outline-button" onClick={() => void openPreview(editor.value, false)} disabled={previewBusy}>{previewBusy ? "Génération…" : "Aperçu PDF"}</button><button className="rm-save-button" onClick={saveEditor}>Enregistrer</button></div></footer>
         </>}
-        {editor.kind === "customer" && <><div className="rm-form-stack"><div className="rm-kind-switch"><button className={editor.value.kind === "Professionnel" ? "active" : ""} onClick={() => setEditor({ ...editor, value: { ...editor.value, kind: "Professionnel" } })}>Professionnel</button><button className={editor.value.kind === "Particulier" ? "active" : ""} onClick={() => setEditor({ ...editor, value: { ...editor.value, kind: "Particulier" } })}>Particulier</button></div>{editor.value.kind === "Professionnel" ? <label>Raison sociale<input value={editor.value.companyName} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, companyName: event.target.value } })} /></label> : <><div className="rm-v2-three"><label>Civilité<input value={editor.value.civility} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, civility: event.target.value } })} /></label><label>Nom<input value={editor.value.lastName} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, lastName: event.target.value } })} /></label><label>Prénom<input value={editor.value.firstName} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, firstName: event.target.value } })} /></label></div></>}<div className="rm-v2-two"><label>E-mail principal<input type="email" value={editor.value.emails[0] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, emails: [event.target.value, editor.value.emails[1] || ""] } })} /></label><label>Second e-mail<input type="email" value={editor.value.emails[1] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, emails: [editor.value.emails[0] || "", event.target.value] } })} /></label></div><div className="rm-v2-two"><label>Téléphone<input value={editor.value.phones[0] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, phones: [event.target.value, editor.value.phones[1] || ""] } })} /></label><label>Second téléphone<input value={editor.value.phones[1] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, phones: [editor.value.phones[0] || "", event.target.value] } })} /></label></div><label>Adresse<input value={editor.value.address} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, address: event.target.value } })} /></label><div className="rm-v2-two"><label>Code postal<input value={editor.value.postalCode} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, postalCode: event.target.value } })} /></label><label>Ville<input value={editor.value.city} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, city: event.target.value } })} /></label></div>{editor.value.kind === "Professionnel" && <div className="rm-v2-two"><label>SIRET<input value={editor.value.siret} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, siret: event.target.value } })} /></label><label>TVA<input value={editor.value.vat} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, vat: event.target.value } })} /></label></div>}<label>Notes<textarea value={editor.value.notes} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, notes: event.target.value } })} /></label></div><footer><div><small>État</small><strong>Fiche complète</strong></div><div><button className="rm-outline-button" onClick={() => setEditor(null)}>Annuler</button><button className="rm-save-button" onClick={saveEditor}>Enregistrer</button></div></footer></>}
+        {editor.kind === "customer" && <><div className="rm-form-stack"><div className="rm-kind-switch"><button className={editor.value.kind === "Professionnel" ? "active" : ""} onClick={() => setEditor({ ...editor, value: { ...editor.value, kind: "Professionnel" } })}>Professionnel</button><button className={editor.value.kind === "Particulier" ? "active" : ""} onClick={() => setEditor({ ...editor, value: { ...editor.value, kind: "Particulier" } })}>Particulier</button></div>{editor.value.kind === "Professionnel" ? <label>Raison sociale<input value={editor.value.companyName} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, companyName: event.target.value } })} /></label> : <><div className="rm-v2-three"><label>Civilité<select value={editor.value.civility === "Mme" || editor.value.civility === "Madame" ? "Madame" : "Monsieur"} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, civility: event.target.value } })}><option>Monsieur</option><option>Madame</option></select></label><label>Nom<input value={editor.value.lastName} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, lastName: event.target.value } })} /></label><label>Prénom<input value={editor.value.firstName} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, firstName: event.target.value } })} /></label></div></>}<div className="rm-v2-two"><label>E-mail principal<input type="email" value={editor.value.emails[0] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, emails: [event.target.value, editor.value.emails[1] || ""] } })} /></label><label>Second e-mail<input type="email" value={editor.value.emails[1] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, emails: [editor.value.emails[0] || "", event.target.value] } })} /></label></div><div className="rm-v2-two"><label>Téléphone<input value={editor.value.phones[0] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, phones: [event.target.value, editor.value.phones[1] || ""] } })} /></label><label>Second téléphone<input value={editor.value.phones[1] || ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, phones: [editor.value.phones[0] || "", event.target.value] } })} /></label></div><label>Adresse<input value={editor.value.address} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, address: event.target.value } })} /></label><div className="rm-v2-two"><label>Code postal<input value={editor.value.postalCode} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, postalCode: event.target.value } })} /></label><label>Ville<input value={editor.value.city} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, city: event.target.value } })} /></label></div>{editor.value.kind === "Professionnel" && <div className="rm-v2-two"><label>SIRET<input value={editor.value.siret} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, siret: event.target.value } })} /></label><label>TVA<input value={editor.value.vat} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, vat: event.target.value } })} /></label></div>}<label>Notes<textarea value={editor.value.notes} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, notes: event.target.value } })} /></label></div><footer><div><small>État</small><strong>Fiche complète</strong></div><div><button className="rm-outline-button" onClick={() => setEditor(null)}>Annuler</button><button className="rm-save-button" onClick={saveEditor}>Enregistrer</button></div></footer></>}
         {editor.kind === "agenda" && <><div className="rm-form-stack"><label>Type<select value={editor.value.type} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, type: event.target.value as AgendaType } })}>{["Chantier", "Commande", "Facturation", "Relance"].map((type) => <option key={type}>{type}</option>)}</select></label><label>Client<select value={editor.value.customerId} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, customerId: event.target.value, customerName: findCustomerName(event.target.value) } })}>{workspace.customers.map((customer) => <option key={customer.id} value={customer.id}>{customerDisplayName(customer)}</option>)}</select></label><div className="rm-v2-two"><label>Date<input type="date" value={editor.value.date} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, date: event.target.value } })} /></label><label>Heure<input type="time" value={editor.value.time} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, time: event.target.value } })} /></label></div><label>Consigne<textarea value={editor.value.title} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, title: event.target.value } })} /></label><label className="rm-v2-check"><input type="checkbox" checked={editor.value.done} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, done: event.target.checked } })} /> Tâche terminée</label></div><footer><div><small>État</small><strong>{editor.value.done ? "Terminé" : "À planifier"}</strong></div><div><button className="rm-outline-button" onClick={() => setEditor(null)}>Annuler</button><button className="rm-save-button" onClick={saveEditor}>Enregistrer</button></div></footer></>}
       </section></div>}
 
-      {selectedQuote && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button onClick={() => setSelectedQuoteId(null)}><ArrowLeft size={20} /></button><div><small>DEVIS</small><h2>{selectedQuote.number}</h2></div><button onClick={() => setEditor({ kind: "quote", value: { ...selectedQuote, items: cloneLines(selectedQuote.items) }, isNew: false })}><Pencil size={19} /></button></header><button className="rm-detail-client" onClick={() => setSelectedCustomerId(selectedQuote.customerId)}><span><CircleUserRound size={23} /></span><div><small>Client</small><strong>{selectedQuote.customerName}</strong></div><ChevronRight size={19} /></button><div className="rm-detail-amount"><small>Montant TTC</small><strong>{money(selectedQuote.total)}</strong><span>{selectedQuote.title}</span></div><div className="rm-detail-dates"><div><span>Émis le</span><strong>{dateFr(selectedQuote.issueDate)}</strong></div><div><span>Validité</span><strong>{dateFr(selectedQuote.expiryDate)}</strong></div></div><div className="rm-status-editor"><span>État du devis</span><div>{(["En attente", "Validé", "Terminé", "Refusé"] as QuoteStatus[]).map((status) => <button key={status} className={selectedQuote.status === status ? "active" : ""} onClick={() => setWorkspace((current) => upsertQuote(current, { ...selectedQuote, status }))}>{status}</button>)}</div></div><div className="rm-detail-actions"><button onClick={() => void openPreview(selectedQuote, false)}><FileDown size={18} /> Aperçu PDF</button><button onClick={() => setPdfChoice({ document: selectedQuote, mode: "email" })}><Mail size={18} /> Envoyer PDF</button><button onClick={convertSelectedQuote}><RefreshCw size={18} /> Transformer en facture</button><button onClick={() => setEditor({ kind: "quote", value: { ...selectedQuote, items: cloneLines(selectedQuote.items) }, isNew: false })}><Pencil size={18} /> Tout modifier</button><button onClick={() => newQuote({ ...selectedQuote, id: makeId("quote"), number: nextNumber(workspace.quotes, "D"), status: "En attente", items: cloneLines(selectedQuote.items) })}><Plus size={18} /> Dupliquer</button><button className="danger" onClick={() => { if (window.confirm(`Supprimer ${selectedQuote.number} ?`)) { setWorkspace((current) => deleteQuoteFromWorkspace(current, selectedQuote.id)); setSelectedQuoteId(null); notify("Devis supprimé."); } }}><Trash2 size={18} /> Supprimer</button></div></section></div>}
+      {selectedQuote && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button onClick={() => setSelectedQuoteId(null)}><ArrowLeft size={20} /></button><div><small>DEVIS</small><h2>{selectedQuote.number}</h2></div><button onClick={() => setEditor({ kind: "quote", value: { ...selectedQuote, items: cloneLines(selectedQuote.items) }, isNew: false })}><Pencil size={19} /></button></header><button className="rm-detail-client" onClick={() => setSelectedCustomerId(selectedQuote.customerId)}><span><CircleUserRound size={23} /></span><div><small>Client</small><strong>{selectedQuote.customerName}</strong></div><ChevronRight size={19} /></button><div className="rm-detail-amount"><small>Montant TTC</small><strong>{money(selectedQuote.total)}</strong><span>{selectedQuote.title}</span></div><div className="rm-detail-dates"><div><span>Émis le</span><strong>{dateFr(selectedQuote.issueDate)}</strong></div><div><span>Validité</span><strong>{dateFr(selectedQuote.expiryDate)}</strong></div></div><div className="rm-status-editor"><span>État du devis</span><div>{(["En attente", "Validé", "Terminé", "Refusé"] as QuoteStatus[]).map((status) => <button key={status} className={selectedQuote.status === status ? "active" : ""} onClick={() => setWorkspace((current) => upsertQuote(current, { ...selectedQuote, status }))}>{status}</button>)}</div></div><div className="rm-detail-actions"><button onClick={() => void openPreview(selectedQuote, false)}><FileDown size={18} /> Aperçu PDF</button><button onClick={() => setPdfChoice({ document: selectedQuote, mode: "email" })}><Mail size={18} /> Envoyer PDF</button><button onClick={convertSelectedQuote}><RefreshCw size={18} /> Transformer en facture</button><button onClick={() => setEditor({ kind: "quote", value: { ...selectedQuote, items: cloneLines(selectedQuote.items) }, isNew: false })}><Pencil size={18} /> Tout modifier</button><button onClick={() => { setSelectedQuoteId(null); newQuote({ ...selectedQuote, id: makeId("quote"), number: nextNumber(workspace.quotes, "D"), status: "En attente", items: cloneLines(selectedQuote.items) }); }}><Plus size={18} /> Dupliquer</button><button className="danger" onClick={() => void removeSelectedQuote()}><Trash2 size={18} /> Supprimer</button></div></section></div>}
 
-      {selectedInvoice && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button onClick={() => setSelectedInvoiceId(null)}><ArrowLeft size={20} /></button><div><small>FACTURE</small><h2>{selectedInvoice.number}</h2></div><button onClick={() => setEditor({ kind: "invoice", value: { ...selectedInvoice, items: cloneLines(selectedInvoice.items) }, isNew: false })}><Pencil size={19} /></button></header><button className="rm-detail-client" onClick={() => setSelectedCustomerId(selectedInvoice.customerId)}><span><CircleUserRound size={23} /></span><div><small>Client</small><strong>{selectedInvoice.customerName}</strong></div><ChevronRight size={19} /></button><div className="rm-detail-amount"><small>Montant TTC</small><strong>{money(selectedInvoice.total)}</strong><StatusPill status={selectedInvoice.status} /></div><div className="rm-detail-dates"><div><span>Émise le</span><strong>{dateFr(selectedInvoice.issueDate)}</strong></div><div><span>Échéance</span><strong>{dateFr(selectedInvoice.dueDate)}</strong></div></div><div className="rm-accountant-state"><Mail size={19} /><div><strong>{selectedInvoice.accountantSent ? "Envoyée au comptable" : "Pas encore envoyée"}</strong><small>Copie automatique configurable</small></div></div><div className="rm-detail-actions"><button onClick={() => setWorkspace((current) => upsertInvoice(current, { ...selectedInvoice, status: "Payée", paidTotal: selectedInvoice.total }))}><CheckCircle2 size={18} /> Marquer payée</button><button onClick={() => void openPreview(selectedInvoice, false)}><FileDown size={18} /> Aperçu PDF</button><button onClick={() => setPdfChoice({ document: selectedInvoice, mode: "email" })}><Mail size={18} /> Envoyer PDF</button><button onClick={() => openEmail(selectedInvoice, false)}><Send size={18} /> Envoyer comptable</button><button onClick={() => setEditor({ kind: "invoice", value: { ...selectedInvoice, items: cloneLines(selectedInvoice.items) }, isNew: false })}><Pencil size={18} /> Tout modifier</button><button onClick={makeCreditNote}><RefreshCw size={18} /> Créer un avoir</button>{selectedInvoice.status === "Brouillon" && <button className="danger" onClick={() => { if (window.confirm(`Supprimer ${selectedInvoice.number} ?`)) { setWorkspace((current) => deleteInvoiceFromWorkspace(current, selectedInvoice.id)); setSelectedInvoiceId(null); notify("Brouillon supprimé."); } }}><Trash2 size={18} /> Supprimer</button>}</div></section></div>}
+      {selectedInvoice && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button onClick={() => setSelectedInvoiceId(null)}><ArrowLeft size={20} /></button><div><small>FACTURE</small><h2>{selectedInvoice.number}</h2></div><button onClick={() => setEditor({ kind: "invoice", value: { ...selectedInvoice, items: cloneLines(selectedInvoice.items) }, isNew: false })}><Pencil size={19} /></button></header><button className="rm-detail-client" onClick={() => setSelectedCustomerId(selectedInvoice.customerId)}><span><CircleUserRound size={23} /></span><div><small>Client</small><strong>{selectedInvoice.customerName}</strong></div><ChevronRight size={19} /></button><div className="rm-detail-amount"><small>Montant TTC</small><strong>{money(selectedInvoice.total)}</strong><StatusPill status={selectedInvoice.status} /></div><div className="rm-detail-dates"><div><span>Émise le</span><strong>{dateFr(selectedInvoice.issueDate)}</strong></div><div><span>Échéance</span><strong>{dateFr(selectedInvoice.dueDate)}</strong></div></div><div className="rm-accountant-state"><Mail size={19} /><div><strong>{selectedInvoice.accountantSent ? "Envoyée au comptable" : "Pas encore envoyée"}</strong><small>Copie automatique configurable</small></div></div><div className="rm-detail-actions"><button onClick={() => setWorkspace((current) => upsertInvoice(current, { ...selectedInvoice, status: "Payée", paidTotal: selectedInvoice.total }))}><CheckCircle2 size={18} /> Marquer payée</button><button onClick={() => void openPreview(selectedInvoice, false)}><FileDown size={18} /> Aperçu PDF</button><button onClick={() => setPdfChoice({ document: selectedInvoice, mode: "email" })}><Mail size={18} /> Envoyer PDF</button><button onClick={() => openEmail(selectedInvoice, false)}><Send size={18} /> Envoyer comptable</button><button onClick={() => setEditor({ kind: "invoice", value: { ...selectedInvoice, items: cloneLines(selectedInvoice.items) }, isNew: false })}><Pencil size={18} /> Tout modifier</button><button onClick={makeCreditNote}><RefreshCw size={18} /> Créer un avoir</button><button className="danger" onClick={() => void removeSelectedInvoice()}><Trash2 size={18} /> {selectedInvoice.status === "Brouillon" ? "Supprimer le brouillon" : "Retirer de la liste"}</button></div></section></div>}
 
       {selectedCustomer && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button onClick={() => setSelectedCustomerId(null)}><ArrowLeft size={20} /></button><div><small>CLIENT</small><h2>{customerDisplayName(selectedCustomer)}</h2></div><button onClick={() => setEditor({ kind: "customer", value: { ...selectedCustomer, emails: [...selectedCustomer.emails], phones: [...selectedCustomer.phones] }, isNew: false })}><Pencil size={19} /></button></header><div className="rm-client-detail-head"><span><CircleUserRound size={30} /></span><div><strong>{selectedCustomer.kind}</strong><small>{selectedCustomer.city}</small></div></div><div className="rm-client-fields"><div><span>Téléphones</span><strong>{selectedCustomer.phones.filter(Boolean).join(" · ") || "—"}</strong></div><div><span>E-mails</span><strong>{selectedCustomer.emails.filter(Boolean).join(" · ") || "—"}</strong></div><div><span>Adresse</span><strong>{[selectedCustomer.address, selectedCustomer.postalCode, selectedCustomer.city].filter(Boolean).join(", ")}</strong></div>{selectedCustomer.siret && <div><span>SIRET</span><strong>{selectedCustomer.siret}</strong><small>{selectedCustomer.vat}</small></div>}</div><div className="rm-detail-actions"><button onClick={() => { setSelectedCustomerId(null); switchTab("quotes"); setQuery(customerDisplayName(selectedCustomer)); }}><FileText size={18} /> Voir les devis</button><button onClick={() => { setSelectedCustomerId(null); switchTab("invoices"); setQuery(customerDisplayName(selectedCustomer)); }}><ReceiptText size={18} /> Voir les factures</button><button onClick={() => setEditor({ kind: "customer", value: { ...selectedCustomer, emails: [...selectedCustomer.emails], phones: [...selectedCustomer.phones] }, isNew: false })}><Pencil size={18} /> Modifier</button><button onClick={() => { setSelectedCustomerId(null); newQuote({ customerId: selectedCustomer.id, customerName: customerDisplayName(selectedCustomer) }); }}><Plus size={18} /> Nouveau devis</button></div></section></div>}
 

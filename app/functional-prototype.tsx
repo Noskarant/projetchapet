@@ -32,10 +32,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   calculateTotals,
+  archiveInvoice,
   customerName,
   deleteCustomer,
   deleteInvoice,
   deleteQuote,
+  fetchArchivedInvoices,
   fetchWorkspace,
   markInvoicePaid,
   saveCustomer,
@@ -56,7 +58,7 @@ import {
 type Section = "dashboard" | "quotes" | "invoices" | "clients" | "calendar" | "settings";
 type ModalState =
   | { kind: "client"; value?: Customer }
-  | { kind: "quote"; value?: Quote }
+  | { kind: "quote"; value?: Quote; template?: Quote }
   | { kind: "invoice"; value?: Invoice; fromQuote?: Quote }
   | { kind: "client-details"; value: Customer }
   | { kind: "quote-details"; value: Quote }
@@ -125,6 +127,23 @@ function Status({ value, type }: { value: QuoteStatus | InvoiceStatus; type: "qu
   return <span className={`pc-status pc-status-${slug}`}>{label}</span>;
 }
 
+function QuoteStatusView({ quote, invoices }: { quote: Quote; invoices: Invoice[] }) {
+  return invoices.some((invoice) => invoice.quote_id === quote.id)
+    ? <span className="pc-status pc-status-termine">Terminé</span>
+    : <Status type="quote" value={quote.status} />;
+}
+
+function DocumentTotals({ items }: { items: DocumentItem[] }) {
+  const totals = calculateTotals(items);
+  const groups = new Map<number, number>();
+  for (const item of items) {
+    if (item.tax_rate === null || item.tax_rate === undefined) continue;
+    const rate = Number(item.tax_rate);
+    groups.set(rate, (groups.get(rate) || 0) + Number(item.quantity || 0) * Number(item.unit_price || 0) * rate / 100);
+  }
+  return <div className="pc-totals"><span>Sous-total HT<strong>{euro.format(totals.subtotal)}</strong></span>{[...groups].sort(([a], [b]) => a - b).map(([rate, amount]) => <span key={rate}>TVA ({rate} %)<strong>{euro.format(Math.round(amount * 100) / 100)}</strong></span>)}<span className="total">Total TTC<strong>{euro.format(totals.total)}</strong></span></div>;
+}
+
 function Kpi({ label, value, note, icon: Icon, strong = false }: { label: string; value: string; note: string; icon: typeof LayoutDashboard; strong?: boolean }) {
   return (
     <article className={`pc-kpi ${strong ? "pc-kpi-strong" : ""}`}>
@@ -153,12 +172,12 @@ function Modal({ title, subtitle, onClose, children, wide = false }: { title: st
   );
 }
 
-function ClientForm({ customer, onClose, onSaved, setToast }: { customer?: Customer; onClose: () => void; onSaved: () => Promise<void>; setToast: (message: string) => void }) {
+function ClientForm({ customer, onClose, onSaved, onCreated, setToast }: { customer?: Customer; onClose: () => void; onSaved: () => Promise<void>; onCreated?: (customer: Customer) => void; setToast: (message: string) => void }) {
   const address = customer?.addresses?.[0] ?? {};
   const [form, setForm] = useState({
     kind: customer?.kind ?? "business",
     company_name: customer?.company_name ?? "",
-    civility: customer?.civility ?? "M.",
+    civility: customer?.civility === "Mme" || customer?.civility === "Madame" ? "Madame" : "Monsieur",
     last_name: customer?.last_name ?? "",
     first_name: customer?.first_name ?? "",
     siret: customer?.siret ?? "",
@@ -195,7 +214,8 @@ function ClientForm({ customer, onClose, onSaved, setToast }: { customer?: Custo
         addresses: [{ label: "Principale", line1: form.line1.trim(), postal_code: form.postal_code.trim(), city: form.city.trim(), country: "France" }],
         notes: form.notes.trim() || null,
       };
-      await saveCustomer(input, customer?.id);
+      const saved = await saveCustomer(input, customer?.id);
+      onCreated?.(saved);
       await onSaved();
       setToast(customer ? "Client modifié." : "Client créé.");
       onClose();
@@ -221,7 +241,7 @@ function ClientForm({ customer, onClose, onSaved, setToast }: { customer?: Custo
           </div>
         ) : (
           <div className="pc-crud-grid pc-crud-grid-three">
-            <label>Civilité<select value={form.civility} onChange={(event) => update("civility", event.target.value)}><option>M.</option><option>Mme</option><option>M. et Mme</option></select></label>
+            <label>Civilité<select value={form.civility} onChange={(event) => update("civility", event.target.value)}><option>Monsieur</option><option>Madame</option></select></label>
             <label>Nom<input value={form.last_name} onChange={(event) => update("last_name", event.target.value)} required /></label>
             <label>Prénom<input value={form.first_name} onChange={(event) => update("first_name", event.target.value)} /></label>
           </div>
@@ -247,10 +267,11 @@ function blankItem(): DocumentItem {
   return { position: 0, label: "", description: null, quantity: 1, unit: "u", unit_price: 0, tax_rate: 20, total: 0 };
 }
 
-function DocumentForm({ kind, customers, quote, invoice, fromQuote, existingNumbers, onClose, onSaved, setToast }: {
+function DocumentForm({ kind, customers, quote, templateQuote, invoice, fromQuote, existingNumbers, onClose, onSaved, setToast }: {
   kind: "quote" | "invoice";
   customers: Customer[];
   quote?: Quote;
+  templateQuote?: Quote;
   invoice?: Invoice;
   fromQuote?: Quote;
   existingNumbers: string[];
@@ -259,10 +280,12 @@ function DocumentForm({ kind, customers, quote, invoice, fromQuote, existingNumb
   setToast: (message: string) => void;
 }) {
   const source = kind === "quote" ? quote : invoice;
-  const initialItems = source?.items?.length ? source.items : fromQuote?.items?.length ? fromQuote.items : [blankItem()];
-  const [customerId, setCustomerId] = useState(source?.customer_id ?? fromQuote?.customer_id ?? customers[0]?.id ?? "");
-  const [title, setTitle] = useState(quote?.title ?? fromQuote?.title ?? "Travaux de rénovation");
-  const [status, setStatus] = useState<QuoteStatus | InvoiceStatus>(source?.status ?? "draft");
+  const initialItems = source?.items?.length ? source.items : templateQuote?.items?.length ? templateQuote.items : fromQuote?.items?.length ? fromQuote.items : [blankItem()];
+  const [customerId, setCustomerId] = useState(source?.customer_id ?? templateQuote?.customer_id ?? fromQuote?.customer_id ?? customers[0]?.id ?? "");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [createdCustomers, setCreatedCustomers] = useState<Customer[]>([]);
+  const [title, setTitle] = useState(quote?.title ?? templateQuote?.title ?? fromQuote?.title ?? "Travaux de rénovation");
+  const [status, setStatus] = useState<QuoteStatus | InvoiceStatus>(source?.status ?? (fromQuote && kind === "invoice" ? "issued" : "draft"));
   const [issueDate, setIssueDate] = useState(source?.issue_date ?? todayIso());
   const [limitDate, setLimitDate] = useState(kind === "quote" ? quote?.expiry_date ?? addDays(todayIso(), 60) : invoice?.due_date ?? addDays(todayIso(), 30));
   const [notes, setNotes] = useState(source?.notes ?? "");
@@ -308,13 +331,13 @@ function DocumentForm({ kind, customers, quote, invoice, fromQuote, existingNumb
   const statuses = kind === "quote" ? Object.entries(quoteLabels) : Object.entries(invoiceLabels);
 
   return (
-    <Modal title={kind === "quote" ? (quote ? `Modifier ${quote.number}` : "Nouveau devis") : (invoice ? `Modifier ${invoice.number}` : fromQuote ? `Facturer ${fromQuote.number}` : "Nouvelle facture")} subtitle="Les montants sont recalculés automatiquement à chaque modification." onClose={onClose} wide>
+    <><Modal title={kind === "quote" ? (quote ? `Modifier ${quote.number}` : "Nouveau devis") : (invoice ? `Modifier ${invoice.number}` : fromQuote ? `Facturer ${fromQuote.number}` : "Nouvelle facture")} subtitle="Les montants sont recalculés automatiquement à chaque modification." onClose={onClose} wide>
       <form className="pc-crud-form" onSubmit={submit}>
         <div className="pc-crud-grid">
-          <label>Client<select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required><option value="">Sélectionner…</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customerName(customer)}</option>)}</select></label>
+          <div><label>Client<select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required><option value="">Sélectionner…</option>{[...customers, ...createdCustomers].map((customer) => <option key={customer.id} value={customer.id}>{customerName(customer)}</option>)}</select></label>{kind === "quote" && <button type="button" className="pc-secondary" onClick={() => setCreatingCustomer(true)}><Plus size={15} /> Créer un client ici</button>}</div>
           <label>État<select value={status} onChange={(event) => setStatus(event.target.value as QuoteStatus | InvoiceStatus)}>{statuses.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           {kind === "quote" && <label className="pc-span-2">Objet du devis<input value={title} onChange={(event) => setTitle(event.target.value)} required /></label>}
-          <label>Date d’émission<input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></label>
+          <label>Date d’émission<input type="date" value={issueDate} onChange={(event) => { const next = event.target.value; setIssueDate(next); if (kind === "invoice" && !invoice && next) setLimitDate(addDays(next, 30)); }} required /></label>
           <label>{kind === "quote" ? "Valide jusqu’au" : "Date d’échéance"}<input type="date" value={limitDate} onChange={(event) => setLimitDate(event.target.value)} /></label>
         </div>
 
@@ -334,11 +357,11 @@ function DocumentForm({ kind, customers, quote, invoice, fromQuote, existingNumb
         </div>
         <div className="pc-document-bottom">
           <label>Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Conditions, détails du chantier, message au client…" /></label>
-          <div className="pc-totals"><span>Sous-total HT<strong>{euro.format(totals.subtotal)}</strong></span><span>TVA<strong>{euro.format(totals.tax_total)}</strong></span><span className="total">Total TTC<strong>{euro.format(totals.total)}</strong></span></div>
+          <DocumentTotals items={items} />
         </div>
         <footer><button type="button" className="pc-secondary" onClick={onClose}>Annuler</button><button className="pc-primary" disabled={saving}>{saving && <Loader2 size={16} className="pc-spin" />}{source ? "Enregistrer les modifications" : kind === "quote" ? "Créer le devis" : "Créer la facture"}</button></footer>
       </form>
-    </Modal>
+    </Modal>{creatingCustomer && <ClientForm onClose={() => setCreatingCustomer(false)} onSaved={onSaved} onCreated={(customer) => { setCreatedCustomers((current) => [...current, customer]); setCustomerId(customer.id); }} setToast={setToast} />}</>
   );
 }
 
@@ -351,30 +374,30 @@ function ClientDetails({ customer, quotes, invoices, onClose, onEdit, onDelete, 
         <section><h3>Coordonnées</h3><dl><div><dt>E-mails</dt><dd>{customer.emails.join(" · ") || "—"}</dd></div><div><dt>Téléphones</dt><dd>{customer.phones.join(" · ") || "—"}</dd></div><div><dt>Adresse</dt><dd>{[customer.addresses?.[0]?.line1, customer.addresses?.[0]?.postal_code, customer.addresses?.[0]?.city].filter(Boolean).join(" · ") || "—"}</dd></div>{customer.kind === "business" && <><div><dt>SIRET</dt><dd>{customer.siret || "—"}</dd></div><div><dt>TVA</dt><dd>{customer.vat_number || "—"}</dd></div></>}</dl></section>
         <section><h3>Historique</h3><div className="pc-details-kpis"><div><span>Devis</span><strong>{customerQuotes.length}</strong></div><div><span>Factures</span><strong>{customerInvoices.length}</strong></div><div><span>Facturé</span><strong>{integerEuro.format(customerInvoices.reduce((sum, item) => sum + Number(item.total), 0))}</strong></div></div></section>
       </div>
-      <div className="pc-linked-docs"><h3>Documents récents</h3>{customerQuotes.slice(0, 3).map((quote) => <button key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><FileText size={16} /><span><strong>{quote.number}</strong><small>{quote.title}</small></span><Status type="quote" value={quote.status} /></button>)}{customerInvoices.slice(0, 3).map((invoice) => <button key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><ReceiptText size={16} /><span><strong>{invoice.number}</strong><small>{formatDate(invoice.issue_date)}</small></span><Status type="invoice" value={invoice.status} /></button>)}</div>
+      <div className="pc-linked-docs"><h3>Documents récents</h3>{customerQuotes.slice(0, 3).map((quote) => <button key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><FileText size={16} /><span><strong>{quote.number}</strong><small>{quote.title}</small></span><QuoteStatusView quote={quote} invoices={invoices} /></button>)}{customerInvoices.slice(0, 3).map((invoice) => <button key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><ReceiptText size={16} /><span><strong>{invoice.number}</strong><small>{formatDate(invoice.issue_date)}</small></span><Status type="invoice" value={invoice.status} /></button>)}</div>
       <footer className="pc-details-footer"><button className="pc-danger-button" onClick={onDelete}><Trash2 size={16} /> Supprimer</button><div><button className="pc-secondary" onClick={onEdit}><Pencil size={16} /> Modifier</button><button className="pc-primary" onClick={() => setModal({ kind: "quote" })}><Plus size={16} /> Nouveau devis</button></div></footer>
     </Modal>
   );
 }
 
-function QuoteDetails({ quote, onClose, onEdit, onDelete, onChanged, setModal, setToast }: { quote: Quote; onClose: () => void; onEdit: () => void; onDelete: () => Promise<void>; onChanged: () => Promise<void>; setModal: (modal: ModalState) => void; setToast: (message: string) => void }) {
-  const totals = calculateTotals(quote.items);
+function QuoteDetails({ quote, invoices, onClose, onEdit, onDelete, onChanged, setModal, setToast }: { quote: Quote; invoices: Invoice[]; onClose: () => void; onEdit: () => void; onDelete: () => Promise<void>; onChanged: () => Promise<void>; setModal: (modal: ModalState) => void; setToast: (message: string) => void }) {
+  const linkedInvoice = invoices.find((invoice) => invoice.quote_id === quote.id);
   async function changeStatus(status: QuoteStatus) {
     try { await updateQuoteStatus(quote.id, status); await onChanged(); setToast(`Devis marqué « ${quoteLabels[status]} ».`); onClose(); } catch (error) { setToast(error instanceof Error ? error.message : "Échec de la mise à jour."); }
   }
   return (
     <Modal title={quote.number} subtitle={`${customerName(quote.customer)} · ${quote.title}`} onClose={onClose} wide>
-      <div className="pc-document-summary"><div><span>Émis le</span><strong>{formatDate(quote.issue_date)}</strong></div><div><span>Valide jusqu’au</span><strong>{formatDate(quote.expiry_date)}</strong></div><div><span>État</span><Status type="quote" value={quote.status} /></div><div><span>Total TTC</span><strong>{euro.format(Number(quote.total))}</strong></div></div>
+      <div className="pc-document-summary"><div><span>Émis le</span><strong>{formatDate(quote.issue_date)}</strong></div><div><span>Valide jusqu’au</span><strong>{formatDate(quote.expiry_date)}</strong></div><div><span>État</span>{linkedInvoice ? <strong>Terminé</strong> : <QuoteStatusView quote={quote} invoices={invoices} />}</div><div><span>Total TTC</span><strong>{euro.format(Number(quote.total))}</strong></div></div>
+      {linkedInvoice && <button className="pc-secondary" onClick={() => setModal({ kind: "invoice-details", value: linkedInvoice })}>Ouvrir la facture liée {linkedInvoice.number} <ChevronRight size={16} /></button>}
       <div className="pc-document-lines"><div className="head"><span>Désignation</span><span>Qté</span><span>PU HT</span><span>TVA</span><span>Total HT</span></div>{quote.items.map((item) => <div key={item.id}><span><strong>{item.label}</strong>{item.description && <small>{item.description}</small>}</span><span>{item.quantity} {item.unit}</span><span>{euro.format(Number(item.unit_price))}</span><span>{item.tax_rate} %</span><strong>{euro.format(Number(item.total))}</strong></div>)}</div>
-      <div className="pc-document-bottom"><p>{quote.notes || "Aucune note."}</p><div className="pc-totals"><span>Sous-total HT<strong>{euro.format(totals.subtotal)}</strong></span><span>TVA<strong>{euro.format(totals.tax_total)}</strong></span><span className="total">Total TTC<strong>{euro.format(totals.total)}</strong></span></div></div>
+      <div className="pc-document-bottom"><p>{quote.notes || "Aucune note."}</p><DocumentTotals items={quote.items} /></div>
       <div className="pc-status-actions"><span>Changer l’état :</span>{(Object.keys(quoteLabels) as QuoteStatus[]).map((status) => <button key={status} disabled={status === quote.status} onClick={() => changeStatus(status)}>{quoteLabels[status]}</button>)}</div>
-      <footer className="pc-details-footer"><button className="pc-danger-button" onClick={onDelete}><Trash2 size={16} /> Supprimer</button><div><button className="pc-secondary" onClick={onEdit}><Pencil size={16} /> Modifier</button><button className="pc-primary" onClick={() => setModal({ kind: "invoice", fromQuote: quote })}><ReceiptText size={16} /> Transformer en facture</button></div></footer>
+      <footer className="pc-details-footer"><button className="pc-danger-button" onClick={onDelete}><Trash2 size={16} /> Supprimer</button><div><button className="pc-secondary" onClick={() => setModal({ kind: "quote", template: quote })}><Plus size={16} /> Dupliquer</button><button className="pc-secondary" onClick={onEdit}><Pencil size={16} /> Modifier</button><button className="pc-primary" onClick={() => setModal({ kind: "invoice", fromQuote: quote })}><ReceiptText size={16} /> Transformer en facture</button></div></footer>
     </Modal>
   );
 }
 
 function InvoiceDetails({ invoice, onClose, onEdit, onDelete, onChanged, setToast }: { invoice: Invoice; onClose: () => void; onEdit: () => void; onDelete: () => Promise<void>; onChanged: () => Promise<void>; setToast: (message: string) => void }) {
-  const totals = calculateTotals(invoice.items);
   async function changeStatus(status: InvoiceStatus) {
     try { await updateInvoiceStatus(invoice.id, status); await onChanged(); setToast(`Facture marquée « ${invoiceLabels[status]} ».`); onClose(); } catch (error) { setToast(error instanceof Error ? error.message : "Échec de la mise à jour."); }
   }
@@ -385,9 +408,9 @@ function InvoiceDetails({ invoice, onClose, onEdit, onDelete, onChanged, setToas
     <Modal title={invoice.number} subtitle={customerName(invoice.customer)} onClose={onClose} wide>
       <div className="pc-document-summary"><div><span>Émise le</span><strong>{formatDate(invoice.issue_date)}</strong></div><div><span>Échéance</span><strong>{formatDate(invoice.due_date)}</strong></div><div><span>État</span><Status type="invoice" value={invoice.status} /></div><div><span>Reste dû</span><strong>{euro.format(Math.max(0, Number(invoice.total) - Number(invoice.paid_total)))}</strong></div></div>
       <div className="pc-document-lines"><div className="head"><span>Désignation</span><span>Qté</span><span>PU HT</span><span>TVA</span><span>Total HT</span></div>{invoice.items.map((item) => <div key={item.id}><span><strong>{item.label}</strong>{item.description && <small>{item.description}</small>}</span><span>{item.quantity} {item.unit}</span><span>{euro.format(Number(item.unit_price))}</span><span>{item.tax_rate} %</span><strong>{euro.format(Number(item.total))}</strong></div>)}</div>
-      <div className="pc-document-bottom"><p>{invoice.notes || "Aucune note."}</p><div className="pc-totals"><span>Sous-total HT<strong>{euro.format(totals.subtotal)}</strong></span><span>TVA<strong>{euro.format(totals.tax_total)}</strong></span><span className="total">Total TTC<strong>{euro.format(totals.total)}</strong></span></div></div>
+      <div className="pc-document-bottom"><p>{invoice.notes || "Aucune note."}</p><DocumentTotals items={invoice.items} /></div>
       <div className="pc-status-actions"><span>Changer l’état :</span>{(Object.keys(invoiceLabels) as InvoiceStatus[]).map((status) => <button key={status} disabled={status === invoice.status} onClick={() => changeStatus(status)}>{invoiceLabels[status]}</button>)}</div>
-      <footer className="pc-details-footer"><button className="pc-danger-button" onClick={onDelete} disabled={invoice.status !== "draft"}><Trash2 size={16} /> Supprimer le brouillon</button><div><button className="pc-secondary" onClick={onEdit} disabled={invoice.status !== "draft"}><Pencil size={16} /> Modifier</button>{invoice.status !== "paid" && <button className="pc-primary" onClick={paid}><Check size={16} /> Marquer payée</button>}</div></footer>
+      <footer className="pc-details-footer"><button className="pc-danger-button" onClick={onDelete}><Trash2 size={16} /> {invoice.status === "draft" ? "Supprimer le brouillon" : "Retirer de la liste"}</button><div><button className="pc-secondary" onClick={onEdit} disabled={invoice.status !== "draft"}><Pencil size={16} /> Modifier</button>{invoice.status !== "paid" && <button className="pc-primary" onClick={paid}><Check size={16} /> Marquer payée</button>}</div></footer>
     </Modal>
   );
 }
@@ -440,9 +463,13 @@ export default function FunctionalPrototype() {
   }
 
   async function removeInvoice(invoice: Invoice) {
-    if (invoice.status !== "draft") return setToast("Seuls les brouillons peuvent être supprimés. Une facture émise doit être annulée ou corrigée par un avoir.");
-    if (!window.confirm(`Supprimer le brouillon ${invoice.number} ?`)) return;
-    try { await deleteInvoice(invoice.id); await reload(); setModal(null); setToast("Brouillon supprimé."); } catch (deleteError) { setToast(deleteError instanceof Error ? deleteError.message : "Suppression impossible."); }
+    if (!window.confirm(invoice.status === "draft" ? `Supprimer le brouillon ${invoice.number} ?` : `Retirer ${invoice.number} de la liste active et conserver l’archive comptable ?`)) return;
+    try {
+      if (invoice.status === "draft") await deleteInvoice(invoice.id);
+      else await archiveInvoice(invoice.id);
+      await reload(); setModal(null);
+      setToast(invoice.status === "draft" ? "Brouillon supprimé." : "Facture archivée dans son mois comptable.");
+    } catch (deleteError) { setToast(deleteError instanceof Error ? deleteError.message : "Suppression impossible."); }
   }
 
   const dashboard = useMemo(() => {
@@ -482,17 +509,20 @@ export default function FunctionalPrototype() {
     const [query, setQuery] = useState("");
     const [status, setStatus] = useState<"all" | QuoteStatus>("all");
     const filtered = quotes.filter((quote) => (status === "all" || quote.status === status) && `${quote.number} ${customerName(quote.customer)} ${quote.title}`.toLowerCase().includes(query.toLowerCase()));
-    return <><div className="pc-heading"><div><span>Documents commerciaux</span><h1>Devis</h1><p>Créez, modifiez, supprimez, validez et transformez vos devis en factures.</p></div><button className="pc-primary" onClick={() => setModal({ kind: "quote" })}><Plus size={16} /> Nouveau devis</button></div><div className="pc-toolbar"><label><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Client, numéro ou chantier…" /></label><div><SlidersHorizontal size={16} /><button className={status === "all" ? "active" : ""} onClick={() => setStatus("all")}>Tous</button>{(Object.keys(quoteLabels) as QuoteStatus[]).map((item) => <button key={item} className={status === item ? "active" : ""} onClick={() => setStatus(item)}>{quoteLabels[item]}</button>)}</div></div><section className="pc-panel pc-table-panel">{filtered.length ? <><div className="pc-table pc-quotes-table"><div className="pc-table-row pc-table-head"><span>Devis</span><span>Client / chantier</span><span>Date</span><span>Montant</span><span>État</span><span /></div>{filtered.map((quote) => <button className="pc-table-row" key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><strong>{quote.number}</strong><div><strong>{customerName(quote.customer)}</strong><small>{quote.title}</small></div><span>{formatDate(quote.issue_date)}</span><strong>{euro.format(Number(quote.total))}</strong><Status type="quote" value={quote.status} /><MoreHorizontal size={18} /></button>)}</div><div className="pc-mobile-list">{filtered.map((quote) => <article key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><div><span>{quote.number}</span><Status type="quote" value={quote.status} /></div><h3>{customerName(quote.customer)}</h3><p>{quote.title}</p><footer><span>{formatDate(quote.issue_date)}</span><strong>{euro.format(Number(quote.total))}</strong></footer></article>)}</div></> : <EmptyState title="Aucun devis" description="Créez votre premier devis ou modifiez les filtres." action={<button className="pc-primary" onClick={() => setModal({ kind: "quote" })}><Plus size={16} /> Nouveau devis</button>} />}</section></>;
+    return <><div className="pc-heading"><div><span>Documents commerciaux</span><h1>Devis</h1><p>Créez, modifiez, supprimez, validez et transformez vos devis en factures.</p></div><button className="pc-primary" onClick={() => setModal({ kind: "quote" })}><Plus size={16} /> Nouveau devis</button></div><div className="pc-toolbar"><label><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Client, numéro ou chantier…" /></label><div><SlidersHorizontal size={16} /><button className={status === "all" ? "active" : ""} onClick={() => setStatus("all")}>Tous</button>{(Object.keys(quoteLabels) as QuoteStatus[]).map((item) => <button key={item} className={status === item ? "active" : ""} onClick={() => setStatus(item)}>{quoteLabels[item]}</button>)}</div></div><section className="pc-panel pc-table-panel">{filtered.length ? <><div className="pc-table pc-quotes-table"><div className="pc-table-row pc-table-head"><span>Devis</span><span>Client / chantier</span><span>Date</span><span>Montant</span><span>État</span><span /></div>{filtered.map((quote) => <button className="pc-table-row" key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><strong>{quote.number}</strong><div><strong>{customerName(quote.customer)}</strong><small>{quote.title}</small></div><span>{formatDate(quote.issue_date)}</span><strong>{euro.format(Number(quote.total))}</strong><QuoteStatusView quote={quote} invoices={invoices} /><MoreHorizontal size={18} /></button>)}</div><div className="pc-mobile-list">{filtered.map((quote) => <article key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><div><span>{quote.number}</span><QuoteStatusView quote={quote} invoices={invoices} /></div><h3>{customerName(quote.customer)}</h3><p>{quote.title}</p><footer><span>{formatDate(quote.issue_date)}</span><strong>{euro.format(Number(quote.total))}</strong></footer></article>)}</div></> : <EmptyState title="Aucun devis" description="Créez votre premier devis ou modifiez les filtres." action={<button className="pc-primary" onClick={() => setModal({ kind: "quote" })}><Plus size={16} /> Nouveau devis</button>} />}</section></>;
   }
 
   function InvoicesView() {
     const [query, setQuery] = useState("");
+    const [showArchives, setShowArchives] = useState(false);
+    const [archivedInvoices, setArchivedInvoices] = useState<Invoice[]>([]);
     const [status, setStatus] = useState<"all" | InvoiceStatus>("all");
     const filtered = invoices.filter((invoice) => (status === "all" || invoice.status === status) && `${invoice.number} ${customerName(invoice.customer)}`.toLowerCase().includes(query.toLowerCase()));
     const issued = invoices.reduce((sum, invoice) => sum + Number(invoice.total), 0);
     const paid = invoices.reduce((sum, invoice) => sum + Number(invoice.paid_total), 0);
     const overdue = invoices.filter((invoice) => invoice.status === "overdue").reduce((sum, invoice) => sum + Number(invoice.total) - Number(invoice.paid_total), 0);
-    return <><div className="pc-heading"><div><span>Suivi des encaissements</span><h1>Factures</h1><p>Créez les brouillons, gérez les échéances et enregistrez les paiements.</p></div><button className="pc-primary" onClick={() => setModal({ kind: "invoice" })}><Plus size={16} /> Nouvelle facture</button></div><div className="pc-kpis pc-kpis-three"><Kpi label="Total facturé" value={integerEuro.format(issued)} note={`${invoices.length} factures`} icon={ReceiptText} /><Kpi label="Déjà payé" value={integerEuro.format(paid)} note={issued ? `${Math.round((paid / issued) * 100)} % encaissé` : "0 % encaissé"} icon={Check} strong /><Kpi label="En retard" value={integerEuro.format(overdue)} note={`${invoices.filter((invoice) => invoice.status === "overdue").length} facture(s)`} icon={Bell} /></div><div className="pc-toolbar"><label><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Facture ou client…" /></label><div><SlidersHorizontal size={16} /><button className={status === "all" ? "active" : ""} onClick={() => setStatus("all")}>Toutes</button>{(Object.keys(invoiceLabels) as InvoiceStatus[]).map((item) => <button key={item} className={status === item ? "active" : ""} onClick={() => setStatus(item)}>{invoiceLabels[item]}</button>)}</div></div><section className="pc-panel pc-table-panel">{filtered.length ? <><div className="pc-table pc-invoices-table"><div className="pc-table-row pc-table-head"><span>Facture</span><span>Client</span><span>Échéance</span><span>Montant</span><span>État</span><span>Payé</span></div>{filtered.map((invoice) => <button className="pc-table-row" key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><strong>{invoice.number}</strong><strong>{customerName(invoice.customer)}</strong><span>{formatDate(invoice.due_date)}</span><strong>{euro.format(Number(invoice.total))}</strong><Status type="invoice" value={invoice.status} /><span className="pc-accountant">{euro.format(Number(invoice.paid_total))}</span></button>)}</div><div className="pc-mobile-list">{filtered.map((invoice) => <article key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><div><span>{invoice.number}</span><Status type="invoice" value={invoice.status} /></div><h3>{customerName(invoice.customer)}</h3><p>Échéance : {formatDate(invoice.due_date)}</p><footer><span>Payé {euro.format(Number(invoice.paid_total))}</span><strong>{euro.format(Number(invoice.total))}</strong></footer></article>)}</div></> : <EmptyState title="Aucune facture" description="Créez une facture ou transformez un devis accepté." action={<button className="pc-primary" onClick={() => setModal({ kind: "invoice" })}><Plus size={16} /> Nouvelle facture</button>} />}</section></>;
+    if (showArchives) return <><div className="pc-heading"><div><span>Comptabilité</span><h1>Archives mensuelles</h1><p>Les factures émises restent conservées par mois.</p></div><button className="pc-secondary" onClick={() => setShowArchives(false)}>Retour aux factures</button></div><section className="pc-panel">{archivedInvoices.sort((a, b) => b.issue_date.localeCompare(a.issue_date)).map((invoice, index, rows) => <div key={invoice.id}>{(index === 0 || rows[index - 1].issue_date.slice(0, 7) !== invoice.issue_date.slice(0, 7)) && <h3 style={{ textTransform: "capitalize" }}>{new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(`${invoice.issue_date}T12:00:00`))}</h3>}<button className="pc-secondary" onClick={() => setModal({ kind: "invoice-details", value: invoice })}>{invoice.number} · {customerName(invoice.customer)} · {euro.format(Number(invoice.total))}</button></div>)}</section></>;
+    return <><div className="pc-heading"><div><span>Suivi des encaissements</span><h1>Factures</h1><p>Créez les brouillons, gérez les échéances et enregistrez les paiements.</p></div><div><button className="pc-secondary" onClick={async () => { try { setArchivedInvoices(await fetchArchivedInvoices()); setShowArchives(true); } catch (error) { setToast(error instanceof Error ? error.message : "Archives indisponibles."); } }}>Archives mensuelles</button><button className="pc-primary" onClick={() => setModal({ kind: "invoice" })}><Plus size={16} /> Nouvelle facture</button></div></div><div className="pc-kpis pc-kpis-three"><Kpi label="Total facturé" value={integerEuro.format(issued)} note={`${invoices.length} factures`} icon={ReceiptText} /><Kpi label="Déjà payé" value={integerEuro.format(paid)} note={issued ? `${Math.round((paid / issued) * 100)} % encaissé` : "0 % encaissé"} icon={Check} strong /><Kpi label="En retard" value={integerEuro.format(overdue)} note={`${invoices.filter((invoice) => invoice.status === "overdue").length} facture(s)`} icon={Bell} /></div><div className="pc-toolbar"><label><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Facture ou client…" /></label><div><SlidersHorizontal size={16} /><button className={status === "all" ? "active" : ""} onClick={() => setStatus("all")}>Toutes</button>{(Object.keys(invoiceLabels) as InvoiceStatus[]).map((item) => <button key={item} className={status === item ? "active" : ""} onClick={() => setStatus(item)}>{invoiceLabels[item]}</button>)}</div></div><section className="pc-panel pc-table-panel">{filtered.length ? <><div className="pc-table pc-invoices-table"><div className="pc-table-row pc-table-head"><span>Facture</span><span>Client</span><span>Échéance</span><span>Montant</span><span>État</span><span>Payé</span></div>{filtered.map((invoice) => <button className="pc-table-row" key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><strong>{invoice.number}</strong><strong>{customerName(invoice.customer)}</strong><span>{formatDate(invoice.due_date)}</span><strong>{euro.format(Number(invoice.total))}</strong><Status type="invoice" value={invoice.status} /><span className="pc-accountant">{euro.format(Number(invoice.paid_total))}</span></button>)}</div><div className="pc-mobile-list">{filtered.map((invoice) => <article key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><div><span>{invoice.number}</span><Status type="invoice" value={invoice.status} /></div><h3>{customerName(invoice.customer)}</h3><p>Échéance : {formatDate(invoice.due_date)}</p><footer><span>Payé {euro.format(Number(invoice.paid_total))}</span><strong>{euro.format(Number(invoice.total))}</strong></footer></article>)}</div></> : <EmptyState title="Aucune facture" description="Créez une facture ou transformez un devis accepté." action={<button className="pc-primary" onClick={() => setModal({ kind: "invoice" })}><Plus size={16} /> Nouvelle facture</button>} />}</section></>;
   }
 
   function ClientsView() {
@@ -505,7 +535,7 @@ export default function FunctionalPrototype() {
   function CalendarView() {
     const dueInvoices = invoices.filter((invoice) => invoice.due_date).slice(0, 5);
     const expiringQuotes = quotes.filter((quote) => quote.expiry_date).slice(0, 5);
-    return <><div className="pc-heading"><div><span>Organisation</span><h1>Agenda</h1><p>Les échéances de devis et factures sont générées depuis les documents.</p></div></div><section className="pc-panel pc-calendar-live"><div><h2>Échéances de factures</h2>{dueInvoices.map((invoice) => <button key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><CalendarDays size={17} /><span><strong>{formatDate(invoice.due_date)}</strong><small>{invoice.number} · {customerName(invoice.customer)}</small></span><Status type="invoice" value={invoice.status} /></button>)}</div><div><h2>Fin de validité des devis</h2>{expiringQuotes.map((quote) => <button key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><Clock3 size={17} /><span><strong>{formatDate(quote.expiry_date)}</strong><small>{quote.number} · {customerName(quote.customer)}</small></span><Status type="quote" value={quote.status} /></button>)}</div></section></>;
+    return <><div className="pc-heading"><div><span>Organisation</span><h1>Agenda</h1><p>Les échéances de devis et factures sont générées depuis les documents.</p></div></div><section className="pc-panel pc-calendar-live"><div><h2>Échéances de factures</h2>{dueInvoices.map((invoice) => <button key={invoice.id} onClick={() => setModal({ kind: "invoice-details", value: invoice })}><CalendarDays size={17} /><span><strong>{formatDate(invoice.due_date)}</strong><small>{invoice.number} · {customerName(invoice.customer)}</small></span><Status type="invoice" value={invoice.status} /></button>)}</div><div><h2>Fin de validité des devis</h2>{expiringQuotes.map((quote) => <button key={quote.id} onClick={() => setModal({ kind: "quote-details", value: quote })}><Clock3 size={17} /><span><strong>{formatDate(quote.expiry_date)}</strong><small>{quote.number} · {customerName(quote.customer)}</small></span><QuoteStatusView quote={quote} invoices={invoices} /></button>)}</div></section></>;
   }
 
   function SettingsView() {
@@ -521,10 +551,10 @@ export default function FunctionalPrototype() {
       <div className="pc-main"><header className="pc-topbar"><div className="pc-mobile-title"><button className="pc-icon-button" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><strong>{current}</strong></div><label className="pc-global-search"><Search size={17} /><input value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Rechercher devis, facture ou client…" /><kbd>⌘ K</kbd></label><div className="pc-top-actions"><button className="pc-icon-button"><Bell size={18} /></button><button className="pc-voice-button pc-disabled-feature" onClick={() => setToast("La dictée vocale IA sera développée après le cœur devis / factures / clients.")}><Mic size={17} /><span>Dictée bientôt</span></button><button className="pc-primary pc-new-button" onClick={openNew}><Plus size={16} /><span>Nouveau</span></button></div></header><main className="pc-content">{globalSearch ? <GlobalResults search={globalSearch} customers={customers} quotes={quotes} invoices={invoices} setModal={setModal} clear={() => setGlobalSearch("")} /> : content}</main><nav className="pc-mobile-nav">{navItems.slice(0, 5).map(({ id, label, icon: Icon }) => <button key={id} className={section === id ? "active" : ""} onClick={() => setSection(id)}><Icon size={20} /><span>{label === "Tableau de bord" ? "Accueil" : label}</span></button>)}</nav><button className="pc-mobile-mic" onClick={openNew}><Plus size={23} /></button></div>
       {toast && <div className="pc-toast"><Check size={17} />{toast}</div>}
       {modal?.kind === "client" && <ClientForm customer={modal.value} onClose={() => setModal(null)} onSaved={reload} setToast={setToast} />}
-      {modal?.kind === "quote" && <DocumentForm kind="quote" customers={customers} quote={modal.value} existingNumbers={quotes.map((quote) => quote.number)} onClose={() => setModal(null)} onSaved={reload} setToast={setToast} />}
+      {modal?.kind === "quote" && <DocumentForm kind="quote" customers={customers} quote={modal.value} templateQuote={modal.template} existingNumbers={quotes.map((quote) => quote.number)} onClose={() => setModal(null)} onSaved={reload} setToast={setToast} />}
       {modal?.kind === "invoice" && <DocumentForm kind="invoice" customers={customers} invoice={modal.value} fromQuote={modal.fromQuote} existingNumbers={invoices.map((invoice) => invoice.number)} onClose={() => setModal(null)} onSaved={reload} setToast={setToast} />}
       {modal?.kind === "client-details" && <ClientDetails customer={modal.value} quotes={quotes} invoices={invoices} onClose={() => setModal(null)} onEdit={() => setModal({ kind: "client", value: modal.value })} onDelete={() => removeCustomer(modal.value)} setModal={setModal} />}
-      {modal?.kind === "quote-details" && <QuoteDetails quote={modal.value} onClose={() => setModal(null)} onEdit={() => setModal({ kind: "quote", value: modal.value })} onDelete={() => removeQuote(modal.value)} onChanged={reload} setModal={setModal} setToast={setToast} />}
+      {modal?.kind === "quote-details" && <QuoteDetails quote={modal.value} invoices={invoices} onClose={() => setModal(null)} onEdit={() => setModal({ kind: "quote", value: modal.value })} onDelete={() => removeQuote(modal.value)} onChanged={reload} setModal={setModal} setToast={setToast} />}
       {modal?.kind === "invoice-details" && <InvoiceDetails invoice={modal.value} onClose={() => setModal(null)} onEdit={() => setModal({ kind: "invoice", value: modal.value })} onDelete={() => removeInvoice(modal.value)} onChanged={reload} setToast={setToast} />}
     </div>
   );

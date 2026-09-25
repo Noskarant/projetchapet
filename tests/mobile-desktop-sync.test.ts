@@ -111,6 +111,27 @@ test("marque un devis accepté comme terminé quand sa facture liée est payée"
   assert.equal(mobile.quotes[0].status, "Terminé");
 });
 
+test("termine le devis dès que la facture est émise, avant tout paiement", () => {
+  const issued = { ...paidInvoice, status: "issued" as const, paid_total: 0 };
+  const mobile = normalizedWorkspaceToMobile({ customers: [customer], quotes: [quote], invoices: [issued] }, emptyMobile);
+  assert.equal(mobile.quotes[0].status, "Terminé");
+  assert.equal(mobile.invoices[0].issueDate, issued.issue_date);
+});
+
+test("le devis reste terminé après archivage de sa facture et reconnexion", () => {
+  const mobile = normalizedWorkspaceToMobile({ customers: [customer], quotes: [quote], invoices: [], billedQuoteIds: [quote.id] }, emptyMobile);
+  assert.equal(mobile.quotes[0].status, "Terminé");
+  assert.equal(mobile.invoices.length, 0);
+});
+
+test("un devis ou une facture supprimés du serveur ne renaissent pas depuis un appareil ancien", () => {
+  const old = normalizedWorkspaceToMobile({ customers: [customer], quotes: [quote], invoices: [paidInvoice] }, emptyMobile);
+  const merged = mergeInitialMobileWorkspace(emptyMobile, old);
+  assert.equal(merged.quotes.length, 0);
+  assert.equal(merged.invoices.length, 0);
+  assert.equal(merged.customers.length, 0);
+});
+
 test("préserve un statut serveur plus précis tant que le mobile ne le change pas", () => {
   assert.equal(quoteStatusToMobile("sent"), "En attente");
   assert.equal(mobileQuoteStatusToDesktop("En attente", "sent"), "sent");

@@ -27,6 +27,13 @@ export function polishFrenchTradeDesignation(value: string) {
   for (const [pattern, replacement] of TYPOGRAPHIC_REPLACEMENTS) {
     result = result.replace(pattern, replacement);
   }
+  result = result.replace(/\b(\d+(?:[,.]\d+)?)\s+(rouleaux?|pots?|seaux?|litres?|heures?|portes?|fenêtres?)\b/giu,
+    (_match, rawQuantity: string, rawUnit: string) => {
+      const quantity = Number(rawQuantity.replace(",", "."));
+      const base = rawUnit.toLocaleLowerCase("fr-FR").replace(/x$/u, "").replace(/s$/u, "");
+      const plural = quantity > 1 ? base === "rouleau" ? "rouleaux" : base === "seau" ? "seaux" : `${base}s` : base;
+      return `${rawQuantity} ${plural}`;
+    });
   if (!result) return "";
   return result.charAt(0).toLocaleUpperCase("fr-FR") + result.slice(1);
 }

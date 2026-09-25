@@ -8,6 +8,10 @@
     },
     "app/api/ai/parse-strict/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/cron/monthly-accounting/route.ts": {
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [{ "path": "/api/cron/monthly-accounting", "schedule": "0 7 * * *" }]
 }

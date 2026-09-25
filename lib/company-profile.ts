@@ -8,6 +8,7 @@ export type CompanyProfile = {
   vatNumber: string;
   email: string;
   accountingEmail: string;
+  monthlyAccountingEnabled?: boolean;
   phone: string;
   address: string;
   postalCode: string;
@@ -34,6 +35,7 @@ export function defaultCompanyProfile(): CompanyProfile {
     vatNumber: "",
     email: "",
     accountingEmail: "",
+    monthlyAccountingEnabled: false,
     phone: "",
     address: "",
     postalCode: "",
@@ -72,6 +74,7 @@ export function normalizeCompanyProfile(value: unknown): CompanyProfile {
     vatNumber: text(raw.vatNumber, 30).replace(/\s/g, "").toUpperCase(),
     email: text(raw.email, 254).toLowerCase(),
     accountingEmail: text(raw.accountingEmail, 254).toLowerCase(),
+    monthlyAccountingEnabled: raw.monthlyAccountingEnabled === true,
     phone: text(raw.phone, 40),
     address: text(raw.address, 240),
     postalCode: text(raw.postalCode, 10),

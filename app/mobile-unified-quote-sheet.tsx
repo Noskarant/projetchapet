@@ -197,6 +197,24 @@ function renderHistoryPanel(panel: HTMLElement, quote: ActiveQuote) {
     ),
   );
 
+  if (quote.linkedInvoice) {
+    const invoiceId = quote.linkedInvoice.id;
+    const entry = timeline.lastElementChild;
+    if (entry instanceof HTMLElement) {
+      entry.setAttribute("role", "button");
+      entry.setAttribute("tabindex", "0");
+      entry.setAttribute("aria-label", `Ouvrir la facture ${quote.linkedInvoice.number}`);
+      entry.style.cursor = "pointer";
+      entry.addEventListener("click", () => window.dispatchEvent(new CustomEvent("manufeo:open-linked-invoice", { detail: invoiceId })));
+      entry.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          window.dispatchEvent(new CustomEvent("manufeo:open-linked-invoice", { detail: invoiceId }));
+        }
+      });
+    }
+  }
+
   panel.replaceChildren(heading, timeline);
 }
 
@@ -671,7 +689,8 @@ export default function MobileUnifiedQuoteSheet() {
               </button>
               <button onClick={() => {
                 setMoreOpen(false);
-                runUnderlyingAction(active.number, /dupliquer/);
+                closePreviewOnly();
+                window.dispatchEvent(new CustomEvent("manufeo:duplicate-quote", { detail: active.number }));
               }}>
                 <span aria-hidden="true">⧉</span><span>Dupliquer le devis</span>
               </button>
