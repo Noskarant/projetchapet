@@ -251,6 +251,26 @@ async function executeProposal(
     };
   }
 
+  if (proposal.intent_type === "create_collaborator") {
+    const name = string(payload.name, 240);
+    if (!name) throw new ApiInputError("Le nom du collaborateur manque.", 409);
+    const { data, error } = await context.client.rpc("create_commercial_collaborator_from_voice", {
+      p_organization_id: proposal.organization_id,
+      p_collaborator_id: `voice-${proposal.id}`,
+      p_name: name,
+      p_role: string(payload.role, 120),
+      p_phone: string(payload.phone, 40),
+    });
+    if (error || !data) throw new Error(error?.message || "Création du collaborateur impossible.");
+    return {
+      proposalId: proposal.id,
+      intentType: proposal.intent_type,
+      entityType: "collaborator",
+      entityId: String(data),
+      message: `Collaborateur ${name} créé.`,
+    };
+  }
+
   if (proposal.intent_type === "create_project") {
     const name = string(payload.name, 300);
     if (!name) throw new ApiInputError("Le nom du chantier manque.", 409);
@@ -270,6 +290,16 @@ async function executeProposal(
       if (dependency?.entityType !== "quote" || !dependency.entityId) throw new ApiInputError("Le devis du chantier n'a pas pu être créé.", 409);
       quoteId = dependency.entityId;
     }
+    const newCollaborators = Array.isArray(payload.collaborator_from_proposal_ids)
+      ? payload.collaborator_from_proposal_ids.map((id) => string(id, 80)).filter(Boolean) : [];
+    const newCollaboratorIds = newCollaborators.map((id) => {
+      const dependency = results.get(id);
+      if (dependency?.entityType !== "collaborator" || !dependency.entityId) {
+        throw new ApiInputError("Un collaborateur du chantier n'a pas pu être créé.", 409);
+      }
+      return dependency.entityId;
+    });
+    const existingIds = Array.isArray(payload.collaborator_ids) ? payload.collaborator_ids.map((id) => string(id, 160)).filter(Boolean) : [];
     const { data, error } = await context.client.rpc("create_commercial_project_from_voice", {
       p_organization_id: proposal.organization_id,
       p_project_id: `voice-${proposal.id}`,
@@ -280,7 +310,7 @@ async function executeProposal(
       p_address: string(payload.address, 320),
       p_start_date: string(payload.start_date, 10) || null,
       p_next_visit: string(payload.next_visit, 10) || null,
-      p_collaborator_ids: Array.isArray(payload.collaborator_ids) ? payload.collaborator_ids.map((id) => string(id, 160)).filter(Boolean) : [],
+      p_collaborator_ids: [...new Set([...existingIds, ...newCollaboratorIds])],
     });
     if (error || !data) throw new Error(error?.message || "Création du chantier impossible.");
     return {

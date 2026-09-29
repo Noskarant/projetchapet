@@ -99,6 +99,25 @@ test("une seule dictée relie le client, le devis et le chantier avec son équip
   assert.deepEqual(actions[2].payload.collaborator_names, ["Lucas"]);
 });
 
+test("un nom seul suffit pour créer un collaborateur et l'affecter au nouveau chantier", () => {
+  const actions = normalizeModelPlan({ actions: [
+    { intent_type: "create_collaborator", payload: { name: "Lucas" } },
+    { intent_type: "create_project", payload: { name: "Salon Dupont", collaborator_from_positions: [0] } },
+  ] }, "Crée Lucas comme collaborateur et affecte-le au chantier Salon Dupont");
+  assert.equal(actions[0].status, "ready");
+  assert.equal(actions[0].riskLevel, "review");
+  assert.equal(actions[0].payload.name, "Lucas");
+  assert.deepEqual(actions[1].collaboratorFromPositions, [0]);
+});
+
+test("un nom et un prénom, avec rôle facultatif, conservent la fiche dictée", () => {
+  const [action] = normalizeModelPlan({ actions: [
+    { intent_type: "create_collaborator", payload: { name: "Lucas Martin", role: "peintre" } },
+  ] }, "Ajoute Lucas Martin comme collaborateur peintre");
+  assert.deepEqual(action.payload, { name: "Lucas Martin", role: "peintre", phone: "" });
+  assert.equal(action.status, "ready");
+});
+
 test("les informations obligatoires absentes bloquent l’exécution sans invention", () => {
   const actions = normalizeModelPlan({
     actions: [{

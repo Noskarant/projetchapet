@@ -24,6 +24,7 @@ Transforme UNE demande orale en une liste ordonnée d'actions structurées. Comp
 
 Intentions autorisées exactement :
 - create_customer : créer un client ;
+- create_collaborator : créer une fiche collaborateur avec son nom, prénom éventuel, rôle et téléphone éventuels ;
 - create_project : créer une fiche chantier, éventuellement liée à un client, un devis et des collaborateurs ;
 - prepare_quote : créer uniquement un BROUILLON de devis ;
 - prepare_invoice : créer uniquement un BROUILLON de facture ;
@@ -33,7 +34,7 @@ Intentions autorisées exactement :
 - mark_payment : enregistrer un paiement uniquement si facture et montant sont explicitement donnés ;
 - prepare_email : préparer un brouillon de message, jamais l'envoyer.
 
-Ne crée create_project que si l'utilisateur demande d'ouvrir/créer un chantier, et pas pour une simple mention d'un chantier existant. Une seule phrase peut combiner plusieurs intentions, sans que l'utilisateur choisisse une catégorie. Si un devis doit être lié au nouveau chantier, place prepare_quote avant create_project et renseigne quote_from_position (index base 0). Si un client vient d'être créé, utilise customer_from_position aussi dans create_project. Pour les collaborateurs, recopie les noms cités dans collaborator_names ; leur existence sera vérifiée. N'invente pas de collaborateur, de client ni de devis. Un chantier seul n'implique pas la création d'un devis ; un chiffrage n'implique pas la création d'un chantier.
+Ne crée create_project que si l'utilisateur demande d'ouvrir/créer un chantier, et pas pour une simple mention d'un chantier existant. Une seule phrase peut combiner plusieurs intentions, sans que l'utilisateur choisisse une catégorie. Si un devis doit être lié au nouveau chantier, place prepare_quote avant create_project et renseigne quote_from_position (index base 0). Si un client vient d'être créé, utilise customer_from_position aussi dans create_project. Ne crée create_collaborator que si l'utilisateur demande explicitement de créer/ajouter une personne à l'équipe ; « affecte Lucas » seul signifie chercher Lucas existant et ne suffit jamais à le créer. Le nom seul est suffisant pour une nouvelle fiche, prénom, rôle et téléphone sont facultatifs. Place create_collaborator avant create_project et renseigne collaborator_from_positions (indices base 0) pour les nouveaux membres ; mets les collaborateurs existants dans collaborator_names. N'invente pas de collaborateur, de client ni de devis. Un chantier seul n'implique pas la création d'un devis ; un chiffrage n'implique pas la création d'un chantier.
 
 Si la demande crée un client puis un devis/facture pour ce même nouveau client, place create_customer avant le document et mets customer_from_position à l'index (base 0) de l'action client dans le payload du document.
 Pour un client existant, utilise customer_hint avec son nom prononcé. Les noms, prénoms, sociétés et e-mails épelés lettre par lettre prévalent sur une transcription phonétique ; respecte le nombre de lettres répétées (deux E, trois R). Ne devine pas une lettre que l'audio ou le texte ne contient pas. N'invente jamais un UUID.
@@ -47,7 +48,7 @@ Réponds uniquement par ce JSON :
 {
   "actions":[
     {
-      "intent_type":"create_customer|create_project|prepare_quote|prepare_invoice|schedule_task|update_project_note|prepare_supplier_order|mark_payment|prepare_email",
+      "intent_type":"create_customer|create_collaborator|create_project|prepare_quote|prepare_invoice|schedule_task|update_project_note|prepare_supplier_order|mark_payment|prepare_email",
       "confidence":0.0,
       "warnings":[],
       "missing_fields":[],
@@ -58,7 +59,8 @@ Réponds uniquement par ce JSON :
 
 Schémas de payload utiles :
 create_customer: {"kind":"business|individual","company_name":"","civility":"M.|Mme|M. et Mme","last_name":"","first_name":"","siret":"","vat_number":"","emails":[],"phones":[],"addresses":[{"line1":"","postal_code":"","city":"","country":"France"}],"notes":""}
-create_project: {"name":"","subtitle":"","customer_hint":"","customer_from_position":null,"quote_from_position":null,"address":"","start_date":"YYYY-MM-DD ou vide","next_visit":"YYYY-MM-DD ou vide","collaborator_names":[]}
+create_collaborator: {"name":"prénom et nom ou seulement un nom","role":"","phone":""}
+create_project: {"name":"","subtitle":"","customer_hint":"","customer_from_position":null,"quote_from_position":null,"address":"","start_date":"YYYY-MM-DD ou vide","next_visit":"YYYY-MM-DD ou vide","collaborator_names":[],"collaborator_from_positions":[]}
 prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","items":[{"label":"","description":"","quantity":null,"quantity_evidence":"","unit":null,"unit_price":null,"price_evidence":"","price_type":"ht|ttc|unknown","tax_rate":null,"tax_evidence":""}]}
 schedule_task: {"customer_hint":"","title":"","date":"YYYY-MM-DD","time":"HH:MM","location":"","type":"Chantier|Commande|Facturation|Relance","notes":""}
 update_project_note: {"project_id":"","body":""}
@@ -161,20 +163,36 @@ function validateDependencies(actions: PlannedAction[]) {
     if (typeof quoteIndex === "number" && (quoteIndex < 0 || quoteIndex >= index || actions[index].intentType !== "create_project" || actions[quoteIndex]?.intentType !== "prepare_quote")) {
       throw new ApiInputError("Le plan IA contient une dépendance devis invalide.", 422);
     }
+    if ((actions[index].collaboratorFromPositions ?? []).some((position) => !Number.isInteger(position)
+      || position < 0 || position >= index || actions[index].intentType !== "create_project"
+      || actions[position]?.intentType !== "create_collaborator")) {
+      throw new ApiInputError("Le plan IA contient une dépendance collaborateur invalide.", 422);
+    }
   }
 }
 
 async function resolveProjectCollaborators(actions: PlannedAction[], organizationId: string, client: Awaited<ReturnType<typeof authenticateRequest>>["client"]) {
   const projects = actions.filter((action) => action.intentType === "create_project");
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR").trim();
-  if (!projects.length) return;
-  const needsTeam = projects.some((action) => Array.isArray(action.payload.collaborator_names) && action.payload.collaborator_names.length);
+  const creates = actions.map((action, index) => ({ action, index })).filter(({ action }) => action.intentType === "create_collaborator");
+  if (!projects.length && !creates.length) return;
+  const needsTeam = creates.length > 0 || projects.some((action) => Array.isArray(action.payload.collaborator_names) && action.payload.collaborator_names.length);
   const needsCustomer = projects.some((action) => action.payload.customer_hint && action.customerFromPosition === undefined);
   const [teamResult, customerResult] = await Promise.all([
     needsTeam ? client.from("commercial_collaborators").select("id, name, active").eq("organization_id", organizationId).limit(200) : Promise.resolve({ data: [], error: null }),
     needsCustomer ? client.from("customers").select("id, kind, company_name, civility, last_name, first_name").eq("organization_id", organizationId).limit(500) : Promise.resolve({ data: [], error: null }),
   ]);
   if (teamResult.error || customerResult.error) throw new Error("Vérification du chantier impossible.");
+  for (const { action, index } of creates) {
+    const name = String(action.payload.name || "").trim();
+    if (!name) continue;
+    const existing = matchProjectCollaborator(teamResult.data ?? [], name);
+    const duplicateInRequest = creates.some((other) => other.index < index && normalize(String(other.action.payload.name || "")) === normalize(name));
+    if (existing.status !== "missing" || duplicateInRequest) {
+      action.missingFields.push(`collaborateur_deja_existant: ${name}`);
+      action.status = "needs_input";
+    }
+  }
   for (const action of projects) {
     const customerHint = String(action.payload.customer_hint || "").trim();
     if (customerHint && action.customerFromPosition === undefined) {
@@ -188,13 +206,34 @@ async function resolveProjectCollaborators(actions: PlannedAction[], organizatio
       else action.payload.customer_id = String(matches[0].id);
     }
     const names = Array.isArray(action.payload.collaborator_names) ? action.payload.collaborator_names as string[] : [];
+    const newPositions = new Set(action.collaboratorFromPositions ?? []);
     const ids: string[] = [];
+    const existingNames: string[] = [];
     for (const name of names) {
+      const newMatch = matchProjectCollaborator(
+        creates.filter(({ index }) => index < actions.indexOf(action)).map(({ action: created, index }) => ({ id: String(index), name: String(created.payload.name || ""), active: true })),
+        name,
+      );
+      if (newMatch.status === "found") {
+        newPositions.add(Number(newMatch.id));
+        continue;
+      }
+      if (newMatch.status === "ambiguous") {
+        action.missingFields.push(`collaborateur_ambigu: ${name}`);
+        continue;
+      }
       const match = matchProjectCollaborator(teamResult.data ?? [], name);
       if (match.status !== "found") {
         action.missingFields.push(`${match.status === "ambiguous" ? "collaborateur_ambigu" : "collaborateur_introuvable"}: ${name}`);
-      } else ids.push(match.id);
+      } else {
+        ids.push(match.id);
+        existingNames.push(name);
+      }
     }
+    action.collaboratorFromPositions = [...newPositions].sort((a, b) => a - b);
+    action.payload.collaborator_from_positions = action.collaboratorFromPositions;
+    action.payload.collaborator_names = existingNames;
+    action.payload.collaborator_new_names = action.collaboratorFromPositions.map((position) => String(actions[position]?.payload.name || "")).filter(Boolean);
     action.payload.collaborator_ids = [...new Set(ids)];
     action.missingFields = [...new Set(action.missingFields)];
     if (action.missingFields.length) action.status = "needs_input";
@@ -238,6 +277,16 @@ async function persistPlan({
       }
       payload.quote_from_proposal_id = String(dependency.id);
       delete payload.quote_from_position;
+    }
+    if (action.collaboratorFromPositions?.length) {
+      payload.collaborator_from_proposal_ids = action.collaboratorFromPositions.map((position) => {
+        const dependency = inserted[position];
+        if (!dependency?.id || dependency.intent_type !== "create_collaborator") {
+          throw new ApiInputError("Le collaborateur lié au chantier n'a pas pu être préparé.", 422);
+        }
+        return String(dependency.id);
+      });
+      delete payload.collaborator_from_positions;
     }
     const { data, error } = await client
       .from("action_proposals")

@@ -60,6 +60,13 @@ export function validatePlanDependencies(actions: PlannedAction[]) {
       || actions[quoteIndex]?.intentType !== "prepare_quote")) {
       throw new ApiInputError("Le plan IA contient une dépendance devis invalide.", 422);
     }
+    const collaboratorIndexes = actions[index].collaboratorFromPositions ?? [];
+    if (collaboratorIndexes.some((position) => !Number.isInteger(position)
+      || position < 0 || position >= index
+      || actions[index].intentType !== "create_project"
+      || actions[position]?.intentType !== "create_collaborator")) {
+      throw new ApiInputError("Le plan IA contient une dépendance collaborateur invalide.", 422);
+    }
   }
 }
 

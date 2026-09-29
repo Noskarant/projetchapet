@@ -70,6 +70,7 @@ const choices: Choice[] = [
 
 const intentLabels: Record<string, string> = {
   create_customer: "Créer le client",
+  create_collaborator: "Créer le collaborateur",
   create_project: "Créer le chantier",
   prepare_quote: "Créer un brouillon de devis",
   prepare_invoice: "Créer un brouillon de facture",
@@ -133,8 +134,12 @@ function proposalSummary(proposal: ActionProposalView) {
     return [name, clean(payload.siret) ? `SIRET ${clean(payload.siret)}` : "", emails[0] || "", phones[0] || ""].filter(Boolean).join(" · ");
   }
   if (proposal.intent_type === "create_project") {
-    const team = Array.isArray(payload.collaborator_names) ? payload.collaborator_names.map(clean).filter(Boolean).join(", ") : "";
+    const names = [...(Array.isArray(payload.collaborator_names) ? payload.collaborator_names : []), ...(Array.isArray(payload.collaborator_new_names) ? payload.collaborator_new_names : [])];
+    const team = names.map(clean).filter(Boolean).join(", ");
     return [clean(payload.name), clean(payload.customer_hint), clean(payload.address), team ? `Équipe : ${team}` : ""].filter(Boolean).join(" · ");
+  }
+  if (proposal.intent_type === "create_collaborator") {
+    return [clean(payload.name), clean(payload.role), clean(payload.phone)].filter(Boolean).join(" · ");
   }
   if (proposal.intent_type === "prepare_quote" || proposal.intent_type === "prepare_invoice") {
     const items = Array.isArray(payload.items) ? payload.items : [];
@@ -616,6 +621,12 @@ export default function ActionVoiceAssistant() {
                         <p>{proposalSummary(proposal)}</p>
                         {(proposal.warnings ?? []).map((warning) => <small className="ava-warning" key={warning}>⚠ {warning}</small>)}
                         {(proposal.missing_fields ?? []).length > 0 && <small className="ava-missing">À préciser : {proposal.missing_fields.join(", ")}</small>}
+                        {(proposal.missing_fields ?? []).filter((field) => field.startsWith("collaborateur_introuvable: ")).map((field) => {
+                          const name = field.slice("collaborateur_introuvable: ".length).trim();
+                          return <button key={field} type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => void prepare(`Crée ${name} comme collaborateur, puis ${transcript}`)}>
+                            Créer {name} et reprendre
+                          </button>;
+                        })}
                       </div>
                     </article>
                   ))}

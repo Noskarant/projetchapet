@@ -93,6 +93,19 @@ test("un devis futur ou une date invalide empêche de créer le chantier", () =>
   assert.ok(project.missingFields.includes("start_date"));
 });
 
+test("l'affectation d'un nouveau collaborateur exige une création précédente", () => {
+  const valid = normalizeModelPlan({ actions: [
+    { intent_type: "create_collaborator", payload: { name: "Lucas" } },
+    { intent_type: "create_project", payload: { name: "Salon Dupont", collaborator_from_positions: [0] } },
+  ] }, "Crée Lucas et le chantier Salon Dupont avec lui");
+  assert.doesNotThrow(() => validatePlanDependencies(valid));
+  const invalid = normalizeModelPlan({ actions: [
+    { intent_type: "create_project", payload: { name: "Salon Dupont", collaborator_from_positions: [1] } },
+    { intent_type: "create_collaborator", payload: { name: "Lucas" } },
+  ] }, "Crée le chantier et Lucas");
+  assert.throws(() => validatePlanDependencies(invalid), /dépendance collaborateur invalide/);
+});
+
 test("un document sans prestation exploitable reste bloqué", () => {
   const [action] = hardenPlannedActions(normalizeModelPlan({
     actions: [{
