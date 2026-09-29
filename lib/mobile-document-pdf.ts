@@ -23,6 +23,7 @@ export type BusinessDocumentPdfOptions = {
   company: BusinessDocumentCompany;
   quoteMeta?: QuoteInternalMeta;
   withoutPrices?: boolean;
+  profile?: CompanyProfile | null;
 };
 
 const money = (value: number) =>
@@ -66,10 +67,11 @@ export async function buildBusinessDocumentPdf({
   company,
   quoteMeta = { discountPercent: 0, internalNotes: "" },
   withoutPrices = false,
+  profile: suppliedProfile,
 }: BusinessDocumentPdfOptions) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
-  const profile = activeCompanyProfile();
+  const profile = suppliedProfile === undefined ? activeCompanyProfile() : suppliedProfile;
   const identityName = profile
     ? companyProfileDisplayName(profile, company.displayName || company.legalName || "Votre entreprise")
     : company.displayName || company.legalName || "Votre entreprise";

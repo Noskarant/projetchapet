@@ -1,19 +1,66 @@
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import { resendProviderErrorMessage, resolveManufeoSender } from "@/lib/resend-email";
-import { authenticateRequest, requireOrganization } from "@/lib/server-auth";
+import { authenticateRequest, requireOrganization, type AuthenticatedRequestContext } from "@/lib/server-auth";
 import { assertVoiceEmailRetry, reviewVoiceEmail, voiceEmailHtml, type VoiceEmailDelivery } from "@/lib/voice-email-delivery";
+import { buildVoiceEmailQuoteAttachment } from "@/lib/voice-email-quote-pdf";
 
 export const runtime = "nodejs";
+
+function optionalQuoteId(value: unknown) {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || !/^[0-9a-f-]{36}$/i.test(value.trim())) {
+    throw new ApiInputError("Devis sélectionné invalide.");
+  }
+  return value.trim();
+}
+
+async function quoteAttachment(
+  context: AuthenticatedRequestContext,
+  organizationId: string,
+  quoteId: string,
+  recipient: string,
+) {
+  const { data: quote, error: quoteError } = await context.client
+    .from("quotes")
+    .select("id,number,title,status,issue_date,expiry_date,subtotal,tax_total,total,notes,customer_id,customer:customers(id,kind,company_name,civility,last_name,first_name,emails,phones,addresses,siret,vat_number,notes),items:quote_items(id,position,label,description,quantity,unit,unit_price,tax_rate,total)")
+    .eq("organization_id", organizationId)
+    .eq("id", quoteId)
+    .maybeSingle();
+  if (quoteError) throw new Error("Recherche du devis impossible.");
+  if (!quote) throw new ApiInputError("Le devis sélectionné est introuvable.", 404);
+
+  const { data: organization, error: organizationError } = await context.client
+    .from("organizations")
+    .select("id,name,siret,vat_number,phone,email,address")
+    .eq("id", organizationId)
+    .maybeSingle();
+  if (organizationError || !organization) throw new Error("Entreprise indisponible.");
+
+  const { data: snapshot } = await context.client
+    .from("pilot_workspace_snapshots")
+    .select("company_profile")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  return buildVoiceEmailQuoteAttachment({
+    quote: quote as unknown as Parameters<typeof buildVoiceEmailQuoteAttachment>[0]["quote"],
+    customer: (quote as unknown as { customer: Parameters<typeof buildVoiceEmailQuoteAttachment>[0]["customer"] }).customer,
+    organization: organization as Parameters<typeof buildVoiceEmailQuoteAttachment>[0]["organization"],
+    companyProfile: snapshot?.company_profile,
+    recipient,
+  });
+}
 
 export async function POST(request: Request) {
   const limited = rateLimit(request, "voice-email-send", 5);
   if (limited) return limited;
 
   try {
-    const body = await readJsonBody<{ organizationId?: unknown; proposalId?: unknown; subject?: unknown; message?: unknown }>(request, 10_000);
+    const body = await readJsonBody<{ organizationId?: unknown; proposalId?: unknown; subject?: unknown; message?: unknown; quoteId?: unknown }>(request, 10_000);
     const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
     const proposalId = typeof body.proposalId === "string" ? body.proposalId.trim() : "";
+    const requestedQuoteId = optionalQuoteId(body.quoteId);
     if (!organizationId || !/^[0-9a-f-]{36}$/i.test(proposalId)) throw new ApiInputError("Brouillon ou entreprise manquants.");
 
     const context = await authenticateRequest(request);
@@ -31,12 +78,22 @@ export async function POST(request: Request) {
     const from = resolveManufeoSender(process.env.RESEND_FROM_EMAIL);
 
     const { data: previous, error: readError } = await context.client.from("voice_email_deliveries")
-      .select("proposal_id,recipient,subject,body,status,provider_id,sent_at,created_at,updated_at")
+      .select("proposal_id,recipient,subject,body,status,provider_id,sent_at,attachment_quote_id,attachment_filename,attachment_base64,created_at,updated_at")
       .eq("proposal_id", proposalId).eq("organization_id", organizationId).maybeSingle();
     if (readError) throw new Error("État de l’envoi indisponible.");
 
+    let attachment: { quoteId: string | null; filename: string; content: string } | null = null;
+
     if (previous) {
-      assertVoiceEmailRetry(previous as VoiceEmailDelivery, content);
+      const saved = previous as VoiceEmailDelivery;
+      assertVoiceEmailRetry(saved, content, requestedQuoteId);
+      if (saved.attachment_filename && saved.attachment_base64) {
+        attachment = {
+          quoteId: saved.attachment_quote_id,
+          filename: saved.attachment_filename,
+          content: saved.attachment_base64,
+        };
+      }
       const { data: claimed, error: claimError } = await context.client.from("voice_email_deliveries")
         .update({ status: "sending", updated_at: new Date().toISOString() })
         .eq("proposal_id", proposalId).eq("organization_id", organizationId)
@@ -45,9 +102,18 @@ export async function POST(request: Request) {
       if (claimError) throw new Error("Reprise de l’envoi impossible.");
       if (!claimed) throw new ApiInputError("Cet envoi est déjà en cours.", 409);
     } else {
+      attachment = requestedQuoteId
+        ? await quoteAttachment(context, organizationId, requestedQuoteId, content.recipient)
+        : null;
       const { error: insertError } = await context.client.from("voice_email_deliveries").insert({
-        proposal_id: proposalId, organization_id: organizationId, sent_by: context.user.id,
-        ...content, status: "sending",
+        proposal_id: proposalId,
+        organization_id: organizationId,
+        sent_by: context.user.id,
+        ...content,
+        status: "sending",
+        attachment_quote_id: attachment?.quoteId ?? null,
+        attachment_filename: attachment?.filename ?? null,
+        attachment_base64: attachment?.content ?? null,
       });
       if (insertError?.code === "23505") throw new ApiInputError("Cet envoi est déjà en cours.", 409);
       if (insertError) throw new Error("Préparation de l’envoi impossible.");
@@ -57,7 +123,14 @@ export async function POST(request: Request) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "Idempotency-Key": `voice-email/${proposalId}` },
       signal: AbortSignal.timeout(20_000),
-      body: JSON.stringify({ from, to: [content.recipient], subject: content.subject, html: voiceEmailHtml(content.body), text: content.body }),
+      body: JSON.stringify({
+        from,
+        to: [content.recipient],
+        subject: content.subject,
+        html: voiceEmailHtml(content.body),
+        text: content.body,
+        ...(attachment ? { attachments: [{ filename: attachment.filename, content: attachment.content }] } : {}),
+      }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -73,7 +146,13 @@ export async function POST(request: Request) {
       .eq("proposal_id", proposalId).eq("organization_id", organizationId).eq("status", "sending")
       .select("proposal_id").maybeSingle();
     if (saveError || !saved) throw new Error("Confirmation de l’envoi impossible.");
-    return NextResponse.json({ sent: true, sentAt, providerId: result.id });
+    return NextResponse.json({
+      sent: true,
+      sentAt,
+      providerId: result.id,
+      attachmentQuoteId: attachment?.quoteId ?? null,
+      attachmentFilename: attachment?.filename ?? null,
+    });
   } catch (error) {
     return errorResponse(error, "L’envoi n’a pas pu être confirmé. Vérifiez son état avant de réessayer.");
   }

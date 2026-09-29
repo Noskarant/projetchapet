@@ -19,6 +19,20 @@ export type ActionProposalView = {
   created_at?: string;
 };
 
+export type VoiceEmailQuoteChoice = {
+  id: string;
+  number: string;
+  title: string;
+  issueDate: string;
+  total: number;
+  sameBatch: boolean;
+};
+
+export type VoiceEmailQuoteChoices = {
+  quotes: VoiceEmailQuoteChoice[];
+  suggestedQuoteId: string | null;
+};
+
 export type ActionExecutionResult = {
   proposalId: string;
   intentType: string;
@@ -110,17 +124,31 @@ export async function listVoiceEmailDeliveries(organizationId: string, proposalI
   if (!proposalIds.length) return [];
   const batches = Array.from({ length: Math.ceil(proposalIds.length / 80) }, (_, index) => proposalIds.slice(index * 80, (index + 1) * 80));
   const results = await Promise.all(batches.map((ids) => supabase.from("voice_email_deliveries")
-    .select("proposal_id,recipient,subject,body,status,provider_id,sent_at,created_at,updated_at")
+    .select("proposal_id,recipient,subject,body,status,provider_id,sent_at,attachment_quote_id,attachment_filename,created_at,updated_at")
     .eq("organization_id", organizationId).in("proposal_id", ids)));
   if (results.some((result) => result.error)) throw new Error("État des e-mails indisponible.");
   return results.flatMap((result) => result.data ?? []) as VoiceEmailDelivery[];
 }
 
-export async function sendVoiceEmailDraft({ organizationId, proposalId, subject, message }: {
-  organizationId: string; proposalId: string; subject: string; message: string;
+export async function listVoiceEmailQuoteChoices(organizationId: string, proposalId: string) {
+  const params = new URLSearchParams({ organizationId, proposalId });
+  return authenticatedJson<VoiceEmailQuoteChoices>(`/api/actions/email/quotes?${params.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+}
+
+export async function sendVoiceEmailDraft({ organizationId, proposalId, subject, message, quoteId }: {
+  organizationId: string; proposalId: string; subject: string; message: string; quoteId?: string | null;
 }) {
-  return authenticatedJson<{ sent: true; sentAt: string; providerId: string }>("/api/actions/email/send", {
+  return authenticatedJson<{
+    sent: true;
+    sentAt: string;
+    providerId: string;
+    attachmentQuoteId: string | null;
+    attachmentFilename: string | null;
+  }>("/api/actions/email/send", {
     method: "POST",
-    body: JSON.stringify({ organizationId, proposalId, subject, message }),
+    body: JSON.stringify({ organizationId, proposalId, subject, message, quoteId: quoteId ?? null }),
   });
 }

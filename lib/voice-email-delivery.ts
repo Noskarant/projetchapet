@@ -8,6 +8,9 @@ export type VoiceEmailDelivery = {
   status: "sending" | "failed" | "sent";
   provider_id: string | null;
   sent_at: string | null;
+  attachment_quote_id: string | null;
+  attachment_filename: string | null;
+  attachment_base64?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -19,10 +22,24 @@ export function reviewVoiceEmail(recipient: unknown, subject: unknown, body: unk
   return { recipient: recipient.trim().toLowerCase(), subject: subject.trim(), body: body.trim() };
 }
 
-export function assertVoiceEmailRetry(delivery: VoiceEmailDelivery, content: ReturnType<typeof reviewVoiceEmail>, now = Date.now()) {
+export function assertVoiceEmailRetry(
+  delivery: VoiceEmailDelivery,
+  content: ReturnType<typeof reviewVoiceEmail>,
+  requestedQuoteId: string | null = null,
+  now = Date.now(),
+) {
   if (delivery.status === "sent") throw new ApiInputError("Cet e-mail a déjà été envoyé.", 409);
   if (delivery.recipient !== content.recipient || delivery.subject !== content.subject || delivery.body !== content.body) {
     throw new ApiInputError("Une tentative d’envoi existe déjà. Reprenez-la avec le même message pour éviter un doublon.", 409);
+  }
+  const hasSnapshot = Boolean(delivery.attachment_filename && delivery.attachment_base64);
+  const attachmentChanged = delivery.attachment_quote_id
+    ? requestedQuoteId !== delivery.attachment_quote_id
+    : hasSnapshot
+      ? Boolean(requestedQuoteId)
+      : Boolean(requestedQuoteId);
+  if (attachmentChanged) {
+    throw new ApiInputError("Une tentative d’envoi existe déjà avec une autre pièce jointe. Reprenez-la à l’identique pour éviter un doublon.", 409);
   }
   if (!Number.isFinite(Date.parse(delivery.created_at)) || now - Date.parse(delivery.created_at) > 23 * 60 * 60 * 1000) {
     throw new ApiInputError("L’état de cet envoi doit être vérifié avant toute nouvelle tentative. Contactez le support.", 409);
