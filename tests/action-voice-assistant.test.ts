@@ -47,6 +47,16 @@ test("l’écoute vocale pilote une expérience immersive reliée au niveau sono
   assert.equal(css.includes("@media(prefers-reduced-motion:reduce)"), true);
 });
 
+test("la fin de la dictée prépare directement les actions sans écran intermédiaire", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.tsx"), "utf8");
+  assert.match(source, /if \(text\) void prepare\(text\)/);
+  assert.match(source, /await prepare\(text\)/);
+  assert.match(source, /stage === "review"/);
+  assert.match(source, /Corriger la dictée/);
+  assert.match(source, /Relancer l’analyse/);
+  assert.equal(source.includes('setProposals([]); setStage("ready"); setMessage(""); setExplicitConfirmed(false);'), false);
+});
+
 test("chaque type vocal démarre depuis un aperçu animé de la boule", () => {
   const source = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.tsx"), "utf8");
   const experience = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.tsx"), "utf8");

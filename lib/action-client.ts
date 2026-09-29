@@ -56,16 +56,19 @@ export async function planVoiceActions({
   transcript,
   target,
   parsed,
+  signal,
 }: {
   organizationId: string;
   transcript: string;
   target: VoiceActionTarget;
   parsed?: unknown;
+  signal?: AbortSignal;
 }) {
   return authenticatedJson<{ batchReference: string | null; proposals: ActionProposalView[] }>(
     "/api/actions/plan",
     {
       method: "POST",
+      signal,
       body: JSON.stringify({ organizationId, transcript, target, parsed }),
     },
   );

@@ -9,6 +9,7 @@ import {
   explicitQuantity,
   explicitTax,
   groundedEvidence,
+  normalizeSpokenEmail,
   roomEvidenceSegments,
   roomQuantityEvidence,
   spelledName,
@@ -72,23 +73,36 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const pricesInRoom = roomSegment ? [...roomSegment.matchAll(/\d+(?:[,.]\d+)?\s*(?:€|euros?)/giu)] : [];
   const priceInRoom = pricesInRoom.length === 1 ? explicitPrice(pricesInRoom[0][0]) : null;
   const sourcePrice = numberOrNull(source.unit_price);
+  const explicitSingleForfait = text(source.unit, 40).toLocaleLowerCase("fr-FR") === "forfait"
+    && sourcePrice !== null
+    && [...transcript.matchAll(/\b(?:un|une|1)\s+forfait\b[^.!?]{0,45}?\b(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/giu)]
+      .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null
     ? sourcePrice : (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
   const taxesInTranscript = [...transcript.matchAll(/(?:tva|taxe\s+sur\s+la\s+valeur\s+ajoutée)\s*(?:à|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/giu)]
-    .map((match) => ({ rate: explicitTax(match[0]), position: match.index }));
-  const taxInRoom = roomSegment ? explicitTax(roomSegment) : null;
+    .map((match) => {
+      const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
+      const after = transcript.slice(match.index + match[0].length, match.index + match[0].length + 65).split(/[.!?]/u)[0];
+      const before = transcript.slice(Math.max(0, match.index - 65), match.index).split(/[.!?]/u).at(-1) ?? "";
+      return { rate: explicitTax(match[0]), position: match.index, scoped: lineScope.test(after) || lineScope.test(before) };
+    });
   const suppliedTax = numberOrNull(source.tax_rate);
   const segmentPosition = roomSegment ? transcript.indexOf(roomSegment) : -1;
   const firstPricePosition = transcript.search(/\d+(?:[,.]\d+)?\s*(?:€|euros?)/iu);
-  const carryTax = taxesInTranscript.length > 1
-    || (taxesInTranscript[0] && (firstPricePosition < 0 || taxesInTranscript[0].position < firstPricePosition));
-  const priorTax = segmentPosition >= 0 && carryTax
-    ? taxesInTranscript.filter((match) => match.position <= segmentPosition).at(-1)?.rate ?? null : null;
-  const initialTax = taxesInTranscript.length === 1
+  const initialTax = taxesInTranscript[0] && !taxesInTranscript[0].scoped
     && (firstPricePosition < 0 || taxesInTranscript[0].position < firstPricePosition)
     ? taxesInTranscript[0].rate : null;
+  const persistentTaxes = initialTax !== null ? taxesInTranscript.filter((match) => !match.scoped) : [];
+  const evidencePosition = [quantityEvidence, priceEvidence]
+    .filter(Boolean)
+    .map((phrase) => transcript.indexOf(phrase))
+    .filter((position) => position >= 0)
+    .sort((a, b) => a - b)[0] ?? -1;
+  const linePosition = evidencePosition >= 0 ? evidencePosition : segmentPosition;
+  const priorTax = linePosition >= 0
+    ? persistentTaxes.filter((match) => match.position <= linePosition).at(-1)?.rate ?? null : null;
   const confirmedTax = taxesInTranscript.length === 1 && taxesInTranscript[0].rate === suppliedTax ? suppliedTax : null;
-  const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? taxInRoom ?? priorTax ?? initialTax ?? confirmedTax;
+  const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
   const roomPriceType = roomSegment ? spokenPriceType(roomSegment) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(transcript)
     && /(?:\bht\b|hors taxes?)/iu.test(transcript);
@@ -103,7 +117,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   return {
     label: polishFrenchTradeDesignation(text(source.label, 240)),
     description: text(source.description, 800),
-    quantity,
+    quantity: quantity ?? (explicitSingleForfait ? 1 : null),
     unit: text(source.unit, 40) || null,
     unit_price: unitPrice,
     tax_rate: normalizedTax,
@@ -116,8 +130,8 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
 function normalizeCustomerPayload(source: RecordLike, transcript = "") {
   const kind = source.kind === "individual" ? "individual" : "business";
   const emails = Array.isArray(source.emails)
-    ? source.emails.map((item) => text(item, 160)).filter(Boolean)
-    : [text(source.email1, 160), text(source.email2, 160)].filter(Boolean);
+    ? source.emails.map((item) => normalizeSpokenEmail(item, transcript).slice(0, 160)).filter(Boolean)
+    : [normalizeSpokenEmail(source.email1, transcript), normalizeSpokenEmail(source.email2, transcript)].filter(Boolean);
   const phones = Array.isArray(source.phones)
     ? source.phones.map((item) => text(item, 40)).filter(Boolean)
     : [text(source.phone1, 40), text(source.phone2, 40)].filter(Boolean);
@@ -195,11 +209,11 @@ function normalizeSchedulePayload(source: RecordLike) {
   };
 }
 
-function normalizeOrderPayload(source: RecordLike) {
+function normalizeOrderPayload(source: RecordLike, transcript = "") {
   return {
     project_id: text(source.project_id, 180) || null,
     supplier_name: text(source.supplier_name, 200),
-    supplier_email: text(source.supplier_email, 254),
+    supplier_email: normalizeSpokenEmail(source.supplier_email, transcript).slice(0, 254),
     label: text(source.label, 500),
     quantity: numberOrNull(source.quantity) ?? 1,
     unit_price: numberOrNull(source.unit_price) ?? 0,
@@ -283,7 +297,7 @@ function payloadForIntent(intentType: ActionIntent, source: RecordLike, transcri
   if (intentType === "create_project") return normalizeProjectPayload(source);
   if (intentType === "prepare_quote" || intentType === "prepare_invoice") return normalizeDocumentPayload(source, transcript, alreadyConverted);
   if (intentType === "schedule_task") return normalizeSchedulePayload(source);
-  if (intentType === "prepare_supplier_order") return normalizeOrderPayload(source);
+  if (intentType === "prepare_supplier_order") return normalizeOrderPayload(source, transcript);
   if (intentType === "update_project_note") {
     return { project_id: text(source.project_id, 180), body: text(source.body ?? source.notes, 5000) };
   }
@@ -297,7 +311,7 @@ function payloadForIntent(intentType: ActionIntent, source: RecordLike, transcri
     };
   }
   return {
-    to: text(source.to, 254),
+    to: normalizeSpokenEmail(source.to, transcript).slice(0, 254),
     subject: text(source.subject, 300),
     body: text(source.body, 6000),
     related_entity: text(source.related_entity, 120) || null,
@@ -378,12 +392,17 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
     if (!intentType) continue;
     const rawPayload = record(source.payload);
     const payload = payloadForIntent(intentType, rawPayload, transcript);
-    const warnings = stringArray(source.warnings, 20);
+    const emails = intentType === "create_customer" ? (payload as RecordLike).emails as string[]
+      : intentType === "prepare_email" ? [(payload as RecordLike).to as string] : [];
+    const hasValidEmail = emails.length > 0 && emails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email));
+    const warnings = stringArray(source.warnings, 20).filter((warning) =>
+      !(hasValidEmail && /(?:e-mail|email|adresse).*(?:@|arobase|symbole)/iu.test(warning)));
     // The model can report stale, duplicate or invented field paths. Documents are
     // drafts: derive their blocking requirements from the normalized payload.
     const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator"
       ? missingForIntent(intentType, payload as RecordLike)
-      : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)];
+      : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)
+        .filter((field) => !(hasValidEmail && ["destinataire", "email_client", "email", "adresse_email"].includes(field)))];
     const customerFromPosition = numberOrNull(rawPayload.customer_from_position);
     const quoteFromPosition = numberOrNull(rawPayload.quote_from_position);
     const collaboratorFromPositions = intentType === "create_project"

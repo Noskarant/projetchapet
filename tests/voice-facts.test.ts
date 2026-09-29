@@ -4,6 +4,7 @@ import {
   explicitPrice,
   explicitQuantity,
   normalizeVoiceTranscript,
+  normalizeSpokenEmail,
   roomQuantityEvidence,
   spokenPriceType,
 } from "../lib/voice-facts";
@@ -18,6 +19,14 @@ test("conserve les décimales françaises et les lettres explicitement épelées
   assert.equal(explicitPrice("à 21,50 euros TTC"), 21.5);
   assert.equal(spokenPriceType("21 euros hors taxes"), "ht");
   assert.equal(spokenPriceType("21 euros toutes taxes comprises"), "ttc");
+});
+
+test("restaure une arobase dictée et ne devine pas une adresse ambiguë", () => {
+  assert.equal(normalizeVoiceTranscript("julien point morel arobase exemple point com"), "julien point morel @ exemple point com");
+  assert.equal(normalizeSpokenEmail("julien point morel arobase exemple point com"), "julien.morel@exemple.com");
+  assert.equal(normalizeSpokenEmail("julien.morel.exemple.com"), "julien.morel@exemple.com");
+  assert.equal(normalizeSpokenEmail("jean.dupont.societe.fr"), "jean.dupont.societe.fr");
+  assert.equal(normalizeSpokenEmail("jean.dupont.societe.fr", "E-mail jean.dupont@societe.fr"), "jean.dupont@societe.fr");
 });
 
 test("rattache le métrage à la chambre dictée sans le reporter sur le couloir", () => {

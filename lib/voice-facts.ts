@@ -3,6 +3,7 @@
 // infer an area unit from a length unit or invent a monetary/tax value.
 export function normalizeVoiceTranscript(input: string) {
   return input
+    .replace(/\b(?:arobase|arrobase|a\s+robase)\b/giu, "@")
     .replace(/(\d{1,6})\s+(?:virgule|point)\s+(\d{1,3})(?=\D|$)/giu, "$1,$2")
     .replace(/(?<![\d,.])(\d{1,6})\s*(m(?:ètres?(?:\s+(?:carrés?|linéaires?))?|[²2l])|rouleaux?|euros?|€)\s+(\d{2})(?=\s|[.,;!?]|$)/giu, "$1,$3 $2")
     .replace(/\b((?:prénom|nom)\s+(?:(?:s['’]écrit|s['’]épelle|épelé)\s*)?:?\s*)((?:[a-z]\s*[,.-]?\s+){2,}[a-z])(?=\s|[.,;!?]|$)/giu,
@@ -11,6 +12,31 @@ export function normalizeVoiceTranscript(input: string) {
       (_whole, prefix: string, letters: string) => `${prefix}${letters.replace(/[^a-z]/giu, "").toUpperCase()}`)
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Restore a separator only when it was spoken or the ending is a recognizable
+// mail provider. An arbitrary dotted name can have several valid @ positions.
+export function normalizeSpokenEmail(value: unknown, transcript = "") {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return "";
+  let email = raw.toLocaleLowerCase("fr-FR")
+    .replace(/\b(?:arobase|arrobase|a\s+robase)\b/giu, "@")
+    .replace(/\s+point\s+/giu, ".")
+    .replace(/\s*@\s*/g, "@")
+    .replace(/\s*\.\s*/g, ".")
+    .replace(/[\s,;!]+$/g, "");
+  if (!email.includes("@")) {
+    const heard = [...normalizeVoiceTranscript(transcript).toLocaleLowerCase("fr-FR")
+      .matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gu)]
+      .map((match) => match[0]);
+    const grounded = heard.filter((candidate) => candidate.replace("@", ".") === email);
+    if (grounded.length === 1) email = grounded[0];
+    else email = email.replace(
+      /^([a-z0-9][a-z0-9._%+-]*)\.(gmail|outlook|hotmail|yahoo|icloud|orange|free|laposte|example|exemple)\.(com|fr|net|org)$/u,
+      "$1@$2.$3",
+    );
+  }
+  return email;
 }
 
 function comparable(value: string) {

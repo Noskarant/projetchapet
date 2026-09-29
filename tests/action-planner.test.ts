@@ -59,6 +59,44 @@ test("TVA 10 % annoncée au début reste appliquée aux lignes suivantes", () =>
   assert.equal(items[1].label, "Pose de 15 rouleaux");
 });
 
+test("la TVA initiale se propage puis change pour les prestations suivantes", () => {
+  const [action] = normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+    customer_hint: "Morel",
+    items: [
+      { label: "Protection du mobilier", unit: "forfait", quantity: null, unit_price: 180, price_type: "ht", price_evidence: "180 euros HT" },
+      { label: "Peinture du séjour", quantity: 18.5, unit: "m²", quantity_evidence: "18,50 m²", unit_price: 32, price_type: "ht" },
+      { label: "Peinture de la chambre", quantity: 12, unit: "m²", quantity_evidence: "12 m²", unit_price: 29, price_type: "ht" },
+      { label: "Peinture du bureau", quantity: 10, unit: "m²", quantity_evidence: "10 m²", unit_price: 35, price_type: "ht" },
+    ],
+  } }] }, "TVA 10 % pour le devis. Protection du mobilier un forfait à 180 euros HT. Peinture du séjour 18,50 m² à 32 euros HT. Pour la chambre TVA 20 %, peinture de la chambre 12 m² à 29 euros HT. Peinture du bureau 10 m² à 35 euros HT.");
+  const items = action.payload.items as Array<{ tax_rate: number; quantity: number }>;
+  assert.deepEqual(items.map((item) => item.tax_rate), [10, 10, 20, 20]);
+  assert.equal(items[0].quantity, 1);
+});
+
+test("la TVA ponctuelle d'une ligne ne change pas le taux global des suivantes", () => {
+  const [action] = normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+    customer_hint: "Morel", items: [
+      { label: "Protection", quantity: 1, unit: "forfait", unit_price: 100, price_type: "ht", price_evidence: "100 euros HT" },
+      { label: "Fourniture", quantity: 1, unit: "forfait", unit_price: 50, price_type: "ht", tax_rate: 20, tax_evidence: "TVA 20 %" },
+      { label: "Pose", quantity: 5, unit: "h", unit_price: 30, price_type: "ht", quantity_evidence: "5 heures" },
+    ],
+  } }] }, "TVA 10 % pour tout le devis. Protection à 100 euros HT. Fourniture à 50 euros HT, TVA 20 % pour cette prestation. Pose 5 heures à 30 euros HT.");
+  const items = action.payload.items as Array<{ tax_rate: number }>;
+  assert.deepEqual(items.map((item) => item.tax_rate), [10, 20, 10]);
+});
+
+test("le client et le brouillon d'e-mail partagent l'adresse réparée", () => {
+  const actions = normalizeModelPlan({ actions: [
+    { intent_type: "create_customer", warnings: ["L'adresse e-mail ne contient pas de symbole @."], payload: { kind: "individual", last_name: "Morel", emails: ["julien.morel.exemple.com"] } },
+    { intent_type: "prepare_email", missing_fields: ["destinataire"], payload: { to: "julien.morel.exemple.com", subject: "Votre devis", body: "Bonjour" } },
+  ] }, "Crée Julien Morel, adresse e-mail julien point morel arobase exemple point com, prépare un e-mail à cette adresse");
+  assert.deepEqual(actions[0].payload.emails, ["julien.morel@exemple.com"]);
+  assert.equal(actions[1].payload.to, "julien.morel@exemple.com");
+  assert.deepEqual(actions[0].warnings, []);
+  assert.equal(actions[1].status, "ready");
+});
+
 test("le plan multi-actions conserve la dépendance nouveau client vers devis", () => {
   const actions = normalizeModelPlan({
     actions: [

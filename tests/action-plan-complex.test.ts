@@ -80,6 +80,14 @@ test("les actions financières et messages incomplets restent bloqués", () => {
   assert.ok(actions[2].missingFields.includes("quantite"));
 });
 
+test("une adresse client ambiguë reste bloquée au lieu d'être enregistrée", () => {
+  const [customer] = hardenPlannedActions(normalizeModelPlan({ actions: [
+    { intent_type: "create_customer", payload: { kind: "individual", last_name: "Morel", emails: ["jean.dupont.societe.fr"] } },
+  ] }, "Crée Morel, adresse jean.dupont.societe.fr"));
+  assert.equal(customer.status, "needs_input");
+  assert.ok(customer.missingFields.includes("email_client"));
+});
+
 test("un devis futur ou une date invalide empêche de créer le chantier", () => {
   const actions = normalizeModelPlan({ actions: [
     { intent_type: "create_project", payload: { name: "Salon Dupont", quote_from_position: 1, start_date: "2026-02-30" } },

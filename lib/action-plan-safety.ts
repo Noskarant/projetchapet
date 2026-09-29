@@ -78,6 +78,11 @@ export function hardenPlannedActions(actions: PlannedAction[]) {
     const missing: string[] = [];
     const warnings: string[] = [];
 
+    if (action.intentType === "create_customer") {
+      const emails = Array.isArray(payload.emails) ? payload.emails : [];
+      if (emails.some((email) => typeof email !== "string" || !validEmail(email))) missing.push("email_client");
+    }
+
     if (action.intentType === "prepare_quote" || action.intentType === "prepare_invoice") {
       const items = Array.isArray(payload.items) ? payload.items : [];
       let unspecifiedPriceType = false;

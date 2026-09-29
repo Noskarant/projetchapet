@@ -183,6 +183,35 @@ function riskLabel(value: ActionProposalView["risk_level"]) {
   return "Faible risque";
 }
 
+function missingLabel(field: string) {
+  const labels: Record<string, string> = {
+    email_client: "Adresse e-mail du client incorrecte. Vérifiez le @ et le domaine.",
+    destinataire: "Adresse e-mail du destinataire incorrecte. Vérifiez le @ et le domaine.",
+    client: "Client à préciser.",
+    client_introuvable: "Client introuvable.",
+    client_ambigu: "Plusieurs clients correspondent : précisez lequel.",
+    prestations: "Décrivez au moins une prestation.",
+    quantite: "Quantité à préciser.",
+    date: "Date à préciser ou à corriger.",
+    heure: "Heure à préciser ou à corriger.",
+    nom_client: "Nom du client à préciser.",
+    nom_chantier: "Nom du chantier à préciser.",
+    nom_collaborateur: "Nom du collaborateur à préciser.",
+    objet: "Objet à préciser.",
+    message: "Message à préciser.",
+    raison_sociale: "Nom de l’entreprise cliente à préciser.",
+    email_fournisseur: "Adresse e-mail du fournisseur incorrecte ou manquante.",
+    montant: "Montant à préciser.",
+    facture: "Facture à préciser.",
+    chantier: "Chantier à préciser.",
+    note: "Texte de la note à préciser.",
+  };
+  if (field.startsWith("collaborateur_introuvable: ")) return `Collaborateur introuvable : ${field.slice("collaborateur_introuvable: ".length)}. Précisez son nom ou créez sa fiche.`;
+  if (field.startsWith("collaborateur_ambigu: ")) return `Plusieurs collaborateurs correspondent à ${field.slice("collaborateur_ambigu: ".length)}. Précisez son nom complet.`;
+  if (field.startsWith("collaborateur_deja_existant: ")) return `Le collaborateur ${field.slice("collaborateur_deja_existant: ".length)} existe déjà. Demandez son affectation sans créer une nouvelle fiche.`;
+  return labels[field] ?? field.replaceAll("_", " ");
+}
+
 function placeholder(target: VoiceActionTarget | null) {
   if (target === "command") return "Ex. Crée un chantier Peinture Dupont, affecte Lucas, prépare un devis pour 80 m² à 22 € HT et planifie une visite jeudi à 14 h.";
   if (target === "customer") return "Ex. Société Martin Peinture, SIRET…, téléphone…, adresse…";
@@ -190,10 +219,11 @@ function placeholder(target: VoiceActionTarget | null) {
   return "Ex. Client Dupont, peinture 18 m² à 32 € HT, TVA 10 %.";
 }
 
-async function parseSingleTarget(target: Exclude<VoiceActionTarget, "command">, transcript: string) {
+async function parseSingleTarget(target: Exclude<VoiceActionTarget, "command">, transcript: string, signal: AbortSignal) {
   const agenda = target === "agenda";
   const response = await fetch(agenda ? "/api/ai/agenda" : "/api/ai/parse", {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(agenda
       ? { transcript }
@@ -211,6 +241,8 @@ export default function ActionVoiceAssistant() {
   const [target, setTarget] = useState<VoiceActionTarget | null>(null);
   const [stage, setStage] = useState<Stage>("choose");
   const [transcript, setTranscript] = useState("");
+  const [plannedTranscript, setPlannedTranscript] = useState("");
+  const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
   const [proposals, setProposals] = useState<ActionProposalView[]>([]);
   const [results, setResults] = useState<ActionExecutionResult[]>([]);
@@ -254,6 +286,8 @@ export default function ActionVoiceAssistant() {
     setTarget(preset ?? null);
     setStage(preset ? "ready" : "choose");
     updateTranscript("");
+    setPlannedTranscript("");
+    setEditing(false);
     setMessage("");
     setProposals([]);
     setResults([]);
@@ -339,17 +373,22 @@ export default function ActionVoiceAssistant() {
     const timeout = window.setTimeout(() => controller.abort(), 35_000);
     try {
       const organizationId = await getActiveOrganizationId();
-      const parsed = selected === "command" ? undefined : await parseSingleTarget(selected, normalized);
+      const parsed = selected === "command" ? undefined : await parseSingleTarget(selected, normalized, controller.signal);
       const planned = await planVoiceActions({
         organizationId,
         transcript: normalized,
         target: selected,
         parsed,
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       if (!planned.proposals.length) throw new Error("Aucune action exploitable n’a été reconnue.");
       setProposals(planned.proposals);
+      setPlannedTranscript(normalized);
+      setEditing(false);
       setStage("review");
     } catch (error) {
+      if (analysisControllerRef.current !== controller) return;
       setMessage(error instanceof DOMException && error.name === "AbortError"
         ? "La préparation a pris trop de temps. Réessayez."
         : error instanceof Error
@@ -379,16 +418,19 @@ export default function ActionVoiceAssistant() {
       if (text) updateTranscript(text);
     };
     recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
       setVoiceLevel(0);
       setMessage(event.error ? `Micro interrompu : ${event.error}` : "Micro interrompu.");
       setStage("ready");
     };
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
       recognitionRef.current = null;
       setVoiceLevel(0);
       const text = transcriptRef.current.trim();
-      setStage("ready");
-      if (text) setMessage("Vérifiez la transcription, surtout les virgules et les noms épelés, avant de préparer le brouillon.");
+      if (text) void prepare(text);
+      else setStage("ready");
     };
     recognitionRef.current = recognition;
     setStage("recording");
@@ -489,9 +531,7 @@ export default function ActionVoiceAssistant() {
       if (!response.ok) throw new Error(result?.error || "Transcription impossible.");
       const text = clean(result.text);
       if (!text) throw new Error("Aucun texte reconnu.");
-      updateTranscript(normalizeVoiceTranscript(text));
-      setStage("ready");
-      setMessage("Vérifiez la transcription, surtout les virgules, les noms épelés, HT/TTC et la TVA. Vous pouvez corriger le texte avant de préparer le brouillon.");
+      await prepare(text);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Transcription impossible.");
       setStage("error");
@@ -500,6 +540,10 @@ export default function ActionVoiceAssistant() {
 
   async function execute() {
     if (!proposals.length) return;
+    if (transcript !== plannedTranscript) {
+      setMessage("La demande a changé. Relancez l’analyse avant de valider.");
+      return;
+    }
     const blocking = proposals.some((proposal) => proposal.status !== "ready" || (proposal.missing_fields ?? []).length > 0);
     if (blocking) {
       setMessage("Corrigez la dictée : certaines informations nécessaires manquent encore.");
@@ -538,6 +582,7 @@ export default function ActionVoiceAssistant() {
   const busy = ["requesting", "transcribing", "analysing", "executing"].includes(stage);
   const sensitive = proposals.some((proposal) => proposal.risk_level === "explicit_confirmation");
   const blocking = proposals.some((proposal) => proposal.status !== "ready" || (proposal.missing_fields ?? []).length > 0);
+  const changedSincePlan = transcript !== plannedTranscript;
 
   return (
     <>
@@ -600,7 +645,7 @@ export default function ActionVoiceAssistant() {
                 {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
                 {(stage === "ready" || stage === "error") && transcript.trim() && (
-                  <button type="button" className="ava-primary" onClick={() => void prepare(transcriptRef.current)}>Préparer les actions</button>
+                  <button type="button" className="ava-primary" onClick={() => void prepare(transcriptRef.current)}>Analyser la demande</button>
                 )}
                 {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>
@@ -611,6 +656,7 @@ export default function ActionVoiceAssistant() {
             {(stage === "review" || stage === "executing") && (
               <div className="ava-review">
                 <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length} action{proposals.length > 1 ? "s" : ""} préparée{proposals.length > 1 ? "s" : ""}</strong><small>Vérifiez tout avant de valider.</small></div></div>
+                {blocking && <div className="ava-blocking" role="alert"><strong>Une ou plusieurs actions ont besoin d’une correction.</strong><span>Les champs concernés sont indiqués en rouge ci-dessous. Corrigez la demande ici, puis relancez l’analyse.</span></div>}
                 <details className="ava-transcript"><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>
                 <div className="ava-action-list">
                   {proposals.map((proposal, index) => (
@@ -620,7 +666,7 @@ export default function ActionVoiceAssistant() {
                         <div className="ava-action-title"><strong>{intentLabels[proposal.intent_type] ?? proposal.intent_type}</strong><span className={`risk-${proposal.risk_level}`}>{riskLabel(proposal.risk_level)}</span></div>
                         <p>{proposalSummary(proposal)}</p>
                         {(proposal.warnings ?? []).map((warning) => <small className="ava-warning" key={warning}>⚠ {warning}</small>)}
-                        {(proposal.missing_fields ?? []).length > 0 && <small className="ava-missing">À préciser : {proposal.missing_fields.join(", ")}</small>}
+                        {(proposal.missing_fields ?? []).map((field) => <small className="ava-missing" key={field}>À corriger : {missingLabel(field)}</small>)}
                         {(proposal.missing_fields ?? []).filter((field) => field.startsWith("collaborateur_introuvable: ")).map((field) => {
                           const name = field.slice("collaborateur_introuvable: ".length).trim();
                           return <button key={field} type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => void prepare(`Crée ${name} comme collaborateur, puis ${transcript}`)}>
@@ -638,11 +684,11 @@ export default function ActionVoiceAssistant() {
                     <span><strong>Je confirme les actions sensibles</strong><small>Paiement, facture, commande ou autre opération signalée. MANUFEO n’envoie jamais un document ou un e-mail sans étape dédiée.</small></span>
                   </label>
                 )}
-                {blocking && <div className="ava-blocking">Certaines informations manquent. Reformulez la dictée : MANUFEO n’inventera pas les valeurs.</div>}
-                <button type="button" className="ava-primary" disabled={blocking || stage === "executing" || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
+                {(blocking || editing) && <div className="ava-review-edit"><label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={stage === "executing"} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={stage === "executing" || !transcript.trim()} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
+                <button type="button" className="ava-primary" disabled={blocking || changedSincePlan || stage === "executing" || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
                   {stage === "executing" ? <><Loader2 size={17} className="ava-spin" /> Exécution sécurisée…</> : "Valider et exécuter"}
                 </button>
-                <button type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => { setProposals([]); setStage("ready"); setMessage(""); setExplicitConfirmed(false); }}>Corriger la demande</button>
+                {!blocking && !editing && <button type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => setEditing(true)}>Corriger la demande</button>}
               </div>
             )}
 
