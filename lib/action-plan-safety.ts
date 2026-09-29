@@ -47,12 +47,18 @@ function withMissing(action: PlannedAction, extraMissing: string[], extraWarning
 export function validatePlanDependencies(actions: PlannedAction[]) {
   for (let index = 0; index < actions.length; index += 1) {
     const dependencyIndex = actions[index].customerFromPosition;
-    if (dependencyIndex === undefined) continue;
-    if (!Number.isInteger(dependencyIndex)
+    if (dependencyIndex !== undefined && (!Number.isInteger(dependencyIndex)
       || dependencyIndex < 0
       || dependencyIndex >= index
-      || actions[dependencyIndex]?.intentType !== "create_customer") {
+      || actions[dependencyIndex]?.intentType !== "create_customer")) {
       throw new ApiInputError("Le plan IA contient une dépendance client invalide.", 422);
+    }
+    const quoteIndex = actions[index].quoteFromPosition;
+    if (quoteIndex !== undefined && (!Number.isInteger(quoteIndex)
+      || quoteIndex < 0 || quoteIndex >= index
+      || actions[index].intentType !== "create_project"
+      || actions[quoteIndex]?.intentType !== "prepare_quote")) {
+      throw new ApiInputError("Le plan IA contient une dépendance devis invalide.", 422);
     }
   }
 }
@@ -97,6 +103,13 @@ export function hardenPlannedActions(actions: PlannedAction[]) {
       const time = text(payload.time);
       if (date && !validIsoDate(date)) missing.push("date");
       if (time && !validTime(time)) missing.push("heure");
+    }
+
+    if (action.intentType === "create_project") {
+      for (const field of ["start_date", "next_visit"]) {
+        const value = text(payload[field]);
+        if (value && !validIsoDate(value)) missing.push(field);
+      }
     }
 
     if (action.intentType === "prepare_supplier_order") {

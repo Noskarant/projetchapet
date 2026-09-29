@@ -29,6 +29,7 @@ export type PlannedAction = {
   warnings: string[];
   missingFields: string[];
   customerFromPosition?: number;
+  quoteFromPosition?: number;
 };
 
 type RecordLike = Record<string, unknown>;
@@ -205,6 +206,21 @@ function normalizeOrderPayload(source: RecordLike) {
   };
 }
 
+function normalizeProjectPayload(source: RecordLike) {
+  return {
+    name: text(source.name, 300),
+    subtitle: text(source.subtitle, 500),
+    customer_hint: text(source.customer_hint, 180),
+    customer_id: text(source.customer_id, 80) || null,
+    customer_from_position: numberOrNull(source.customer_from_position),
+    quote_from_position: numberOrNull(source.quote_from_position),
+    address: text(source.address, 320),
+    start_date: text(source.start_date, 10),
+    next_visit: text(source.next_visit, 10),
+    collaborator_names: stringArray(source.collaborator_names, 20),
+  };
+}
+
 function missingForIntent(intentType: ActionIntent, payload: RecordLike) {
   const missing: string[] = [];
   if (intentType === "create_customer") {
@@ -212,6 +228,7 @@ function missingForIntent(intentType: ActionIntent, payload: RecordLike) {
     if (customer.kind === "business" && !customer.company_name) missing.push("raison_sociale");
     if (customer.kind === "individual" && !customer.last_name) missing.push("nom_client");
   }
+  if (intentType === "create_project" && !text(payload.name, 300)) missing.push("nom_chantier");
   if (intentType === "prepare_quote" || intentType === "prepare_invoice") {
     const document = normalizeDocumentPayload(payload);
     if (!document.customer_id && !document.customer_hint && document.customer_from_position === null && !document.customer_from_proposal_id) {
@@ -249,6 +266,7 @@ function missingForIntent(intentType: ActionIntent, payload: RecordLike) {
 
 function payloadForIntent(intentType: ActionIntent, source: RecordLike, transcript = "", alreadyConverted = false) {
   if (intentType === "create_customer") return normalizeCustomerPayload(source, transcript);
+  if (intentType === "create_project") return normalizeProjectPayload(source);
   if (intentType === "prepare_quote" || intentType === "prepare_invoice") return normalizeDocumentPayload(source, transcript, alreadyConverted);
   if (intentType === "schedule_task") return normalizeSchedulePayload(source);
   if (intentType === "prepare_supplier_order") return normalizeOrderPayload(source);
@@ -280,6 +298,7 @@ function finalizeAction({
   warnings,
   missingFields,
   customerFromPosition,
+  quoteFromPosition,
 }: {
   intentType: ActionIntent;
   payload: Record<string, unknown>;
@@ -288,6 +307,7 @@ function finalizeAction({
   warnings?: string[];
   missingFields?: string[];
   customerFromPosition?: number;
+  quoteFromPosition?: number;
 }): PlannedAction {
   const dedupedMissing = [...new Set(missingFields ?? [])].slice(0, 30);
   return {
@@ -301,6 +321,7 @@ function finalizeAction({
     warnings: [...new Set(warnings ?? [])].slice(0, 30),
     missingFields: dedupedMissing,
     ...(typeof customerFromPosition === "number" ? { customerFromPosition } : {}),
+    ...(typeof quoteFromPosition === "number" ? { quoteFromPosition } : {}),
   };
 }
 
@@ -343,10 +364,11 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
     const warnings = stringArray(source.warnings, 20);
     // The model can report stale, duplicate or invented field paths. Documents are
     // drafts: derive their blocking requirements from the normalized payload.
-    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice"
+    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project"
       ? missingForIntent(intentType, payload as RecordLike)
       : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)];
     const customerFromPosition = numberOrNull(rawPayload.customer_from_position);
+    const quoteFromPosition = numberOrNull(rawPayload.quote_from_position);
     actions.push(finalizeAction({
       intentType,
       payload,
@@ -355,6 +377,7 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
       warnings,
       missingFields,
       customerFromPosition: customerFromPosition === null ? undefined : Math.floor(customerFromPosition),
+      quoteFromPosition: quoteFromPosition === null ? undefined : Math.floor(quoteFromPosition),
     }));
   }
   return actions;
@@ -366,6 +389,8 @@ export function fallbackCommandPlan(transcript: string): PlannedAction[] {
     ? "prepare_invoice"
     : /devis|chiffr/.test(lower)
       ? "prepare_quote"
+      : /(?:cr[eé]e|ouvrir|ajoute).{0,35}chantier|chantier.{0,35}(?:cr[eé]e|ouvrir)/.test(lower)
+        ? "create_project"
       : /client|contact/.test(lower)
         ? "create_customer"
         : /rendez-vous|rdv|agenda|mardi|mercredi|jeudi|vendredi|lundi/.test(lower)
@@ -373,6 +398,8 @@ export function fallbackCommandPlan(transcript: string): PlannedAction[] {
           : "update_project_note";
   const payload: RecordLike = likelyIntent === "update_project_note"
     ? { project_id: "", body: transcript }
+    : likelyIntent === "create_project"
+      ? { name: "", subtitle: transcript, collaborator_names: [] }
     : likelyIntent === "schedule_task"
       ? { title: transcript, date: "", time: "", location: "", type: "Chantier" }
       : likelyIntent === "create_customer"

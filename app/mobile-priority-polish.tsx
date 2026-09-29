@@ -3,17 +3,7 @@
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
 
-type AiTarget = "quote" | "invoice" | "customer" | "agenda";
-
 const VOICE_BAR_WEIGHTS = [0.62, 0.88, 1, 0.82, 0.58];
-
-function activeAiTarget(): AiTarget {
-  const label = document.querySelector(".rm-bottom-nav button.active")?.textContent || "";
-  if (label.includes("Factures")) return "invoice";
-  if (label.includes("Clients")) return "customer";
-  if (label.includes("Agenda")) return "agenda";
-  return "quote";
-}
 
 function replaceDockContent() {
   const main = document.querySelector<HTMLButtonElement>(".rm-create-main");
@@ -293,7 +283,7 @@ export default function MobilePriorityPolish() {
         event.stopImmediatePropagation();
         window.dispatchEvent(
           new CustomEvent("projetchapet:open-ai", {
-            detail: { target: activeAiTarget() },
+            detail: { target: "command", startListening: true },
           }),
         );
         return;

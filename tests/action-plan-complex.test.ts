@@ -80,6 +80,19 @@ test("les actions financières et messages incomplets restent bloqués", () => {
   assert.ok(actions[2].missingFields.includes("quantite"));
 });
 
+test("un devis futur ou une date invalide empêche de créer le chantier", () => {
+  const actions = normalizeModelPlan({ actions: [
+    { intent_type: "create_project", payload: { name: "Salon Dupont", quote_from_position: 1, start_date: "2026-02-30" } },
+    { intent_type: "prepare_quote", payload: { customer_hint: "Dupont", items: [{ label: "Peinture", quantity: 1, unit_price: 20 }] } },
+  ] }, "Crée le chantier et son devis");
+  assert.throws(() => hardenPlannedActions(actions), /dépendance devis invalide/);
+  const [project] = hardenPlannedActions(normalizeModelPlan({ actions: [
+    { intent_type: "create_project", payload: { name: "Salon Dupont", start_date: "2026-02-30" } },
+  ] }, "Crée le chantier Salon Dupont"));
+  assert.equal(project.status, "needs_input");
+  assert.ok(project.missingFields.includes("start_date"));
+});
+
 test("un document sans prestation exploitable reste bloqué", () => {
   const [action] = hardenPlannedActions(normalizeModelPlan({
     actions: [{

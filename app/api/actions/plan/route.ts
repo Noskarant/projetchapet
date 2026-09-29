@@ -10,6 +10,7 @@ import {
 } from "@/lib/action-planner";
 import { authenticateRequest, requireOrganization } from "@/lib/server-auth";
 import { normalizeVoiceTranscript } from "@/lib/voice-facts";
+import { matchProjectCollaborator } from "@/lib/voice-project-matching";
 
 function cleanTarget(value: unknown): VoiceActionTarget {
   return ["command", "quote", "invoice", "customer", "agenda"].includes(String(value))
@@ -23,6 +24,7 @@ Transforme UNE demande orale en une liste ordonnée d'actions structurées. Comp
 
 Intentions autorisées exactement :
 - create_customer : créer un client ;
+- create_project : créer une fiche chantier, éventuellement liée à un client, un devis et des collaborateurs ;
 - prepare_quote : créer uniquement un BROUILLON de devis ;
 - prepare_invoice : créer uniquement un BROUILLON de facture ;
 - schedule_task : préparer un événement d'agenda ;
@@ -30,6 +32,8 @@ Intentions autorisées exactement :
 - prepare_supplier_order : préparer uniquement un BROUILLON de commande fournisseur, jamais l'envoyer ;
 - mark_payment : enregistrer un paiement uniquement si facture et montant sont explicitement donnés ;
 - prepare_email : préparer un brouillon de message, jamais l'envoyer.
+
+Ne crée create_project que si l'utilisateur demande d'ouvrir/créer un chantier, et pas pour une simple mention d'un chantier existant. Une seule phrase peut combiner plusieurs intentions, sans que l'utilisateur choisisse une catégorie. Si un devis doit être lié au nouveau chantier, place prepare_quote avant create_project et renseigne quote_from_position (index base 0). Si un client vient d'être créé, utilise customer_from_position aussi dans create_project. Pour les collaborateurs, recopie les noms cités dans collaborator_names ; leur existence sera vérifiée. N'invente pas de collaborateur, de client ni de devis. Un chantier seul n'implique pas la création d'un devis ; un chiffrage n'implique pas la création d'un chantier.
 
 Si la demande crée un client puis un devis/facture pour ce même nouveau client, place create_customer avant le document et mets customer_from_position à l'index (base 0) de l'action client dans le payload du document.
 Pour un client existant, utilise customer_hint avec son nom prononcé. Les noms, prénoms, sociétés et e-mails épelés lettre par lettre prévalent sur une transcription phonétique ; respecte le nombre de lettres répétées (deux E, trois R). Ne devine pas une lettre que l'audio ou le texte ne contient pas. N'invente jamais un UUID.
@@ -43,7 +47,7 @@ Réponds uniquement par ce JSON :
 {
   "actions":[
     {
-      "intent_type":"create_customer|prepare_quote|prepare_invoice|schedule_task|update_project_note|prepare_supplier_order|mark_payment|prepare_email",
+      "intent_type":"create_customer|create_project|prepare_quote|prepare_invoice|schedule_task|update_project_note|prepare_supplier_order|mark_payment|prepare_email",
       "confidence":0.0,
       "warnings":[],
       "missing_fields":[],
@@ -54,6 +58,7 @@ Réponds uniquement par ce JSON :
 
 Schémas de payload utiles :
 create_customer: {"kind":"business|individual","company_name":"","civility":"M.|Mme|M. et Mme","last_name":"","first_name":"","siret":"","vat_number":"","emails":[],"phones":[],"addresses":[{"line1":"","postal_code":"","city":"","country":"France"}],"notes":""}
+create_project: {"name":"","subtitle":"","customer_hint":"","customer_from_position":null,"quote_from_position":null,"address":"","start_date":"YYYY-MM-DD ou vide","next_visit":"YYYY-MM-DD ou vide","collaborator_names":[]}
 prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","items":[{"label":"","description":"","quantity":null,"quantity_evidence":"","unit":null,"unit_price":null,"price_evidence":"","price_type":"ht|ttc|unknown","tax_rate":null,"tax_evidence":""}]}
 schedule_task: {"customer_hint":"","title":"","date":"YYYY-MM-DD","time":"HH:MM","location":"","type":"Chantier|Commande|Facturation|Relance","notes":""}
 update_project_note: {"project_id":"","body":""}
@@ -65,6 +70,12 @@ prepare_email: {"to":"","subject":"","body":"","related_entity":""}`;
 async function planWithDeepSeek(transcript: string) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) return fallbackCommandPlan(transcript);
+
+  const dateParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const getPart = (type: string) => dateParts.find((part) => part.type === type)?.value ?? "";
+  const parisDate = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
 
   const response = await fetch("https://api.deepseek.com/chat/completions", {
     method: "POST",
@@ -79,7 +90,7 @@ async function planWithDeepSeek(transcript: string) {
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: planningPrompt() },
-        { role: "user", content: transcript },
+        { role: "user", content: `Date du jour en France : ${parisDate}. Demande : ${transcript}` },
       ],
     }),
   });
@@ -143,10 +154,50 @@ async function assertCustomerNotDuplicate({
 function validateDependencies(actions: PlannedAction[]) {
   for (let index = 0; index < actions.length; index += 1) {
     const dependencyIndex = actions[index].customerFromPosition;
-    if (typeof dependencyIndex !== "number") continue;
-    if (dependencyIndex < 0 || dependencyIndex >= index || actions[dependencyIndex]?.intentType !== "create_customer") {
+    if (typeof dependencyIndex === "number" && (dependencyIndex < 0 || dependencyIndex >= index || actions[dependencyIndex]?.intentType !== "create_customer")) {
       throw new ApiInputError("Le plan IA contient une dépendance client invalide.", 422);
     }
+    const quoteIndex = actions[index].quoteFromPosition;
+    if (typeof quoteIndex === "number" && (quoteIndex < 0 || quoteIndex >= index || actions[index].intentType !== "create_project" || actions[quoteIndex]?.intentType !== "prepare_quote")) {
+      throw new ApiInputError("Le plan IA contient une dépendance devis invalide.", 422);
+    }
+  }
+}
+
+async function resolveProjectCollaborators(actions: PlannedAction[], organizationId: string, client: Awaited<ReturnType<typeof authenticateRequest>>["client"]) {
+  const projects = actions.filter((action) => action.intentType === "create_project");
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR").trim();
+  if (!projects.length) return;
+  const needsTeam = projects.some((action) => Array.isArray(action.payload.collaborator_names) && action.payload.collaborator_names.length);
+  const needsCustomer = projects.some((action) => action.payload.customer_hint && action.customerFromPosition === undefined);
+  const [teamResult, customerResult] = await Promise.all([
+    needsTeam ? client.from("commercial_collaborators").select("id, name, active").eq("organization_id", organizationId).limit(200) : Promise.resolve({ data: [], error: null }),
+    needsCustomer ? client.from("customers").select("id, kind, company_name, civility, last_name, first_name").eq("organization_id", organizationId).limit(500) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (teamResult.error || customerResult.error) throw new Error("Vérification du chantier impossible.");
+  for (const action of projects) {
+    const customerHint = String(action.payload.customer_hint || "").trim();
+    if (customerHint && action.customerFromPosition === undefined) {
+      const wanted = normalize(customerHint);
+      const matches = (customerResult.data ?? []).filter((customer) => {
+        const name = customer.kind === "business" ? customer.company_name : [customer.civility, customer.last_name, customer.first_name].filter(Boolean).join(" ");
+        const normalized = normalize(String(name || ""));
+        return normalized === wanted || (wanted.length >= 3 && normalized.includes(wanted));
+      });
+      if (matches.length !== 1) action.missingFields.push(matches.length ? "client_ambigu" : "client_introuvable");
+      else action.payload.customer_id = String(matches[0].id);
+    }
+    const names = Array.isArray(action.payload.collaborator_names) ? action.payload.collaborator_names as string[] : [];
+    const ids: string[] = [];
+    for (const name of names) {
+      const match = matchProjectCollaborator(teamResult.data ?? [], name);
+      if (match.status !== "found") {
+        action.missingFields.push(`${match.status === "ambiguous" ? "collaborateur_ambigu" : "collaborateur_introuvable"}: ${name}`);
+      } else ids.push(match.id);
+    }
+    action.payload.collaborator_ids = [...new Set(ids)];
+    action.missingFields = [...new Set(action.missingFields)];
+    if (action.missingFields.length) action.status = "needs_input";
   }
 }
 
@@ -179,6 +230,14 @@ async function persistPlan({
       }
       payload.customer_from_proposal_id = String(dependency.id);
       delete payload.customer_from_position;
+    }
+    if (typeof action.quoteFromPosition === "number") {
+      const dependency = inserted[action.quoteFromPosition];
+      if (!dependency?.id || dependency.intent_type !== "prepare_quote") {
+        throw new ApiInputError("Le devis lié au chantier n'a pas pu être préparé.", 422);
+      }
+      payload.quote_from_proposal_id = String(dependency.id);
+      delete payload.quote_from_position;
     }
     const { data, error } = await client
       .from("action_proposals")
@@ -231,6 +290,7 @@ export async function POST(request: Request) {
       ? await planWithDeepSeek(transcript)
       : [plannedActionFromParsed(target, body.parsed, transcript)];
     const actions = hardenPlannedActions(planned);
+    await resolveProjectCollaborators(actions, organizationId, context.client);
 
     if (actions.length > 12) throw new ApiInputError("La demande contient trop d’actions.", 413);
     const proposals = await persistPlan({

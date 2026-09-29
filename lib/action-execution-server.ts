@@ -251,6 +251,47 @@ async function executeProposal(
     };
   }
 
+  if (proposal.intent_type === "create_project") {
+    const name = string(payload.name, 300);
+    if (!name) throw new ApiInputError("Le nom du chantier manque.", 409);
+    const customerFromProposalId = string(payload.customer_from_proposal_id, 80);
+    const quoteFromProposalId = string(payload.quote_from_proposal_id, 80);
+    let customerId = "";
+    if (customerFromProposalId) {
+      const dependency = results.get(customerFromProposalId);
+      if (dependency?.entityType !== "customer" || !dependency.entityId) throw new ApiInputError("Le client du chantier n'a pas pu être créé.", 409);
+      customerId = dependency.entityId;
+    } else if (string(payload.customer_id, 80) || string(payload.customer_hint, 180)) {
+      customerId = await resolveCustomerId({ proposal, client: context.client, results });
+    }
+    let quoteId = "";
+    if (quoteFromProposalId) {
+      const dependency = results.get(quoteFromProposalId);
+      if (dependency?.entityType !== "quote" || !dependency.entityId) throw new ApiInputError("Le devis du chantier n'a pas pu être créé.", 409);
+      quoteId = dependency.entityId;
+    }
+    const { data, error } = await context.client.rpc("create_commercial_project_from_voice", {
+      p_organization_id: proposal.organization_id,
+      p_project_id: `voice-${proposal.id}`,
+      p_name: name,
+      p_subtitle: string(payload.subtitle, 500),
+      p_customer_id: customerId,
+      p_quote_id: quoteId,
+      p_address: string(payload.address, 320),
+      p_start_date: string(payload.start_date, 10) || null,
+      p_next_visit: string(payload.next_visit, 10) || null,
+      p_collaborator_ids: Array.isArray(payload.collaborator_ids) ? payload.collaborator_ids.map((id) => string(id, 160)).filter(Boolean) : [],
+    });
+    if (error || !data) throw new Error(error?.message || "Création du chantier impossible.");
+    return {
+      proposalId: proposal.id,
+      intentType: proposal.intent_type,
+      entityType: "project",
+      entityId: String(data),
+      message: "Chantier créé et équipe affectée.",
+    };
+  }
+
   if (proposal.intent_type === "prepare_quote") {
     const customerId = await resolveCustomerId({ proposal, client: context.client, results });
     const items = normalizedItems(payload.items);

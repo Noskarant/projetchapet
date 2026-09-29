@@ -85,7 +85,7 @@ test("le mode plusieurs actions demande explicitement les informations utiles", 
   const experience = fs.readFileSync(path.join(process.cwd(), "app/action-voice-experience.tsx"), "utf8");
 
   assert.equal(source.includes('target === "command" && <CommandPrecisionGuide />'), true);
-  assert.equal(source.includes("tél. 06…"), true);
+  assert.equal(source.includes("Crée un chantier Peinture Dupont, affecte Lucas"), true);
   assert.equal(experience.includes("Pour plusieurs actions, soyez précis"), true);
   assert.equal(experience.includes("téléphone, e-mail, adresse et SIRET"), true);
   assert.equal(experience.includes("prestations, quantités, unités, prix HT et TVA"), true);

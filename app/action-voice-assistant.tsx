@@ -69,6 +69,7 @@ const choices: Choice[] = [
 
 const intentLabels: Record<string, string> = {
   create_customer: "Créer le client",
+  create_project: "Créer le chantier",
   prepare_quote: "Créer un brouillon de devis",
   prepare_invoice: "Créer un brouillon de facture",
   schedule_task: "Ajouter à l’agenda",
@@ -130,6 +131,10 @@ function proposalSummary(proposal: ActionProposalView) {
     const phones = Array.isArray(payload.phones) ? payload.phones.map(clean).filter(Boolean) : [];
     return [name, clean(payload.siret) ? `SIRET ${clean(payload.siret)}` : "", emails[0] || "", phones[0] || ""].filter(Boolean).join(" · ");
   }
+  if (proposal.intent_type === "create_project") {
+    const team = Array.isArray(payload.collaborator_names) ? payload.collaborator_names.map(clean).filter(Boolean).join(", ") : "";
+    return [clean(payload.name), clean(payload.customer_hint), clean(payload.address), team ? `Équipe : ${team}` : ""].filter(Boolean).join(" · ");
+  }
   if (proposal.intent_type === "prepare_quote" || proposal.intent_type === "prepare_invoice") {
     const items = Array.isArray(payload.items) ? payload.items : [];
     const client = clean(payload.customer_hint) || (payload.customer_from_proposal_id ? "Nouveau client de cette demande" : "Client à préciser");
@@ -173,7 +178,7 @@ function riskLabel(value: ActionProposalView["risk_level"]) {
 }
 
 function placeholder(target: VoiceActionTarget | null) {
-  if (target === "command") return "Ex. Crée le client Martin Peinture, tél. 06…, e-mail…, adresse…, puis un devis : préparation 80 m² à 8 € HT + peinture 80 m² à 22 € HT, TVA 10 %, et une visite mardi à 14 h à son adresse.";
+  if (target === "command") return "Ex. Crée un chantier Peinture Dupont, affecte Lucas, prépare un devis pour 80 m² à 22 € HT et planifie une visite jeudi à 14 h.";
   if (target === "customer") return "Ex. Société Martin Peinture, SIRET…, téléphone…, adresse…";
   if (target === "agenda") return "Ex. Mets une visite mardi prochain à 14 h chez Dupont.";
   return "Ex. Client Dupont, peinture 18 m² à 32 € HT, TVA 10 %.";
@@ -274,21 +279,16 @@ export default function ActionVoiceAssistant() {
       event.preventDefault();
       event.stopPropagation();
       (event as Event & { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
-      const activeTab = document.querySelector(".rm-bottom-nav button.active")?.textContent || "";
-      const preset: VoiceActionTarget = activeTab.includes("Factures")
-        ? "invoice"
-        : activeTab.includes("Clients")
-          ? "customer"
-          : activeTab.includes("Agenda")
-            ? "agenda"
-            : "quote";
-      reset(preset);
+      reset("command");
       setOpen(true);
+      void startRecording();
     };
     const custom = (event: Event) => {
-      const preset = (event as CustomEvent<{ target?: VoiceActionTarget }>).detail?.target ?? null;
+      const detail = (event as CustomEvent<{ target?: VoiceActionTarget; startListening?: boolean }>).detail;
+      const preset = detail?.target ?? "command";
       reset(preset);
       setOpen(true);
+      if (detail?.startListening) void startRecording();
     };
     document.addEventListener("click", mobileClick, true);
     window.addEventListener("projetchapet:open-ai", custom);
@@ -296,7 +296,7 @@ export default function ActionVoiceAssistant() {
       document.removeEventListener("click", mobileClick, true);
       window.removeEventListener("projetchapet:open-ai", custom);
     };
-  }, [reset]);
+  }, [reset, groqReady]);
 
   useEffect(() => () => {
     stopCapture();
@@ -535,7 +535,7 @@ export default function ActionVoiceAssistant() {
         className="pc-ai-launcher ava-launcher"
         data-tour="ai-voice"
         aria-label="Ouvrir le mode IA"
-        onClick={() => { reset(null); setOpen(true); }}
+        onClick={() => { reset("command"); setOpen(true); }}
       >
         <Sparkles size={17} />
         <span>Mode IA</span>
@@ -591,7 +591,7 @@ export default function ActionVoiceAssistant() {
                 {(stage === "ready" || stage === "error") && transcript.trim() && (
                   <button type="button" className="ava-primary" onClick={() => void prepare(transcriptRef.current)}>Préparer les actions</button>
                 )}
-                {(stage === "ready" || stage === "error") && (
+                {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>
                 )}
               </div>

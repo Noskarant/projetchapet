@@ -86,6 +86,19 @@ test("le plan multi-actions conserve la dépendance nouveau client vers devis", 
   assert.equal(actions[1].status, "ready");
 });
 
+test("une seule dictée relie le client, le devis et le chantier avec son équipe", () => {
+  const actions = normalizeModelPlan({ actions: [
+    { intent_type: "create_customer", payload: { kind: "individual", last_name: "Dupont" } },
+    { intent_type: "prepare_quote", payload: { customer_from_position: 0, items: [{ label: "Peinture", quantity: 18.5, unit_price: 22, price_type: "ht", tax_rate: 10 }] } },
+    { intent_type: "create_project", payload: { name: "Salon Dupont", customer_from_position: 0, quote_from_position: 1, collaborator_names: ["Lucas"], address: "12 rue Centrale" } },
+  ] }, "Crée le client Dupont, son devis et le chantier Salon Dupont avec Lucas");
+  assert.deepEqual(actions.map((action) => action.intentType), ["create_customer", "prepare_quote", "create_project"]);
+  assert.equal(actions[2].status, "ready");
+  assert.equal(actions[2].customerFromPosition, 0);
+  assert.equal(actions[2].quoteFromPosition, 1);
+  assert.deepEqual(actions[2].payload.collaborator_names, ["Lucas"]);
+});
+
 test("les informations obligatoires absentes bloquent l’exécution sans invention", () => {
   const actions = normalizeModelPlan({
     actions: [{
