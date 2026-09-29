@@ -17,7 +17,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   executeVoiceActions,
   listExecutedVoiceActions,
+  listVoiceEmailDeliveries,
   planVoiceActions,
+  sendVoiceEmailDraft,
   type ActionExecutionResult,
   type ActionProposalView,
 } from "@/lib/action-client";
@@ -26,12 +28,13 @@ import { getActiveOrganizationId } from "@/lib/project-chapet";
 import { normalizeVoiceTranscript } from "@/lib/voice-facts";
 import { isStandaloneTradeAnalysis } from "@/lib/voice-copilot-routing";
 import { voiceEmailDraft, type VoiceEmailDraft } from "@/lib/voice-action-history";
+import type { VoiceEmailDelivery } from "@/lib/voice-email-delivery";
 import { CommandPrecisionGuide, VoiceListeningVisualizer, VoicePreviewButton, VoiceProcessingVisualizer, VoiceStartingVisualizer } from "./action-voice-experience";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 import "./action-voice-replay.css";
 
-type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "drafts" | "error";
+type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "drafts" | "send" | "error";
 
 type RecognitionLike = {
   lang: string;
@@ -250,6 +253,10 @@ export default function ActionVoiceAssistant() {
   const [results, setResults] = useState<ActionExecutionResult[]>([]);
   const [drafts, setDrafts] = useState<VoiceEmailDraft[]>([]);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [deliveries, setDeliveries] = useState<Record<string, VoiceEmailDelivery>>({});
+  const [emailReview, setEmailReview] = useState<{ id: string; recipient: string; subject: string; body: string } | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailConfirmation, setEmailConfirmation] = useState("");
   const [explicitConfirmed, setExplicitConfirmed] = useState(false);
   const [groqReady, setGroqReady] = useState(false);
   const [voiceLevel, setVoiceLevel] = useState(0);
@@ -295,6 +302,8 @@ export default function ActionVoiceAssistant() {
     setMessage("");
     setProposals([]);
     setResults([]);
+    setEmailReview(null);
+    setEmailConfirmation("");
     setExplicitConfirmed(false);
   }, [stopCapture, updateTranscript]);
 
@@ -368,11 +377,54 @@ export default function ActionVoiceAssistant() {
       const organizationId = await getActiveOrganizationId();
       const records = await listExecutedVoiceActions(organizationId, "prepare_email");
       const loaded = records.map(voiceEmailDraft).filter((draft): draft is VoiceEmailDraft => Boolean(draft));
+      const sent = await listVoiceEmailDeliveries(organizationId, loaded.map((draft) => draft.id));
       setDrafts(loaded);
+      setDeliveries(Object.fromEntries(sent.map((delivery) => [delivery.proposal_id, delivery])));
       setSelectedDraftId(preferredId && loaded.some((draft) => draft.id === preferredId) ? preferredId : loaded[0]?.id ?? null);
       setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Brouillons indisponibles.");
+    }
+  }
+
+  function reviewDraft(draft: VoiceEmailDraft) {
+    const previous = deliveries[draft.id];
+    setEmailReview({ id: draft.id, recipient: previous?.recipient ?? draft.to, subject: previous?.subject ?? draft.subject, body: previous?.body ?? draft.body });
+    setMessage("");
+    setStage("send");
+  }
+
+  async function sendReviewedEmail() {
+    if (!emailReview || emailBusy) return;
+    setEmailBusy(true);
+    setMessage("");
+    try {
+      const organizationId = await getActiveOrganizationId();
+      const result = await sendVoiceEmailDraft({ organizationId, proposalId: emailReview.id, subject: emailReview.subject, message: emailReview.body });
+      const now = new Date().toISOString();
+      setDeliveries((current) => ({ ...current, [emailReview.id]: {
+        proposal_id: emailReview.id, recipient: emailReview.recipient.toLowerCase(), subject: emailReview.subject.trim(), body: emailReview.body.trim(),
+        status: "sent", provider_id: result.providerId, sent_at: result.sentAt, created_at: current[emailReview.id]?.created_at ?? now, updated_at: now,
+      } }));
+      setStage("drafts");
+      setEmailConfirmation("E-mail envoyé depuis MANUFEO.");
+    } catch (error) {
+      try {
+        const organizationId = await getActiveOrganizationId();
+        const [latest] = await listVoiceEmailDeliveries(organizationId, [emailReview.id]);
+        if (latest) {
+          setDeliveries((current) => ({ ...current, [latest.proposal_id]: latest }));
+          setEmailReview({ id: latest.proposal_id, recipient: latest.recipient, subject: latest.subject, body: latest.body });
+          if (latest.status === "sent") {
+            setStage("drafts");
+            setEmailConfirmation("E-mail envoyé depuis MANUFEO.");
+            return;
+          }
+        }
+      } catch { /* L’état pourra être relu depuis la liste des brouillons. */ }
+      setMessage(error instanceof Error ? error.message : "Envoi non confirmé. Vérifiez l’état du brouillon avant de réessayer.");
+    } finally {
+      setEmailBusy(false);
     }
   }
 
@@ -681,19 +733,34 @@ export default function ActionVoiceAssistant() {
 
             {stage === "drafts" && <div className="ava-drafts">
               <strong>Brouillons d’e-mails IA</strong>
-              <p>Messages préparés dans MANUFEO. Aucun n’a été envoyé automatiquement.</p>
+              <p>Relisez le message avant de l’envoyer depuis MANUFEO.</p>
+              {emailConfirmation && <div className="ava-confirmation" role="status">{emailConfirmation}</div>}
               {message && <div className="ava-message" role="status">{message}</div>}
               {!message && drafts.length === 0 && <p>Aucun brouillon d’e-mail pour le moment.</p>}
               {drafts.map((draft) => <button type="button" key={draft.id} className={selectedDraftId === draft.id ? "selected" : ""} onClick={() => setSelectedDraftId(draft.id)}>
-                <strong>{draft.subject}</strong><small>À : {draft.to} · {new Date(draft.createdAt).toLocaleDateString("fr-FR")}</small>
+                <strong>{draft.subject}</strong><small>À : {draft.to} · {deliveries[draft.id]?.status === "sent" ? `Envoyé le ${new Date(deliveries[draft.id].sent_at!).toLocaleDateString("fr-FR")}` : deliveries[draft.id] ? "Envoi à vérifier" : `Brouillon du ${new Date(draft.createdAt).toLocaleDateString("fr-FR")}`}</small>
               </button>)}
               {drafts.filter((draft) => draft.id === selectedDraftId).map((draft) => <div className="ava-draft-detail" key={draft.id}>
-                <div><strong>Destinataire</strong><span>{draft.to}</span></div>
-                <div><strong>Objet</strong><span>{draft.subject}</span></div>
-                <div><strong>Message</strong><p>{draft.body}</p></div>
-                <a className="ava-primary" href={`mailto:${encodeURIComponent(draft.to)}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`}>Ouvrir dans mon application e-mail</a>
+                <div><strong>Destinataire</strong><span>{deliveries[draft.id]?.recipient ?? draft.to}</span></div>
+                <div><strong>Objet</strong><span>{deliveries[draft.id]?.subject ?? draft.subject}</span></div>
+                <div><strong>Message</strong><p>{deliveries[draft.id]?.body ?? draft.body}</p></div>
+                {deliveries[draft.id]?.status === "sent" ? <div className="ava-confirmation">E-mail envoyé depuis MANUFEO.</div> : <button type="button" className="ava-primary" onClick={() => reviewDraft(draft)}>{deliveries[draft.id] ? "Vérifier l’envoi" : "Relire et envoyer"}</button>}
               </div>)}
               <button type="button" className="ava-secondary" onClick={close}>Fermer</button>
+            </div>}
+
+            {stage === "send" && emailReview && <div className="ava-drafts">
+              <strong>Vérifier l’e-mail avant envoi</strong>
+              <p>L’envoi partira depuis MANUFEO après votre appui sur « Envoyer l’e-mail ». Aucune pièce jointe n’est ajoutée automatiquement.</p>
+              {message && <div className="ava-message" role="alert">{message}</div>}
+              <div className="ava-draft-detail ava-send-form">
+                <label>Destinataire<input type="email" value={emailReview.recipient} readOnly /></label>
+                <label>Objet<input value={emailReview.subject} onChange={(event) => setEmailReview({ ...emailReview, subject: event.target.value })} disabled={emailBusy || Boolean(deliveries[emailReview.id])} /></label>
+                <label>Message<textarea value={emailReview.body} onChange={(event) => setEmailReview({ ...emailReview, body: event.target.value })} disabled={emailBusy || Boolean(deliveries[emailReview.id])} /></label>
+                {deliveries[emailReview.id] && <small>Une tentative existe déjà : le contenu est verrouillé pour éviter un double envoi.</small>}
+                <button type="button" className="ava-primary" onClick={() => void sendReviewedEmail()} disabled={emailBusy || !emailReview.subject.trim() || !emailReview.body.trim()}>{emailBusy ? <><Loader2 size={17} className="ava-spin" /> Envoi en cours…</> : "Envoyer l’e-mail"}</button>
+              </div>
+              <button type="button" className="ava-secondary" disabled={emailBusy} onClick={() => { setStage("drafts"); setMessage(""); }}>Retour aux brouillons</button>
             </div>}
 
             {(stage === "review" || stage === "executing") && (

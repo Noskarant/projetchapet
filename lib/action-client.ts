@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { VoiceActionTarget } from "@/lib/action-planner";
 import type { ExecutedVoiceAction } from "@/lib/voice-action-history";
+import type { VoiceEmailDelivery } from "@/lib/voice-email-delivery";
 
 export type ActionProposalView = {
   id: string;
@@ -103,4 +104,23 @@ export async function listExecutedVoiceActions(organizationId: string, intentTyp
     .limit(500);
   if (error) throw new Error("Chargement des actions vocales impossible.");
   return (data ?? []) as ExecutedVoiceAction[];
+}
+
+export async function listVoiceEmailDeliveries(organizationId: string, proposalIds: string[]) {
+  if (!proposalIds.length) return [];
+  const batches = Array.from({ length: Math.ceil(proposalIds.length / 80) }, (_, index) => proposalIds.slice(index * 80, (index + 1) * 80));
+  const results = await Promise.all(batches.map((ids) => supabase.from("voice_email_deliveries")
+    .select("proposal_id,recipient,subject,body,status,provider_id,sent_at,created_at,updated_at")
+    .eq("organization_id", organizationId).in("proposal_id", ids)));
+  if (results.some((result) => result.error)) throw new Error("État des e-mails indisponible.");
+  return results.flatMap((result) => result.data ?? []) as VoiceEmailDelivery[];
+}
+
+export async function sendVoiceEmailDraft({ organizationId, proposalId, subject, message }: {
+  organizationId: string; proposalId: string; subject: string; message: string;
+}) {
+  return authenticatedJson<{ sent: true; sentAt: string; providerId: string }>("/api/actions/email/send", {
+    method: "POST",
+    body: JSON.stringify({ organizationId, proposalId, subject, message }),
+  });
 }
