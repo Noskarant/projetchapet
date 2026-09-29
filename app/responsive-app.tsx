@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import { useEffect, useState } from "react";
 import ActionVoiceAssistant from "./action-voice-assistant";
 import AiChain from "./ai-chain";
@@ -33,7 +35,7 @@ export default function ResponsiveApp() {
   const [mode, setMode] = useState<InterfaceMode | null>(null);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 820px)");
+    const media = window.matchMedia(FIELD_INTERFACE_QUERY);
     const synchronize = () => setMode(media.matches ? "mobile" : "desktop");
     synchronize();
     media.addEventListener("change", synchronize);

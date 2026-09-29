@@ -222,7 +222,7 @@ button { cursor: pointer; }
   .pc-table-row { min-width: 860px; }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
   .pc-sidebar { transform: translateX(-104%); transition: transform .2s ease; box-shadow: 20px 0 60px rgba(0,0,0,.2); }
   .pc-sidebar.open { transform: translateX(0); }
   .pc-menu-close { display: inline-grid !important; }

@@ -1,8 +1,8 @@
 /* Keep the premium CRM/ERP polish introduced for desktop, without applying its mobile overrides. */
-@import url("./product-ui-polish.css") screen and (min-width: 821px);
+@import url("./product-ui-polish.css") screen and (min-width: 1024px) and (not (any-pointer: coarse)), (min-width: 1401px);
 
 /* Keep the pricing promise readable on the dark landing section. */
-@media (min-width: 821px) {
+@media (min-width: 1024px) and (not (any-pointer: coarse)), (min-width: 1401px) {
   .fp-page.fp-page-v2 .fp-pricing-v2 .fp-pricing-copy h2 {
     color: #f4f8ff;
   }

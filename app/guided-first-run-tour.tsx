@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { readCompanyProfile, writeCompanyProfile } from "@/lib/company-profile";
 import { markTutorialComplete, resolveFirstRunStage } from "@/lib/first-run-onboarding";
@@ -130,7 +132,7 @@ export default function GuidedFirstRunTour() {
   }, [active, step]);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 820px)");
+    const media = window.matchMedia(FIELD_INTERFACE_QUERY);
     const sync = () => setMobile(media.matches);
     sync();
     media.addEventListener("change", sync);

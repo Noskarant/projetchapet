@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import {
   CalendarDays,
   Check,
@@ -288,7 +290,7 @@ export default function MobileAiAssistantV6() {
 
   useEffect(() => {
     const click = (event: Event) => {
-      if (!window.matchMedia("(max-width: 820px)").matches) return;
+      if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
       const element = event.target as Element | null;
       if (!element?.closest(".rm-create-ai, .rm-voice-button, .rm-ai-create-text")) return;
       event.preventDefault();

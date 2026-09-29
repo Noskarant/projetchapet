@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import { useEffect } from "react";
 
 const EXERCISE_YEAR_STORAGE_KEY = "manufeo:accounting-exercise-year:v1";
@@ -131,7 +133,7 @@ export default function DesktopExerciseBridge() {
     }
 
     function synchronize() {
-      if (window.matchMedia("(max-width: 820px)").matches) {
+      if (window.matchMedia(FIELD_INTERFACE_QUERY).matches) {
         closePopover();
         return;
       }

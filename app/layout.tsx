@@ -30,6 +30,7 @@ import "./manufeo-brand.css";
 import "./first-run-onboarding.css";
 import "./first-run-onboarding-form.css";
 import "./manufeo-legal-public.css";
+import "./tablet-app.css";
 
 export const metadata: Metadata = {
   title: "MANUFEO — l’assistant métier des artisans du bâtiment",

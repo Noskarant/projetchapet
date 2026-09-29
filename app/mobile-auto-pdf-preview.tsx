@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import {
   ArrowLeft,
   Download,
@@ -461,7 +463,7 @@ export default function MobileAutoPdfPreview() {
   );
 
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
 
     const observer = new MutationObserver(() => {
       document

@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import { Check, FileText, Loader2, Mic, ReceiptText, Square, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -103,7 +105,7 @@ export default function MobileAiAssistantV2() {
 
   useEffect(() => {
     const intercept = (event: Event) => {
-      if (!window.matchMedia("(max-width: 820px)").matches) return;
+      if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
       const element = event.target as Element | null;
       if (!element?.closest(".rm-create-ai, .rm-voice-button, .rm-ai-create-text")) return;
       event.preventDefault();

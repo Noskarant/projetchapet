@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import {
   Check,
   FileText,
@@ -175,7 +177,7 @@ export default function MobileAiAssistant() {
 
   useEffect(() => {
     const intercept = (event: Event) => {
-      if (!window.matchMedia("(max-width: 820px)").matches) return;
+      if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
       const targetElement = event.target as Element | null;
       if (!targetElement?.closest(".rm-create-ai, .rm-voice-button, .rm-ai-create-text")) return;
       event.preventDefault();

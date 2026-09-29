@@ -1,0 +1,73 @@
+/* Tablet field app: same workflows as mobile, with room to read and touch.
+   Interface selection must match lib/responsive-interface.ts. */
+@media (min-width: 600px) and (max-width: 1023px), (min-width: 600px) and (max-width: 1400px) and (any-pointer: coarse) {
+  .rm-shell .rm-app {
+    max-width: 1120px;
+  }
+
+  .rm-shell .rm-header {
+    height: calc(72px + env(safe-area-inset-top));
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: env(safe-area-inset-top) 24px 12px;
+  }
+
+  .rm-shell .rm-header h1 { font-size: 24px; margin-bottom: 8px; }
+  .rm-shell .rm-header-menu,
+  .rm-shell .rm-header-actions button { width: 44px; height: 44px; }
+  .rm-shell .rm-header-actions { gap: 10px; }
+
+  .rm-shell .rm-content {
+    top: calc(72px + env(safe-area-inset-top));
+    bottom: calc(86px + env(safe-area-inset-bottom));
+    padding: 20px 24px 0;
+  }
+
+  .rm-shell .rm-search { min-height: 50px; }
+  .rm-shell .rm-search input { font-size: 16px; }
+  .rm-shell .rm-segmented button { min-height: 44px; font-size: 13px; }
+  .rm-shell .rm-list { gap: 14px; }
+  .rm-shell .rm-document-card { min-height: 112px; padding: 18px; }
+  .rm-shell .rm-document-main strong,
+  .rm-shell .rm-client-card strong { font-size: 17px; }
+  .rm-shell .rm-document-main small,
+  .rm-shell .rm-document-side small,
+  .rm-shell .rm-client-card small,
+  .rm-shell .rm-client-card div > span { font-size: 13px; }
+  .rm-shell .rm-document-side strong { font-size: 21px; }
+  .rm-shell .rm-status { font-size: 12px; }
+  .rm-shell .rm-client-card { min-height: 96px; padding: 16px; }
+
+  .rm-shell .rm-bottom-nav {
+    left: max(24px, calc((100% - 760px) / 2));
+    right: max(24px, calc((100% - 760px) / 2));
+    height: 66px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    padding: 4px 8px;
+  }
+  .rm-shell .rm-bottom-nav button { min-height: 54px; font-size: 12px; gap: 4px; }
+  .rm-shell .rm-bottom-nav button svg { width: 24px; height: 24px; }
+
+  .rm-shell .rm-create-dock {
+    left: max(24px, calc((100% - 760px) / 2));
+    right: max(24px, calc((100% - 760px) / 2));
+    bottom: calc(90px + env(safe-area-inset-bottom));
+    height: 54px;
+    grid-template-columns: minmax(0, 1fr) 140px;
+  }
+  .rm-shell .rm-list-scroll,
+  .rm-shell .rm-agenda-list { padding-bottom: 84px; }
+
+  .rm-detail-sheet,
+  .rm-commercial-panel { max-width: 760px; }
+}
+
+/* Cards fill tablet width without turning into desktop ERP tables. */
+@media (min-width: 900px) and (max-width: 1023px), (min-width: 900px) and (max-width: 1400px) and (any-pointer: coarse) {
+  .rm-shell .rm-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+  }
+  .rm-shell .rm-list > * { min-width: 0; }
+}

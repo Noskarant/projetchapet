@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import { useEffect } from "react";
 
 function acknowledge(button: HTMLButtonElement) {
@@ -81,7 +83,7 @@ function syncPreviewState() {
 
 export default function MobileQuotePreviewInteractions() {
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
 
     const observer = new MutationObserver(syncPreviewState);
     observer.observe(document.body, {

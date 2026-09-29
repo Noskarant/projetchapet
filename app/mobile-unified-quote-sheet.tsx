@@ -469,7 +469,7 @@ export default function MobileUnifiedQuoteSheet() {
   return (
     <>
       <style>{`
-        @media (max-width: 820px) {
+        @media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
           body.rm-unified-quote-open .rm-detail-sheet { visibility: hidden; }
           body.rm-unified-quote-open .rm-philippe-preview-header > button:last-child { display: none; }
           body.rm-unified-quote-open .rm-philippe-preview-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }

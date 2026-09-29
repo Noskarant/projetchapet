@@ -1,5 +1,7 @@
 "use client";
 
+import { DESKTOP_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import { useEffect } from "react";
 import {
   companyProfileDisplayName,
@@ -78,7 +80,7 @@ function installMobileTools() {
 }
 
 function installDesktopActions() {
-  if (!window.matchMedia("(min-width: 821px)").matches) return;
+  if (!window.matchMedia(DESKTOP_INTERFACE_QUERY).matches) return;
   const host = document.querySelector<HTMLElement>(".pc-top-actions");
   if (!host) return;
 
@@ -223,7 +225,7 @@ function requestUrl(input: RequestInfo | URL) {
 function installDesktopIdentityFetchBridge() {
   const originalFetch = window.fetch.bind(window);
   const bridgedFetch: typeof window.fetch = async (input, init) => {
-    if (!window.matchMedia("(min-width: 821px)").matches || typeof init?.body !== "string") {
+    if (!window.matchMedia(DESKTOP_INTERFACE_QUERY).matches || typeof init?.body !== "string") {
       return originalFetch(input, init);
     }
 

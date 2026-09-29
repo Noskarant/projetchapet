@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+
 import { CheckCircle2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -150,7 +152,7 @@ export default function MobileCommercialDemo() {
   }, []);
 
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
     let disposed = false;
     const initial = readCommercialDemoState(window.localStorage);
     setCommercial(initial);
@@ -201,7 +203,7 @@ export default function MobileCommercialDemo() {
   }, [refreshWorkspace]);
 
   useEffect(() => {
-    if (!commercialLoaded || !window.matchMedia("(max-width: 820px)").matches) return;
+    if (!commercialLoaded || !window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
     writeCommercialDemoState(window.localStorage, commercial);
     document.documentElement.dataset.chapetAccent = commercial.company.accent;
   }, [commercial, commercialLoaded]);
@@ -210,7 +212,7 @@ export default function MobileCommercialDemo() {
     if (
       !COMMERCIAL_CLOUD_ENABLED ||
       !commercialLoaded ||
-      !window.matchMedia("(max-width: 820px)").matches
+      !window.matchMedia(FIELD_INTERFACE_QUERY).matches
     ) return;
     let disposed = false;
 
@@ -412,7 +414,7 @@ export default function MobileCommercialDemo() {
   }, [commercial.company.displayName, notify]);
 
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
 
     let refreshTimer: number | null = null;
     const observer = new MutationObserver(() => {
