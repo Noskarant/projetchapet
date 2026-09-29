@@ -139,6 +139,19 @@ export default function MobileCopilotAssistant() {
     recognitionRef.current?.stop();
   }, []);
 
+  useEffect(() => {
+    const onVoiceAnalysis = (event: Event) => {
+      const text = (event as CustomEvent<{ description?: string }>).detail?.description?.trim();
+      if (!text) return;
+      reset();
+      setDescription(text);
+      setOpen(true);
+      void analyse(text);
+    };
+    window.addEventListener("manufeo:analyse-chantier", onVoiceAnalysis);
+    return () => window.removeEventListener("manufeo:analyse-chantier", onVoiceAnalysis);
+  }, []);
+
   function startOrStopDictation() {
     if (recording) {
       stopRecognition();
@@ -179,8 +192,8 @@ export default function MobileCopilotAssistant() {
     recognition.start();
   }
 
-  async function analyse() {
-    const text = description.trim();
+  async function analyse(voiceDescription?: string) {
+    const text = (voiceDescription ?? description).trim();
     if (!text) {
       setMessage("Décrivez le chantier avant de lancer l’analyse.");
       return;

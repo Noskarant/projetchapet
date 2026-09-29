@@ -23,6 +23,7 @@ import {
 import type { VoiceActionTarget } from "@/lib/action-planner";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
 import { normalizeVoiceTranscript } from "@/lib/voice-facts";
+import { isStandaloneTradeAnalysis } from "@/lib/voice-copilot-routing";
 import { CommandPrecisionGuide, VoiceListeningVisualizer, VoicePreviewButton, VoiceProcessingVisualizer, VoiceStartingVisualizer } from "./action-voice-experience";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
@@ -319,6 +320,11 @@ export default function ActionVoiceAssistant() {
     }
     const normalized = normalizeVoiceTranscript(text);
     updateTranscript(normalized);
+    if (isStandaloneTradeAnalysis(normalized)) {
+      close();
+      window.dispatchEvent(new CustomEvent("manufeo:analyse-chantier", { detail: { description: normalized } }));
+      return;
+    }
     setStage("analysing");
     setMessage("");
     setProposals([]);
