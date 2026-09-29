@@ -7,11 +7,14 @@ import {
   UsersRound, Wrench, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listExecutedVoiceActions } from "@/lib/action-client";
 import { blobToBase64 } from "@/lib/document-tools";
 import { buildBusinessDocumentPdf } from "@/lib/mobile-document-pdf";
 import { archiveInvoice, deleteInvoice as deleteCloudInvoice, deleteQuote as deleteCloudQuote, fetchArchivedInvoices } from "@/lib/project-chapet";
 import { invoiceToMobile } from "@/lib/mobile-desktop-sync";
 import { isDatabaseId } from "@/lib/mobile-desktop-sync";
+import { getActiveOrganizationId } from "@/lib/project-chapet";
+import { voiceAgendaEntry, type ExecutedVoiceAction } from "@/lib/voice-action-history";
 import {
   calculateTotals, convertQuoteToInvoice, createCreditNote, customerDisplayName, deleteInvoiceFromWorkspace,
   deleteQuoteFromWorkspace, filterAgenda, makeId, nextNumber, seedMobileWorkspace, upsertAgenda, upsertCustomer,
@@ -66,7 +69,8 @@ export default function RappidosMobileShellV2() {
   const [invoiceFilter, setInvoiceFilter] = useState<"Toutes" | InvoiceStatus>("Toutes");
   const [showArchives, setShowArchives] = useState(false);
   const [archivedInvoices, setArchivedInvoices] = useState<MobileInvoice[]>([]);
-  const [agendaFilter, setAgendaFilter] = useState<AgendaFilter>("today");
+  const [agendaFilter, setAgendaFilter] = useState<AgendaFilter>("all");
+  const [voiceAgendaActions, setVoiceAgendaActions] = useState<ExecutedVoiceAction[]>([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -86,6 +90,32 @@ export default function RappidosMobileShellV2() {
     setHydrated(true);
   }, []);
   useEffect(() => { if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace)); }, [workspace, hydrated]);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const organizationId = await getActiveOrganizationId();
+        const actions = await listExecutedVoiceActions(organizationId, "schedule_task");
+        if (active) setVoiceAgendaActions(actions);
+      } catch (error) {
+        console.warn("[MANUFEO] Agenda vocal temporairement indisponible", error);
+      }
+    };
+    void refresh();
+    const changed = () => void refresh();
+    const showAgenda = () => { setTab("agenda"); setAgendaFilter("all"); };
+    if (window.sessionStorage.getItem("manufeo:show-voice-agenda") === "1") {
+      window.sessionStorage.removeItem("manufeo:show-voice-agenda");
+      showAgenda();
+    }
+    window.addEventListener("manufeo:workspace-changed", changed);
+    window.addEventListener("manufeo:open-voice-agenda", showAgenda);
+    return () => {
+      active = false;
+      window.removeEventListener("manufeo:workspace-changed", changed);
+      window.removeEventListener("manufeo:open-voice-agenda", showAgenda);
+    };
+  }, []);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
 
   const notify = useCallback((message: string) => {
@@ -108,7 +138,12 @@ export default function RappidosMobileShellV2() {
     const term = query.trim().toLowerCase();
     return workspace.customers.filter((customer) => !term || `${customerDisplayName(customer)} ${customer.city} ${customer.emails.join(" ")} ${customer.phones.join(" ")}`.toLowerCase().includes(term));
   }, [workspace.customers, query]);
-  const filteredAgenda = useMemo(() => filterAgenda(workspace.agenda, agendaFilter), [workspace.agenda, agendaFilter]);
+  const agendaEntries = useMemo(() => {
+    const localIds = new Set(workspace.agenda.map((entry) => entry.id));
+    return [...workspace.agenda, ...voiceAgendaActions.map((action) => voiceAgendaEntry(action, workspace.customers))
+      .filter((entry): entry is MobileAgendaEntry => Boolean(entry && !localIds.has(entry.id)))];
+  }, [workspace.agenda, workspace.customers, voiceAgendaActions]);
+  const filteredAgenda = useMemo(() => filterAgenda(agendaEntries, agendaFilter).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)), [agendaEntries, agendaFilter]);
 
   async function toggleInvoiceArchives() {
     if (showArchives) { setShowArchives(false); return; }
@@ -354,7 +389,7 @@ export default function RappidosMobileShellV2() {
 
           {tab === "clients" && <section className="rm-section"><div className="rm-search"><Search size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher un client" /></div><div className="rm-client-count"><span>{filteredCustomers.length} clients</span><small>Pros et particuliers</small></div><div className="rm-scroll-area rm-list-scroll"><section className="rm-list rm-client-list">{filteredCustomers.map((customer) => <button className="rm-client-card" key={customer.id} onClick={() => setSelectedCustomerId(customer.id)}><span className="rm-client-avatar"><CircleUserRound size={24} /></span><div><strong>{customerDisplayName(customer)}</strong><small>{customer.kind} · {customer.city}</small><span>{customer.phones[0] || "Téléphone à compléter"}</span></div><ChevronRight size={19} /></button>)}</section></div></section>}
 
-          {tab === "agenda" && <section className="rm-section"><div className="rm-agenda-summary"><button className={agendaFilter === "today" ? "active" : ""} onClick={() => setAgendaFilter("today")}>Aujourd’hui <strong>{filterAgenda(workspace.agenda, "today").length}</strong></button><button className={agendaFilter === "week" ? "active" : ""} onClick={() => setAgendaFilter("week")}>Cette semaine <strong>{filterAgenda(workspace.agenda, "week").length}</strong></button><button className={agendaFilter === "invoice" ? "active" : ""} onClick={() => setAgendaFilter("invoice")}>À facturer <strong>{filterAgenda(workspace.agenda, "invoice").length}</strong></button></div><div className="rm-scroll-area rm-list-scroll"><div className="rm-agenda-list">{filteredAgenda.map((entry) => <div key={entry.id}><h2>{dateFr(entry.date)}</h2><button onClick={() => setEditor({ kind: "agenda", value: entry, isNew: false })}><span className={`rm-agenda-type rm-agenda-${entry.type.toLowerCase()}`}>{entry.type}</span><div><strong>{entry.time} · {entry.title}</strong><small>{entry.customerName}{entry.done ? " · Terminé" : ""}</small></div><ChevronRight size={18} /></button></div>)}</div></div></section>}
+          {tab === "agenda" && <section className="rm-section"><div className="rm-agenda-summary"><button className={agendaFilter === "today" ? "active" : ""} onClick={() => setAgendaFilter("today")}>Aujourd’hui <strong>{filterAgenda(agendaEntries, "today").length}</strong></button><button className={agendaFilter === "week" ? "active" : ""} onClick={() => setAgendaFilter("week")}>Cette semaine <strong>{filterAgenda(agendaEntries, "week").length}</strong></button><button className={agendaFilter === "all" ? "active" : ""} onClick={() => setAgendaFilter("all")}>Tous <strong>{agendaEntries.length}</strong></button><button className={agendaFilter === "invoice" ? "active" : ""} onClick={() => setAgendaFilter("invoice")}>À facturer <strong>{filterAgenda(agendaEntries, "invoice").length}</strong></button></div><div className="rm-scroll-area rm-list-scroll"><div className="rm-agenda-list">{filteredAgenda.map((entry) => <div key={entry.id}><h2>{dateFr(entry.date)}</h2><button onClick={() => setEditor({ kind: "agenda", value: entry, isNew: false })}><span className={`rm-agenda-type rm-agenda-${entry.type.toLowerCase()}`}>{entry.type}</span><div><strong>{entry.time} · {entry.title}</strong><small>{entry.customerName}{entry.done ? " · Terminé" : ""}</small></div><ChevronRight size={18} /></button></div>)}</div></div></section>}
         </main>
 
         <div className="rm-create-dock"><button className="rm-create-main" onClick={openCreate}><Plus size={20} /><span>Créer</span></button><button className="rm-create-ai" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: tab === "invoices" ? "invoice" : tab === "clients" ? "customer" : "quote" } }))} aria-label="Créer avec le micro IA"><Mic size={24} /><small>IA</small></button></div>
@@ -362,7 +397,7 @@ export default function RappidosMobileShellV2() {
       </div>
 
       {drawer && <div className="rm-drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDrawer(null); }}><aside className="rm-side-drawer"><header><button onClick={() => setDrawer(null)}><X size={21} /></button><div><small>PROJET CHAPET</small><strong>{drawer === "menu" ? "Menu" : drawer === "collaborators" ? "Collaborateurs" : drawer === "company" ? "Mon entreprise" : drawer === "accounting" ? "Comptabilité" : "Paramètres"}</strong></div></header>
-        {drawer === "menu" && <div className="rm-drawer-list"><button onClick={() => setDrawer("collaborators")}><span><Wrench size={21} /></span><div><strong>Interface collaborateurs</strong><small>Consignes, photos et documents sans prix</small></div><ChevronRight size={19} /></button><button onClick={() => setDrawer("company")}><span><Building2 size={21} /></span><div><strong>Mon entreprise</strong><small>SIRET, TVA, banque et exercice comptable</small></div><ChevronRight size={19} /></button><button onClick={() => setDrawer("accounting")}><span><Mail size={21} /></span><div><strong>Comptable & facturation</strong><small>Envoi automatique et facturation électronique</small></div><ChevronRight size={19} /></button><button onClick={() => setDrawer("settings")}><span><Settings size={21} /></span><div><strong>Personnalisation</strong><small>Logo, couleurs, numérotation et e-mails</small></div><ChevronRight size={19} /></button></div>}
+        {drawer === "menu" && <div className="rm-drawer-list"><button onClick={() => { setDrawer(null); window.dispatchEvent(new Event("manufeo:open-email-drafts")); }}><span><Mail size={21} /></span><div><strong>Brouillons d’e-mails IA</strong><small>Retrouver les messages préparés à la voix</small></div><ChevronRight size={19} /></button><button onClick={() => setDrawer("collaborators")}><span><Wrench size={21} /></span><div><strong>Interface collaborateurs</strong><small>Consignes, photos et documents sans prix</small></div><ChevronRight size={19} /></button><button onClick={() => setDrawer("company")}><span><Building2 size={21} /></span><div><strong>Mon entreprise</strong><small>SIRET, TVA, banque et exercice comptable</small></div><ChevronRight size={19} /></button><button onClick={() => setDrawer("accounting")}><span><Mail size={21} /></span><div><strong>Comptable & facturation</strong><small>Envoi automatique et facturation électronique</small></div><ChevronRight size={19} /></button><button onClick={() => setDrawer("settings")}><span><Settings size={21} /></span><div><strong>Personnalisation</strong><small>Logo, couleurs, numérotation et e-mails</small></div><ChevronRight size={19} /></button></div>}
         {drawer === "collaborators" && <div className="rm-drawer-content"><div className="rm-info-hero"><Wrench size={25} /><h2>Mode chantier</h2><p>Les exécutants voient les consignes et documents sans prix.</p></div><button className="rm-work-card" onClick={() => notify("Chantier SCI Bellevue ouvert.")}><div><small>CHANTIER EN COURS</small><strong>SCI Bellevue · Hall d’entrée</strong><span>Peinture murs et plafond</span></div><ChevronRight size={20} /></button><div className="rm-action-grid"><button onClick={() => notify("Sélecteur de photos ouvert.")}><Camera size={18} /> Ajouter des photos</button><button onClick={() => notify("Signalement enregistré.")}><AlertTriangle size={18} /> Signaler un problème</button><button onClick={() => notify("Étape marquée terminée.")}><Check size={18} /> Étape terminée</button><button onClick={() => { const quote = workspace.quotes[0]; if (quote) void openPreview(quote, true); }}><FileDown size={18} /> Document sans prix</button></div></div>}
         {drawer === "company" && <div className="rm-drawer-content rm-settings-cards"><div><span>Raison sociale</span><strong>CHAPET Père & Fils</strong></div><div><span>SIRET</span><strong>879 214 563 00012</strong></div><div><span>Exercice comptable</span><strong>01 janvier → 31 décembre</strong></div><button onClick={() => setUtility("Modifier mon entreprise")}><Pencil size={18} /> Modifier les informations</button></div>}
         {drawer === "accounting" && <div className="rm-drawer-content rm-settings-cards"><div><span>Copie automatique au comptable</span><strong>compta@saschapet.com</strong><b>Activée</b></div><div><span>Facturation électronique</span><strong>Module en préparation</strong></div><button onClick={() => notify("Test d’envoi comptable réussi.")}><Send size={18} /> Tester l’envoi comptable</button></div>}

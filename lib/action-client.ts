@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { VoiceActionTarget } from "@/lib/action-planner";
+import type { ExecutedVoiceAction } from "@/lib/voice-action-history";
 
 export type ActionProposalView = {
   id: string;
@@ -90,4 +91,16 @@ export async function executeVoiceActions({
       body: JSON.stringify({ organizationId, proposalIds, explicitConfirmation }),
     },
   );
+}
+
+export async function listExecutedVoiceActions(organizationId: string, intentType: "schedule_task" | "prepare_email") {
+  const { data, error } = await supabase.from("action_proposals")
+    .select("id,payload,created_at")
+    .eq("organization_id", organizationId)
+    .eq("intent_type", intentType)
+    .eq("status", "executed")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) throw new Error("Chargement des actions vocales impossible.");
+  return (data ?? []) as ExecutedVoiceAction[];
 }

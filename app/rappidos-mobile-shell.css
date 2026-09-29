@@ -389,7 +389,7 @@
   .rm-client-card div > span { margin-top: 6px; color: #4c5665; font-size: 11px; }
   .rm-client-card > svg { color: #b0b6c1; }
 
-  .rm-agenda-summary { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-bottom: 11px; }
+  .rm-agenda-summary { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin-bottom: 11px; }
   .rm-agenda-summary button { min-height: 56px; display: grid; gap: 4px; place-content: center; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; color: #a5afbd; background: rgba(255,255,255,.05); font-size: 10px; }
   .rm-agenda-summary button strong { color: #fff; font-size: 16px; }
   .rm-agenda-summary button.active { border-color: #2b6cb0; color: #cfe3f7; background: rgba(43,108,176,.22); }

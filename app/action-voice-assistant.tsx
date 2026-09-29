@@ -16,6 +16,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   executeVoiceActions,
+  listExecutedVoiceActions,
   planVoiceActions,
   type ActionExecutionResult,
   type ActionProposalView,
@@ -24,12 +25,13 @@ import type { VoiceActionTarget } from "@/lib/action-planner";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
 import { normalizeVoiceTranscript } from "@/lib/voice-facts";
 import { isStandaloneTradeAnalysis } from "@/lib/voice-copilot-routing";
+import { voiceEmailDraft, type VoiceEmailDraft } from "@/lib/voice-action-history";
 import { CommandPrecisionGuide, VoiceListeningVisualizer, VoicePreviewButton, VoiceProcessingVisualizer, VoiceStartingVisualizer } from "./action-voice-experience";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 import "./action-voice-replay.css";
 
-type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "error";
+type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "drafts" | "error";
 
 type RecognitionLike = {
   lang: string;
@@ -246,6 +248,8 @@ export default function ActionVoiceAssistant() {
   const [message, setMessage] = useState("");
   const [proposals, setProposals] = useState<ActionProposalView[]>([]);
   const [results, setResults] = useState<ActionExecutionResult[]>([]);
+  const [drafts, setDrafts] = useState<VoiceEmailDraft[]>([]);
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
   const [explicitConfirmed, setExplicitConfirmed] = useState(false);
   const [groqReady, setGroqReady] = useState(false);
   const [voiceLevel, setVoiceLevel] = useState(0);
@@ -295,7 +299,7 @@ export default function ActionVoiceAssistant() {
   }, [stopCapture, updateTranscript]);
 
   const close = useCallback(() => {
-    const shouldRefresh = stage === "success" && results.some((result) => result.entityId || result.entityType === "payment");
+    const shouldRefresh = results.some((result) => result.entityId || result.entityType === "payment");
     stopCapture();
     if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
     recordingUrlRef.current = "";
@@ -330,11 +334,18 @@ export default function ActionVoiceAssistant() {
       setOpen(true);
       if (detail?.startListening) void startRecording();
     };
+    const openDrafts = () => {
+      reset("command");
+      setOpen(true);
+      void showDrafts();
+    };
     document.addEventListener("click", mobileClick, true);
     window.addEventListener("projetchapet:open-ai", custom);
+    window.addEventListener("manufeo:open-email-drafts", openDrafts);
     return () => {
       document.removeEventListener("click", mobileClick, true);
       window.removeEventListener("projetchapet:open-ai", custom);
+      window.removeEventListener("manufeo:open-email-drafts", openDrafts);
     };
   }, [reset, groqReady]);
 
@@ -348,6 +359,27 @@ export default function ActionVoiceAssistant() {
     setTarget(next);
     setStage("ready");
     setMessage("");
+  }
+
+  async function showDrafts(preferredId?: string) {
+    setStage("drafts");
+    setMessage("Chargement des brouillons…");
+    try {
+      const organizationId = await getActiveOrganizationId();
+      const records = await listExecutedVoiceActions(organizationId, "prepare_email");
+      const loaded = records.map(voiceEmailDraft).filter((draft): draft is VoiceEmailDraft => Boolean(draft));
+      setDrafts(loaded);
+      setSelectedDraftId(preferredId && loaded.some((draft) => draft.id === preferredId) ? preferredId : loaded[0]?.id ?? null);
+      setMessage("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Brouillons indisponibles.");
+    }
+  }
+
+  function showCreatedAgenda() {
+    window.sessionStorage.setItem("manufeo:show-voice-agenda", "1");
+    window.dispatchEvent(new Event("manufeo:open-voice-agenda"));
+    close();
   }
 
   async function prepare(text: string) {
@@ -564,13 +596,6 @@ export default function ActionVoiceAssistant() {
         explicitConfirmation: explicitConfirmed,
       });
       setResults(execution.results);
-      for (const result of execution.results) {
-        if (result.clientAction === "agenda" && result.clientPayload) {
-          window.dispatchEvent(new CustomEvent("projetchapet:agenda-ai-apply", {
-            detail: { target: "agenda", data: result.clientPayload },
-          }));
-        }
-      }
       window.dispatchEvent(new CustomEvent("manufeo:workspace-changed", { detail: execution.results }));
       setStage("success");
     } catch (error) {
@@ -633,6 +658,7 @@ export default function ActionVoiceAssistant() {
               <div className="ava-capture">
                 <span className="ava-target">{choices.find((choice) => choice.id === target)?.label ?? "Demande"}</span>
                 <VoicePreviewButton onStart={() => void startRecording()} />
+                <button type="button" className="ava-secondary" onClick={() => void showDrafts()}>Brouillons d’e-mails IA</button>
                 <p>Rien n’est exécuté avant votre validation.</p>
                 {target === "command" && <CommandPrecisionGuide />}
                 <textarea
@@ -652,6 +678,23 @@ export default function ActionVoiceAssistant() {
                 )}
               </div>
             )}
+
+            {stage === "drafts" && <div className="ava-drafts">
+              <strong>Brouillons d’e-mails IA</strong>
+              <p>Messages préparés dans MANUFEO. Aucun n’a été envoyé automatiquement.</p>
+              {message && <div className="ava-message" role="status">{message}</div>}
+              {!message && drafts.length === 0 && <p>Aucun brouillon d’e-mail pour le moment.</p>}
+              {drafts.map((draft) => <button type="button" key={draft.id} className={selectedDraftId === draft.id ? "selected" : ""} onClick={() => setSelectedDraftId(draft.id)}>
+                <strong>{draft.subject}</strong><small>À : {draft.to} · {new Date(draft.createdAt).toLocaleDateString("fr-FR")}</small>
+              </button>)}
+              {drafts.filter((draft) => draft.id === selectedDraftId).map((draft) => <div className="ava-draft-detail" key={draft.id}>
+                <div><strong>Destinataire</strong><span>{draft.to}</span></div>
+                <div><strong>Objet</strong><span>{draft.subject}</span></div>
+                <div><strong>Message</strong><p>{draft.body}</p></div>
+                <a className="ava-primary" href={`mailto:${encodeURIComponent(draft.to)}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`}>Ouvrir dans mon application e-mail</a>
+              </div>)}
+              <button type="button" className="ava-secondary" onClick={close}>Fermer</button>
+            </div>}
 
             {(stage === "review" || stage === "executing") && (
               <div className="ava-review">
@@ -698,6 +741,8 @@ export default function ActionVoiceAssistant() {
                 <h3>Terminé.</h3>
                 <p>MANUFEO a exécuté uniquement ce que vous avez validé.</p>
                 <div>{results.map((result) => <span key={result.proposalId}><Check size={15} /> {result.message}</span>)}</div>
+                {results.some((result) => result.intentType === "schedule_task") && <button type="button" className="ava-secondary" onClick={showCreatedAgenda}>Voir dans l’agenda</button>}
+                {results.some((result) => result.intentType === "prepare_email") && <button type="button" className="ava-secondary" onClick={() => void showDrafts(results.find((result) => result.intentType === "prepare_email")?.proposalId)}>Voir le brouillon d’e-mail</button>}
                 <button type="button" className="ava-primary" onClick={close}>Voir les changements</button>
               </div>
             )}

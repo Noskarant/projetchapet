@@ -2,7 +2,7 @@ export type CustomerKind = "Professionnel" | "Particulier";
 export type QuoteStatus = "En attente" | "Validé" | "Terminé" | "Refusé";
 export type InvoiceStatus = "Brouillon" | "En cours" | "Payée" | "En retard" | "Avoir";
 export type AgendaType = "Chantier" | "Facturation" | "Commande" | "Relance";
-export type AgendaFilter = "today" | "week" | "invoice";
+export type AgendaFilter = "today" | "week" | "invoice" | "all";
 
 export type LineItem = {
   id: string;
@@ -206,6 +206,7 @@ export function filterAgenda(entries: MobileAgendaEntry[], filter: AgendaFilter,
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndIso = weekEnd.toISOString().slice(0, 10);
   if (filter === "today") return entries.filter((entry) => entry.date === today);
+  if (filter === "all") return entries;
   if (filter === "invoice") return entries.filter((entry) => entry.type === "Facturation" && !entry.done);
   return entries.filter((entry) => entry.date >= today && entry.date <= weekEndIso);
 }

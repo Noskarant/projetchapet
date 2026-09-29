@@ -468,10 +468,8 @@ async function executeProposal(
       proposalId: proposal.id,
       intentType: proposal.intent_type,
       entityType: "agenda_event",
-      entityId: null,
-      message: "Événement d’agenda confirmé.",
-      clientAction: "agenda",
-      clientPayload: payload,
+      entityId: proposal.id,
+      message: "Rendez-vous enregistré dans l’agenda MANUFEO.",
     };
   }
 
@@ -480,8 +478,8 @@ async function executeProposal(
       proposalId: proposal.id,
       intentType: proposal.intent_type,
       entityType: "email_draft",
-      entityId: null,
-      message: "Brouillon d’e-mail préparé. Aucun e-mail n’a été envoyé.",
+      entityId: proposal.id,
+      message: "Brouillon d’e-mail enregistré dans Menu > Brouillons d’e-mails IA. Aucun e-mail n’a été envoyé.",
     };
   }
 
