@@ -26,12 +26,23 @@ test("un brouillon envoyé ou un contenu modifié ne peut pas partir deux fois",
   assert.throws(() => assertVoiceEmailRetry(base, content, null, Date.parse("2026-10-01T09:00:00Z")), /vérifié/);
   assert.doesNotThrow(() => assertVoiceEmailRetry(base, content, null, Date.parse("2026-09-29T09:02:00Z")));
 
-  const withAttachment = {
+});
+
+test("une relance conserve exactement la même pièce jointe", () => {
+  const withAttachment: VoiceEmailDelivery = {
     ...base,
     attachment_quote_id: "11111111-1111-1111-1111-111111111111",
     attachment_filename: "DEV-2026-001.pdf",
     attachment_base64: "JVBERi0xLjQ=",
   };
-  assert.doesNotThrow(() => assertVoiceEmailRetry(withAttachment, content, withAttachment.attachment_quote_id, Date.parse("2026-09-29T09:02:00Z")));
-  assert.throws(() => assertVoiceEmailRetry(withAttachment, content, null, Date.parse("2026-09-29T09:02:00Z")), /autre pièce jointe/);
+  assert.doesNotThrow(() => assertVoiceEmailRetry(
+    withAttachment,
+    content,
+    withAttachment.attachment_quote_id,
+    Date.parse("2026-09-29T09:02:00Z"),
+  ));
+  assert.throws(
+    () => assertVoiceEmailRetry(withAttachment, content, null, Date.parse("2026-09-29T09:02:00Z")),
+    /autre pièce jointe/,
+  );
 });

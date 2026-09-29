@@ -57,18 +57,45 @@ const organization = {
   address: { line1: "1 rue des Artisans", postal_code: "69000", city: "Lyon" },
 };
 
-test("un devis vocal peut être présélectionné clairement et générer une vraie pièce jointe PDF", async () => {
-  const choices: VoiceEmailQuoteChoice[] = [{
+test("un devis n’est présélectionné que s’il est clairement désigné et unique", () => {
+  const first: VoiceEmailQuoteChoice = {
     id: quote.id,
     number: quote.number,
     title: quote.title,
     issueDate: quote.issue_date,
     total: quote.total,
     sameBatch: true,
-  }];
-  assert.equal(suggestedVoiceQuoteId({ subject: "Votre devis", body: "Bonjour, voici votre devis.", quotes: choices }), quote.id);
-  assert.equal(suggestedVoiceQuoteId({ subject: "Votre projet de rénovation", body: "Nous avons préparé votre projet.", quotes: choices }), null);
+  };
+  const second: VoiceEmailQuoteChoice = {
+    ...first,
+    id: "44444444-4444-4444-4444-444444444444",
+    number: "DEV-2026-002",
+    title: "Peinture de la chambre",
+  };
 
+  assert.equal(suggestedVoiceQuoteId({
+    subject: "Votre devis",
+    body: "Bonjour, voici votre devis.",
+    quotes: [first],
+  }), quote.id);
+  assert.equal(suggestedVoiceQuoteId({
+    subject: "Votre projet de rénovation",
+    body: "Nous avons préparé votre projet.",
+    quotes: [first],
+  }), null);
+  assert.equal(suggestedVoiceQuoteId({
+    subject: "Vos devis",
+    body: "Vous trouverez nos propositions.",
+    quotes: [first, second],
+  }), null);
+  assert.equal(suggestedVoiceQuoteId({
+    subject: "DEV-2026-002",
+    body: "Voici le document demandé.",
+    quotes: [first, second],
+  }), second.id);
+});
+
+test("un devis vocal peut générer une vraie pièce jointe PDF", async () => {
   const attachment = await buildVoiceEmailQuoteAttachment({
     quote,
     customer,
