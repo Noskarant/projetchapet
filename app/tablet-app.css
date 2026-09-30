@@ -79,3 +79,39 @@
 .rm-philippe-line-head>button{border:0;background:#f1f4f7;border-radius:9px;width:36px;height:36px;flex-shrink:0;display:grid;place-items:center;color:#9d3948}.rm-swipe-delete{display:flex;gap:8px;align-items:center;justify-content:center;width:100%;padding:12px;margin-bottom:12px;border:0;border-radius:10px;background:#dc3545;color:#fff;font-weight:800}
 .awp-body{padding:20px;overflow:auto;display:grid;gap:12px;color:#17334e}.awp-body p{font-size:13px;line-height:1.5;color:#516a7e;margin:0}.awp-body h3{font-size:17px;margin:10px 0}.awp-list{display:grid;gap:8px}.awp-list button{text-align:left;display:grid;gap:4px;padding:14px;background:white;border:1px solid #d7e1ea;border-radius:12px;color:#163952}.awp-form{display:grid;gap:10px}.awp-form label{display:grid;gap:5px;font-size:12px;font-weight:700}.awp-form input,.awp-form textarea,.awp-form select{width:100%;box-sizing:border-box;min-height:44px;padding:10px;border:1px solid #bdcdd9;border-radius:10px;background:#fff;color:#153951;font:inherit}.awp-form button{min-height:46px;display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;background:#18664c;color:#fff;font-weight:800}.awp-form button:disabled{opacity:.6}
 .rm-auto-delivery-status{padding:14px;margin:12px 16px;white-space:pre-line;background:#edf6f1;border:1px solid #bfd9cc;border-radius:12px;font-size:12px;color:#175338;line-height:1.6}.rm-commercial-panel .awp-body{background:#f3f7fa}
+
+/* The account belongs to the header; keep it compact on touch devices. */
+.rm-header-actions .forgeo-account-label { display: none; }
+
+/* Wide field interface on computers, with all controls in the normal layout. */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .rm-shell .rm-app {
+    max-width: none;
+    margin: 0;
+  }
+  .rm-shell .rm-header,
+  .rm-shell .rm-content {
+    max-width: none;
+    width: 100%;
+    left: 0;
+    right: 0;
+    transform: none;
+  }
+  .rm-shell .rm-home-section .rm-scroll-area {
+    max-width: none;
+    margin: 0;
+  }
+  .rm-shell .rm-bottom-nav,
+  .rm-shell .rm-create-dock {
+    left: 24px;
+    right: 24px;
+  }
+  .rm-shell .rm-header-actions button[data-forgeo-account-button] {
+    width: auto;
+    padding: 0 14px;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .rm-header-actions .forgeo-account-initial { display: none; }
+  .rm-header-actions .forgeo-account-label { display: inline; }
+}
