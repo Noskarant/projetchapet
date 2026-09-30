@@ -1,6 +1,6 @@
 /* Tablet field app: same workflows as mobile, with room to read and touch.
    Interface selection must match lib/responsive-interface.ts. */
-@media (min-width: 600px) and (max-width: 1023px), (min-width: 600px) and (max-width: 1400px) and (any-pointer: coarse) {
+@media (min-width: 600px) {
   .rm-shell .rm-app {
     max-width: 1120px;
   }
@@ -63,7 +63,7 @@
 }
 
 /* Cards fill tablet width without turning into desktop ERP tables. */
-@media (min-width: 900px) and (max-width: 1023px), (min-width: 900px) and (max-width: 1400px) and (any-pointer: coarse) {
+@media (min-width: 900px) {
   .rm-shell .rm-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -71,3 +71,11 @@
   }
   .rm-shell .rm-list > * { min-width: 0; }
 }
+.rm-header-actions button.rm-has-notifications{position:relative}.rm-header-actions button.rm-has-notifications:after{content:"";position:absolute;top:7px;right:8px;width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 2px #fff}
+.rm-invoiced-badge{display:inline-block;width:max-content;margin-top:4px;padding:3px 8px;border-radius:7px;background:#dff4e9;color:#166744;font-size:11px;font-weight:800}
+.rm-period-control{display:grid;gap:6px;margin-top:12px;font-size:12px}.rm-period-control select,.rm-period-dates input{min-height:40px;border:1px solid #a8c5e1;background:white;color:#173f62;border-radius:9px;padding:6px 9px;font:inherit;width:100%;box-sizing:border-box}.rm-period-dates{display:flex;gap:10px}.rm-period-dates label{display:grid;gap:4px;flex:1;font-size:12px}
+@media(min-width:1024px){.rm-shell .rm-app{max-width:1120px;margin:auto}.rm-shell .rm-content{max-width:1120px;left:50%;width:100%;transform:translateX(-50%);box-sizing:border-box}.rm-shell .rm-header{max-width:1120px;left:50%;width:100%;transform:translateX(-50%);box-sizing:border-box}.rm-shell .rm-home-section .rm-scroll-area{max-width:900px;margin:auto}}
+.rm-document-fullscreen{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:260000!important;display:flex!important;flex-direction:column!important;background:#eef2f6}.rm-document-fullscreen>header{flex-shrink:0;padding-top:max(12px,env(safe-area-inset-top))!important}.rm-document-fullscreen>iframe{display:block;min-height:0;flex:1;width:100%;border:0;background:#fff}
+.rm-philippe-line-head>button{border:0;background:#f1f4f7;border-radius:9px;width:36px;height:36px;flex-shrink:0;display:grid;place-items:center;color:#9d3948}.rm-swipe-delete{display:flex;gap:8px;align-items:center;justify-content:center;width:100%;padding:12px;margin-bottom:12px;border:0;border-radius:10px;background:#dc3545;color:#fff;font-weight:800}
+.awp-body{padding:20px;overflow:auto;display:grid;gap:12px;color:#17334e}.awp-body p{font-size:13px;line-height:1.5;color:#516a7e;margin:0}.awp-body h3{font-size:17px;margin:10px 0}.awp-list{display:grid;gap:8px}.awp-list button{text-align:left;display:grid;gap:4px;padding:14px;background:white;border:1px solid #d7e1ea;border-radius:12px;color:#163952}.awp-form{display:grid;gap:10px}.awp-form label{display:grid;gap:5px;font-size:12px;font-weight:700}.awp-form input,.awp-form textarea,.awp-form select{width:100%;box-sizing:border-box;min-height:44px;padding:10px;border:1px solid #bdcdd9;border-radius:10px;background:#fff;color:#153951;font:inherit}.awp-form button{min-height:46px;display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;background:#18664c;color:#fff;font-weight:800}.awp-form button:disabled{opacity:.6}
+.rm-auto-delivery-status{padding:14px;margin:12px 16px;white-space:pre-line;background:#edf6f1;border:1px solid #bfd9cc;border-radius:12px;font-size:12px;color:#175338;line-height:1.6}.rm-commercial-panel .awp-body{background:#f3f7fa}

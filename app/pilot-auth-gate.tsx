@@ -1,4 +1,5 @@
 "use client";
+import WorkerWorkspace from "./worker-workspace";
 
 import type { Session } from "@supabase/supabase-js";
 import type { FormEvent, ReactNode } from "react";
@@ -63,7 +64,7 @@ function friendlyAuthError(message: string) {
 function AuthStyles() {
   return (
     <style>{`
-    .forgeo-account-fallback{position:fixed;z-index:11900;right:16px;top:16px;height:36px;padding:0 12px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(6,10,20,.9);color:#fff;font-weight:850;box-shadow:0 8px 22px rgba(0,0,0,.24)}.forgeo-account-backdrop{position:fixed;inset:0;z-index:15000;display:grid;place-items:center;padding:18px;background:rgba(0,3,10,.68);backdrop-filter:blur(8px)}.forgeo-account-panel{width:min(410px,100%);display:grid;gap:14px;padding:20px;border:1px solid rgba(255,255,255,.11);border-radius:21px;background:#090f1d;color:#f8fafc;box-shadow:0 28px 80px rgba(0,0,0,.45)}.forgeo-account-panel header{display:flex;justify-content:space-between;gap:12px;align-items:start}.forgeo-account-panel header div{display:grid;gap:3px}.forgeo-account-panel header small{color:#8f9db2;font-size:10px;font-weight:900;letter-spacing:.12em}.forgeo-account-panel header strong{font-size:19px}.forgeo-account-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:rgba(255,255,255,.08);color:#fff;font-size:20px}.forgeo-account-meta{display:grid;gap:7px;padding:12px;border-radius:13px;background:rgba(255,255,255,.055)}.forgeo-account-meta span{font-size:11px;color:#9cabbf}.forgeo-account-meta strong{font-size:13px;overflow-wrap:anywhere}.forgeo-account-sync{font-size:11px;font-weight:850}.forgeo-account-sync.saved{color:#75d6a3}.forgeo-account-sync.saving{color:#f4c76c}.forgeo-account-sync.error{color:#ff9b9b}.forgeo-account-signout{min-height:44px;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:rgba(255,255,255,.065);color:#fff;font-weight:900}.forgeo-account-signout:disabled{opacity:.55}@media(max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse){.forgeo-account-fallback{display:none}.forgeo-account-backdrop{place-items:end center;padding:0}.forgeo-account-panel{width:100%;box-sizing:border-box;border-radius:22px 22px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom))}}
+    .forgeo-account-fallback{position:fixed;z-index:11900;right:16px;top:16px;height:36px;padding:0 12px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(6,10,20,.9);color:#fff;font-weight:850;box-shadow:0 8px 22px rgba(0,0,0,.24)}.forgeo-account-backdrop{position:fixed;inset:0;z-index:15000;display:grid;place-items:center;padding:18px;background:rgba(0,3,10,.68);backdrop-filter:blur(8px)}.forgeo-account-panel{width:min(410px,100%);display:grid;gap:14px;padding:20px;border:1px solid rgba(255,255,255,.11);border-radius:21px;background:#090f1d;color:#f8fafc;box-shadow:0 28px 80px rgba(0,0,0,.45)}.forgeo-account-panel header{display:flex;justify-content:space-between;gap:12px;align-items:start}.forgeo-account-panel header div{display:grid;gap:3px}.forgeo-account-panel header small{color:#8f9db2;font-size:10px;font-weight:900;letter-spacing:.12em}.forgeo-account-panel header strong{font-size:19px}.forgeo-account-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:rgba(255,255,255,.08);color:#fff;font-size:20px}.forgeo-account-meta{display:grid;gap:7px;padding:12px;border-radius:13px;background:rgba(255,255,255,.055)}.forgeo-account-meta span{font-size:11px;color:#9cabbf}.forgeo-account-meta strong{font-size:13px;overflow-wrap:anywhere}.forgeo-account-sync{font-size:11px;font-weight:850}.forgeo-account-sync.saved{color:#75d6a3}.forgeo-account-sync.saving{color:#f4c76c}.forgeo-account-sync.error{color:#ff9b9b}.forgeo-account-signout{min-height:44px;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:rgba(255,255,255,.065);color:#fff;font-weight:900}.forgeo-account-signout:disabled{opacity:.55}@mediaall{.forgeo-account-fallback{display:none}.forgeo-account-backdrop{place-items:end center;padding:0}.forgeo-account-panel{width:100%;box-sizing:border-box;border-radius:22px 22px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom))}}
   `}</style>
   );
 }
@@ -130,6 +131,16 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const nextOrganization = await ensurePilotOrganization(session.user.id);
+        if (nextOrganization.role === "worker") {
+          clearPilotLocalSnapshot(window.localStorage);
+          setOrganization(nextOrganization); setWorkspaceReady(true); setSyncStatus("saved"); return;
+        }
+        if (nextOrganization.role === "accountant") {
+          const cloud = await loadPilotCloudSnapshot(nextOrganization.id);
+          clearPilotLocalSnapshot(window.localStorage);
+          if (cloud) writePilotLocalSnapshot(window.localStorage, cloud);
+          setOrganization(nextOrganization); setWorkspaceReady(true); setSyncStatus("saved"); return;
+        }
         const localSnapshot = readPilotLocalSnapshot(window.localStorage);
         const syncState = readPilotSyncState(window.localStorage);
         const cloudSnapshot = await loadPilotCloudSnapshot(nextOrganization.id);
@@ -183,7 +194,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
   }, [authReady, session?.user.id, bootstrapNonce]);
 
   useEffect(() => {
-    if (!workspaceReady || !session?.user || !organization) return;
+    if (!workspaceReady || !session?.user || !organization || organization.role === "worker" || organization.role === "accountant") return;
     let saving = false;
     let queued = false;
     let disposed = false;
@@ -216,6 +227,9 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
           signature,
         );
         setSyncStatus("saved");
+        if (["owner", "admin", "office", "manager"].includes(organization.role) && (snapshot.companyProfile.automaticPdpEnabled || snapshot.companyProfile.automaticAccountantCopyEnabled)) {
+          void fetch("/api/invoices/automatic-delivery", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } }).then(response => { if (response.ok) window.dispatchEvent(new Event("manufeo:invoice-delivery-updated")); }).catch(() => undefined);
+        }
       } catch (error) {
         if (!disposed) {
           console.error("[FORGEO] Synchronisation pilote impossible", error);
@@ -358,7 +372,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
       const snapshot = readPilotLocalSnapshot(window.localStorage);
       const signature = pilotStorageSignature(window.localStorage);
       markPilotSnapshotDirty(window.localStorage, organization.id, signature);
-      await savePilotCloudSnapshot(organization.id, session.user.id, snapshot);
+      if (!["worker", "accountant"].includes(organization.role)) await savePilotCloudSnapshot(organization.id, session.user.id, snapshot);
       markPilotSnapshotSynced(window.localStorage, organization.id, signature);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -534,7 +548,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {children}
+      {organization.role === "worker" ? <WorkerWorkspace /> : children}
       <button
         type="button"
         className="forgeo-account-fallback"

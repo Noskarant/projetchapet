@@ -260,7 +260,7 @@ export default function MobileUnifiedQuoteSheet() {
       detail?.querySelectorAll<HTMLButtonElement>(".rm-status-editor button") || [],
     ).find((item) => normalize(item.textContent || "") === normalize(status));
 
-    button?.click();
+    window.dispatchEvent(new CustomEvent("manufeo:quote-status-change", { detail: { id: active.id, status } }));
     setActive((current) => (current ? { ...current, status } : current));
     setStatusOpen(false);
   }, [active]);
@@ -375,7 +375,7 @@ export default function MobileUnifiedQuoteSheet() {
           summary.append(status);
         }
 
-        const nextText = `Statut : ${quote.status}`;
+        const nextText = `${quote.linkedInvoice ? "Facturé · " : ""}Statut : ${quote.status}`;
         if (status.textContent !== nextText) status.textContent = nextText;
         status.setAttribute("aria-label", `Changer le statut, actuellement ${quote.status}`);
         status.dataset.status = normalize(quote.status).replaceAll(" ", "-");
@@ -469,7 +469,7 @@ export default function MobileUnifiedQuoteSheet() {
   return (
     <>
       <style>{`
-        @media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+        @media all {
           body.rm-unified-quote-open .rm-detail-sheet { visibility: hidden; }
           body.rm-unified-quote-open .rm-philippe-preview-header > button:last-child { display: none; }
           body.rm-unified-quote-open .rm-philippe-preview-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }

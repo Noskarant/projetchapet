@@ -241,7 +241,7 @@
   .pc-document-preview-body { grid-template-columns: minmax(0, 1fr) 260px; }
 }
 
-@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+@media all {
   .pc-document-preview-backdrop { padding: 0; }
   .pc-document-preview-modal { width: 100vw; height: 100vh; border-radius: 0; }
   .pc-document-preview-body { grid-template-columns: 1fr; grid-template-rows: minmax(58vh, 1fr) auto; overflow: auto; }

@@ -69,6 +69,8 @@ export function clearPilotLocalSnapshot(storage: PilotStorage) {
   storage.removeItem(COMPANY_PROFILE_STORAGE_KEY);
   storage.removeItem(QUOTE_META_STORAGE_KEY);
   storage.removeItem(PILOT_SYNC_STATE_KEY);
+  storage.removeItem("forgeo:project-actuals:v1");
+  storage.removeItem("forgeo-commercial-state-v2");
 }
 
 export function pilotStorageSignature(storage: Pick<Storage, "getItem">) {

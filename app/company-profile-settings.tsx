@@ -14,6 +14,11 @@ type LookupCompany = {
   city: string;
 };
 
+function nextFiscalStart(end: string, fallback: string) {
+  const date = new Date(`2000-${end}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(5,10) === end ? new Date(date.getTime()+86400000).toISOString().slice(5,10) : fallback;
+}
+
 export default function CompanyProfileSettings() {
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<CompanyProfile>(() => defaultCompanyProfile());
@@ -128,9 +133,20 @@ export default function CompanyProfileSettings() {
           <section className="cps-card">
             <strong>Exercice comptable</strong>
             <p>Définissez le premier et le dernier jour de votre exercice.</p>
-            <div className="cps-two"><label>Début (MM-JJ)<input value={profile.accountingStart} onChange={(event) => setProfile({ ...profile, accountingStart: event.target.value })} placeholder="01-01" /></label><label>Fin (MM-JJ)<input value={profile.accountingEnd} onChange={(event) => setProfile({ ...profile, accountingEnd: event.target.value })} placeholder="12-31" /></label></div>
+            <div className="cps-two"><label>Début (MM-JJ)<input value={profile.accountingStart} onChange={(event) => setProfile({ ...profile, accountingStart: event.target.value })} placeholder="01-01" /></label><label>Date du bilan (MM-JJ)<input value={profile.accountingEnd} onChange={(event) => setProfile({ ...profile, accountingEnd: event.target.value, accountingStart: /^\d{2}-\d{2}$/.test(event.target.value) ? nextFiscalStart(event.target.value, profile.accountingStart) : profile.accountingStart })} placeholder="12-31" /></label></div>
             <label>E-mail du comptable<input type="email" value={profile.accountingEmail} onChange={(event) => setProfile({ ...profile, accountingEmail: event.target.value })} placeholder="compta@cabinet.fr" /></label>
-            <label><span><input type="checkbox" checked={profile.monthlyAccountingEnabled} onChange={(event) => setProfile({ ...profile, monthlyAccountingEnabled: event.target.checked })} style={{ width: 18, marginRight: 8 }} />Envoyer automatiquement le relevé du mois précédent au comptable</span></label>
+            <label><span><input type="checkbox" checked={profile.monthlyAccountingEnabled} onChange={(event) => setProfile({ ...profile, monthlyAccountingEnabled: event.target.checked })} style={{ width: 18, marginRight: 8 }} />Envoyer chaque mois les factures complètes et le récapitulatif au comptable</span></label>
+          </section>
+
+          <section className="cps-card">
+            <strong>Pilotage de l’entreprise</strong>
+            <label>Période par défaut<select value={profile.dashboardPeriod || "exercise"} onChange={event => setProfile({ ...profile, dashboardPeriod: event.target.value as CompanyProfile["dashboardPeriod"] })}><option value="exercise">Exercice en cours</option><option value="month">Mois en cours</option><option value="rolling3">3 derniers mois glissants</option><option value="rolling6">6 derniers mois glissants</option><option value="custom">Dates au choix</option></select></label>
+            <div className="cps-two"><label>Du<input type="date" value={profile.dashboardFrom || ""} onChange={event => setProfile({ ...profile, dashboardFrom: event.target.value })} /></label><label>Au<input type="date" value={profile.dashboardTo || ""} onChange={event => setProfile({ ...profile, dashboardTo: event.target.value })} /></label></div>
+            <p>La comparaison N−1 utilise exactement la même période de l’année précédente. La fin de l’exercice correspond à la date du bilan.</p>
+            <label><span><input type="checkbox" checked={profile.automaticPdpEnabled === true} onChange={event => setProfile({ ...profile, automaticPdpEnabled: event.target.checked })} style={{ width: 18 }} /> Transmettre automatiquement les factures émises à la PDP connectée</span></label>
+            <label><span><input type="checkbox" checked={profile.automaticAccountantCopyEnabled === true} onChange={event => setProfile({ ...profile, automaticAccountantCopyEnabled: event.target.checked })} style={{ width: 18 }} /> Envoyer aussi chaque facture émise au comptable</span></label>
+            <p>Les brouillons restent exclus. Les erreurs et informations manquantes restent visibles dans les factures.</p>
+            <label><span><input type="checkbox" checked={profile.startupSoundEnabled !== false} onChange={event => setProfile({ ...profile, startupSoundEnabled: event.target.checked })} style={{ width: 18 }} /> Son discret à l’ouverture</span></label>
           </section>
 
           <section className="cps-card">

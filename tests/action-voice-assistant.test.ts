@@ -7,8 +7,8 @@ test("la production authentifiée utilise le nouvel assistant vocal unifié", ()
   const responsive = fs.readFileSync(path.join(process.cwd(), "app/responsive-app.tsx"), "utf8");
   assert.match(responsive, /import ActionVoiceAssistant from "\.\/action-voice-assistant"/);
   assert.equal(responsive.includes("!AUTH_BYPASS && <ActionVoiceAssistant />"), true);
-  assert.equal(responsive.includes("AUTH_BYPASS && ("), true);
-  assert.equal(responsive.includes("<AiChain />"), true);
+  assert.equal(responsive.includes("<MobilePrototypeGate />"), true);
+  assert.equal(responsive.includes("<FunctionalPrototype />"), false);
 });
 
 test("le mobile conserve l’ancien assistant uniquement pour le patrimoine E2E", () => {
@@ -119,7 +119,9 @@ test("le planificateur bloque les dépendances IA invalides et les doublons clie
   assert.equal(source.includes(".contains(\"emails\", [email])"), true);
 });
 
-test("l’agenda vocal reste mobile tant que le desktop n’a pas son exécuteur agenda", () => {
+test("l’agenda vocal reste disponible dans l’interface terrain sur chaque appareil", () => {
   const css = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.css"), "utf8");
-  assert.equal(css.includes("@media(min-width:821px){.ava-choices>button:last-child{display:none}}"), true);
+  const queries = fs.readFileSync(path.join(process.cwd(), "lib/responsive-interface.ts"), "utf8");
+  assert.match(queries, /FIELD_INTERFACE_QUERY = "all"/);
+  assert.equal(css.includes("@media(min-width:821px){.ava-choices>button:last-child{display:none}}"), false);
 });

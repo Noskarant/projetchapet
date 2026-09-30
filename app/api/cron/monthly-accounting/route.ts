@@ -1,3 +1,7 @@
+import { runAutomaticInvoiceDelivery } from "@/lib/automatic-invoice-delivery";
+import { zipArchive } from "@/lib/zip-archive";
+import { accountingInvoicePdf } from "@/lib/accounting-invoice-pdf";
+import type { Invoice } from "@/lib/project-chapet";
 import { createServiceSupabase } from "@/lib/server-organization";
 import { isEmail } from "@/lib/api-guard";
 import { monthlyInvoiceCsv, previousCalendarMonth, type AccountingInvoice } from "@/lib/monthly-accounting";
@@ -38,7 +42,7 @@ export async function GET(request: Request) {
   if (!process.env.CRON_SECRET || request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: "Non autorisé" }, { status: 401 });
   }
-  if (!process.env.RESEND_API_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return Response.json({ error: "Envoi mensuel non configuré" }, { status: 503 });
   }
 
@@ -51,14 +55,16 @@ export async function GET(request: Request) {
     const outcomes: Array<{ organizationId: string; status: string }> = [];
 
     for (const snapshot of snapshots ?? []) {
+      try { await runAutomaticInvoiceDelivery(String(snapshot.organization_id)); }
+      catch (error) { outcomes.push({ organizationId: String(snapshot.organization_id), status: "Envoi automatique à vérifier" }); }
       const profile = snapshot.company_profile as Record<string, unknown> | null;
       const recipient = String(profile?.accountingEmail || "").trim().toLowerCase();
-      if (profile?.monthlyAccountingEnabled !== true || !isEmail(recipient)) continue;
+      if (profile?.monthlyAccountingEnabled !== true || !isEmail(recipient) || !process.env.RESEND_API_KEY) continue;
       const organizationId = String(snapshot.organization_id);
       const { data: invoices, error: invoiceError } = await admin.from("invoices")
-        .select("number, issue_date, status, subtotal, tax_total, total, customer:customers(company_name,last_name,first_name)")
+        .select("*, customer:customers(*), items:invoice_items(*)")
         .eq("organization_id", organizationId).gte("issue_date", first).lt("issue_date", next)
-        .not("status", "in", '(draft,cancelled)').order("issue_date");
+        .neq("status", "draft").or("status.neq.cancelled,total.lt.0").order("issue_date");
       if (invoiceError) { outcomes.push({ organizationId, status: "lecture impossible" }); continue; }
       const entries = (invoices ?? []) as unknown as AccountingInvoice[];
       if (!entries.length) continue;
@@ -74,6 +80,11 @@ export async function GET(request: Request) {
         const stem = `releve-factures-${first.slice(0, 7)}`;
         const csv = monthlyInvoiceCsv(entries);
         const pdf = await monthlyPdf(name, label, entries);
+        const files: Array<{ name: string; content: Buffer }> = [];
+        for (const invoice of (invoices || []) as unknown as Invoice[]) files.push({ name: `${invoice.number}.pdf`, content: await accountingInvoicePdf(invoice, profile) });
+        files.push({ name: `${stem}.csv`, content: Buffer.from(csv, "utf8") });
+        const archive = zipArchive(files);
+        if (archive.length > 25_000_000) throw new Error("Dossier comptable trop volumineux pour un seul envoi.");
         const response = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
@@ -85,8 +96,9 @@ export async function GET(request: Request) {
           body: JSON.stringify({
             from: resolveManufeoSender(process.env.RESEND_FROM_EMAIL), to: [recipient],
             subject: `Relevé des factures · ${label} · ${name}`,
-            html: `<p>Bonjour,</p><p>Veuillez trouver le relevé mensuel des factures et son export CSV pour ${label}.</p><p>MANUFEO</p>`,
+            html: `<p>Bonjour,</p><p>Veuillez trouver toutes les factures du mois en PDF dans le dossier ZIP, ainsi que le relevé et son export CSV pour ${label}.</p><p>MANUFEO</p>`,
             attachments: [
+              { filename: `factures-${first.slice(0, 7)}.zip`, content: archive.toString("base64") },
               { filename: `${stem}.pdf`, content: pdf },
               { filename: `${stem}.csv`, content: Buffer.from(csv, "utf8").toString("base64") },
             ],
@@ -100,9 +112,10 @@ export async function GET(request: Request) {
           .eq("organization_id", organizationId).eq("month", first);
         if (updateError) throw updateError;
         outcomes.push({ organizationId, status: "envoyé" });
-      } catch {
-        if (!providerAccepted) await admin.from("monthly_accounting_dispatches").delete().eq("organization_id", organizationId).eq("month", first);
-        outcomes.push({ organizationId, status: providerAccepted ? "envoyé, accusé local indisponible" : "échec, réessai demain" });
+      } catch (error) {
+        const uncertain = error instanceof Error && ["AbortError", "TimeoutError", "TypeError"].includes(error.name);
+        if (!providerAccepted && !uncertain) await admin.from("monthly_accounting_dispatches").delete().eq("organization_id", organizationId).eq("month", first);
+        outcomes.push({ organizationId, status: providerAccepted ? "envoyé, accusé local indisponible" : uncertain ? "accusé incertain, à vérifier avant renvoi" : "échec, réessai demain" });
       }
     }
     return Response.json({ month: first, outcomes });

@@ -1,0 +1,6 @@
+import { requireOrganization, requireRole } from '@/lib/server-organization';
+import { errorResponse, rateLimit } from '@/lib/api-guard';
+import { runAutomaticInvoiceDelivery } from '@/lib/automatic-invoice-delivery';
+export const maxDuration=300;
+export async function POST(request:Request){const limited=rateLimit(request,'auto-invoice-delivery',4);if(limited)return limited;try{const context=await requireOrganization(request);requireRole(context.role,['owner','admin','office','manager']);return Response.json(await runAutomaticInvoiceDelivery(context.organizationId));}catch(error){return errorResponse(error,'Envois automatiques indisponibles.');}}
+export async function GET(request:Request){try{const context=await requireOrganization(request);requireRole(context.role,['owner','admin','office','manager','accountant']);const {data,error}=await context.admin.from('invoice_delivery_attempts').select('invoice_number,channel,status,message,updated_at').eq('organization_id',context.organizationId).order('updated_at',{ascending:false}).limit(150);if(error)throw new Error('Journal des envois indisponible.');return Response.json({attempts:data||[]});}catch(error){return errorResponse(error,'Journal des envois indisponible.');}}

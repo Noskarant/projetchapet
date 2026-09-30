@@ -1,3 +1,4 @@
+import { assertActiveSession } from "@/lib/session-security";
 import { createClient } from "@supabase/supabase-js";
 import { ApiInputError } from "@/lib/api-guard";
 import { openEInvoiceSecret, sealEInvoiceSecret } from "@/lib/einvoice/crypto";
@@ -82,6 +83,7 @@ export async function requireEInvoiceOrganizationAccess(
     throw new ApiInputError("Votre session a expiré. Reconnectez-vous.", 401);
   }
 
+  await assertActiveSession(token, userData.user.id);
   let membershipQuery = client
     .from("organization_members")
     .select("organization_id, role")

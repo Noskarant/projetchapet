@@ -1,3 +1,4 @@
+import { recalculatePercentageLines } from "./percentage-adjustments";
 import type {
   Customer,
   CustomerInput,
@@ -217,7 +218,7 @@ export function quoteInputFromMobile(quote: MobileQuote, customerId: string, pre
     issue_date: quote.issueDate || new Date().toISOString().slice(0, 10),
     expiry_date: quote.expiryDate || null,
     notes: quote.notes.trim() || null,
-    items: quote.items.map(desktopItemFromMobile),
+    items: recalculatePercentageLines(quote.items).map(desktopItemFromMobile),
   };
 }
 
@@ -254,7 +255,7 @@ export function invoiceInputFromMobile(
     issue_date: invoice.issueDate || new Date().toISOString().slice(0, 10),
     due_date: invoice.dueDate || null,
     notes: invoice.notes.trim() || null,
-    items: invoice.items.map(desktopItemFromMobile),
+    items: recalculatePercentageLines(invoice.items).map(desktopItemFromMobile),
     quote_id: quoteId,
   };
 }
@@ -283,7 +284,8 @@ export function normalizedWorkspaceToMobile(
     customers: workspace.customers.map((customer) => customerToMobile(customer)),
     quotes: workspace.quotes.map((quote) => {
       const mobile = quoteToMobile(quote, previousQuotes.get(quote.id));
-      if (billedQuoteIds.has(quote.id)) return { ...mobile, status: "Terminé" as const };
+      if (previousQuotes.get(quote.id)?.status === "Terminé" && quote.status === "accepted") return { ...mobile, status: "Terminé" as const };
+      if (billedQuoteIds.has(quote.id) && !previousQuotes.has(quote.id)) return { ...mobile, status: "Terminé" as const };
       return mobile;
     }),
     invoices: [...serverInvoices, ...localOnlyInvoices],

@@ -1,5 +1,6 @@
 "use client";
 
+import { recalculatePercentageLines } from "@/lib/percentage-adjustments";
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import {
@@ -8,12 +9,13 @@ import {
   Eye,
   FileText,
   GripVertical,
+  Trash2,
   LockKeyhole,
   ReceiptText,
   Share2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { companyProfileDisplayName, readCompanyProfile } from "@/lib/company-profile";
 import { loadPrivateQuoteMeta, savePrivateQuoteMeta } from "@/lib/quote-private-cloud";
 import {
@@ -410,6 +412,8 @@ type PreviewState = {
 
 export default function MobileAutoPdfPreview() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const [deleteLineId, setDeleteLineId] = useState<string | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -421,6 +425,19 @@ export default function MobileAutoPdfPreview() {
       }
     }).catch((error) => console.warn("[MANUFEO] Chargement des notes privées impossible", error));
   }, []);
+
+  async function removeLine(id: string) {
+    if (!preview) return;
+    const workspace = readWorkspace();
+    if (!workspace) return;
+    const items = recalculatePercentageLines(preview.quote.items.filter(item => item.id !== id));
+    const totals = calculateQuotePreviewTotals(items, preview.meta.discountPercent);
+    const quote = { ...preview.quote, items, subtotal: totals.subtotal, taxTotal: totals.taxTotal, total: totals.total };
+    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({ ...workspace, quotes: workspace.quotes.map(item => item.id === quote.id ? quote : item) }));
+    window.dispatchEvent(new Event("manufeo:local-workspace-updated"));
+    setDeleteLineId(null);
+    await openQuotePreview(quote, preview.customer);
+  }
 
   const closePreview = useCallback(() => {
     setFullScreen(false);
@@ -577,7 +594,7 @@ export default function MobileAutoPdfPreview() {
           </button>
           <button
             className={preview.tab === "page" ? "active" : ""}
-            onClick={() => preview.tab === "page" && preview.pdfUrl ? setFullScreen(true) : setPreview({ ...preview, tab: "page" })}
+            onClick={() => { setPreview({ ...preview, tab: "page" }); setFullScreen(true); }}
           >
             <FileText size={17} /> Page complète
           </button>
@@ -595,13 +612,14 @@ export default function MobileAutoPdfPreview() {
               </div>
               <div className="rm-philippe-lines">
                 {preview.quote.items.map((item, index) => (
-                  <article key={item.id || index} className="rm-philippe-line-card">
+                  <article key={item.id || index} className="rm-philippe-line-card" style={{ touchAction: "pan-y" }} onTouchStart={event => { const touch = event.touches[0]; swipeStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={event => { const start = swipeStart.current, touch = event.changedTouches[0]; if (start && Math.abs(touch.clientX - start.x) > 55 && Math.abs(touch.clientY - start.y) < 40) setDeleteLineId(item.id); swipeStart.current = null; }}>
+                    {deleteLineId === item.id && <button type="button" className="rm-swipe-delete" onClick={() => void removeLine(item.id)}><Trash2 size={18} /> Supprimer ce poste</button>}
                     <div className="rm-philippe-line-head">
                       <div>
                         <small>POSTE {index + 1}</small>
                         <strong>{item.label || "Prestation"}</strong>
                       </div>
-                      <GripVertical size={20} aria-hidden="true" />
+                      <button type="button" aria-label={`Supprimer ${item.label}`} onClick={() => setDeleteLineId(deleteLineId === item.id ? null : item.id)}><Trash2 size={18} /></button>
                     </div>
                     {item.description && <p>{item.description}</p>}
                     <div className="rm-philippe-line-prices">

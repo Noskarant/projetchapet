@@ -1,4 +1,4 @@
-@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+@media all {
   html:has(.rm-philippe-preview-backdrop),
   body:has(.rm-philippe-preview-backdrop) {
     height: 100%;

@@ -1,3 +1,4 @@
+import { assertActiveSession } from "./session-security";
 import { createClient } from "@supabase/supabase-js";
 import type { OrganizationRole } from "./pilot-operations";
 import { isOrganizationRole } from "./pilot-operations";
@@ -32,6 +33,8 @@ export async function requireOrganization(request: Request) {
   const token = bearerToken(request);
   const { data: authData, error: authError } = await admin.auth.getUser(token);
   if (authError || !authData.user) throw new OrganizationAuthError("Session expirée.", 401);
+
+  await assertActiveSession(token, authData.user.id);
 
   const { data: membership, error: membershipError } = await admin
     .from("organization_members")

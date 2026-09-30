@@ -349,7 +349,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
     <>
       {sendChoiceOpen && activeNumber && <div className="rm-unified-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Envoyer le devis" onMouseDown={(event) => { if (event.target === event.currentTarget) setSendChoiceOpen(false); }}><section className="rm-unified-sheet"><header><div><small>DEVIS {activeNumber}</small><strong>Envoyer le devis</strong></div><button type="button" onClick={() => setSendChoiceOpen(false)} aria-label="Fermer">×</button></header><div className="rm-unified-sheet-list">{([false, true] as const).map((withoutPrices) => <button key={String(withoutPrices)} type="button" onClick={() => { setSendChoiceOpen(false); window.dispatchEvent(new CustomEvent("manufeo:send-quote", { detail: { number: activeNumber, withoutPrices } })); }}><span aria-hidden="true">✉</span><span>{withoutPrices ? "Sans les prix" : "Avec les prix"}</span></button>)}</div></section></div>}
       <style>{`
-        @media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+        @media all {
           body.rm-philippe-quote-actions-enabled .rm-philippe-preview-header { position: relative; }
           .rm-philippe-actions-trigger {
             position: absolute; top: 50%; right: 0; z-index: 5;

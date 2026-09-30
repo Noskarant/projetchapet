@@ -1,5 +1,6 @@
 "use client";
 
+import { CollaboratorPanel, SupplierPanel, InboundEmailPanel } from "./artisan-workflow-panels";
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import { CheckCircle2, X } from "lucide-react";
@@ -59,6 +60,9 @@ import {
 } from "./mobile-commercial-panels";
 
 type Overlay =
+  | "team"
+  | "suppliers"
+  | "inbound"
   | "filters"
   | "notifications"
   | "projects"
@@ -101,6 +105,9 @@ function downloadText(content: string, filename: string) {
 }
 
 function overlayTitle(overlay: Overlay) {
+  if (overlay === "team") return "Collaborateurs";
+  if (overlay === "suppliers") return "Fournisseurs";
+  if (overlay === "inbound") return "E-mail → chantier";
   if (overlay === "filters") return "Filtres avancés";
   if (overlay === "notifications") return "Centre d’attention";
   if (overlay === "projects") return "Chantiers & équipe";
@@ -130,6 +137,15 @@ export default function MobileCommercialDemo() {
   const commercialFailedSignature = useRef("");
   const commercialFailedAt = useRef(0);
   const commercialLastPull = useRef(0);
+
+  useEffect(() => {
+    const open = (event: Event) => {
+      const panel = (event as CustomEvent).detail;
+      if (["team", "suppliers", "inbound"].includes(panel)) setOverlay(panel);
+    };
+    window.addEventListener("manufeo:open-workflow-panel", open);
+    return () => window.removeEventListener("manufeo:open-workflow-panel", open);
+  }, []);
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -286,6 +302,20 @@ export default function MobileCommercialDemo() {
     () => workspace ? buildCommercialNotifications(workspace, commercial) : [],
     [commercial, workspace],
   );
+
+  useEffect(() => {
+    const decorate = () => {
+      const button = document.querySelector<HTMLButtonElement>('.rm-header-actions button[aria-label="Notifications"]');
+      if (!button) return;
+      const count = notifications.filter(item => item.id !== "all-clear").length;
+      button.classList.toggle("rm-has-notifications", count > 0);
+      button.title = count > 0 ? `${count} notification(s)` : "Aucune nouvelle notification";
+    };
+    decorate();
+    const observer = new MutationObserver(decorate);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [notifications]);
 
   const activeFilterCount = useCallback(
     (kind: DemoDocumentKind) => Object.values(commercial.filters[kind]).filter(Boolean).length,
@@ -789,6 +819,9 @@ export default function MobileCommercialDemo() {
               />
             )}
 
+            {overlay === "team" && <CollaboratorPanel state={commercial} onChange={setCommercial} onNotify={notify} />}
+            {overlay === "suppliers" && <SupplierPanel onNotify={notify} />}
+            {overlay === "inbound" && <InboundEmailPanel onNotify={notify} />}
             {overlay === "notifications" && (
               <NotificationsPanel notifications={notifications} onOpen={openNotification} />
             )}

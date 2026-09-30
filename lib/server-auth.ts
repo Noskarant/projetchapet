@@ -1,3 +1,4 @@
+import { assertActiveSession } from "./session-security";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { ApiInputError } from "@/lib/api-guard";
 import { supabasePublicConfig } from "@/lib/supabase-config";
@@ -42,6 +43,8 @@ export async function authenticateRequest(request: Request): Promise<Authenticat
   const client = authenticatedSupabase(token);
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) throw new ApiInputError("Votre session a expiré. Reconnectez-vous.", 401);
+
+  await assertActiveSession(token, data.user.id);
 
   const { data: rows, error: membershipError } = await client
     .from("organization_members")

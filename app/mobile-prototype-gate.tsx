@@ -1,5 +1,6 @@
 "use client";
 
+import InvoiceDeliveryStatus from "./invoice-delivery-status";
 import { useEffect, useState } from "react";
 import MobileAccountingAction from "./mobile-accounting-action";
 import MobileAgendaAiBridge from "./mobile-agenda-ai-bridge";
@@ -12,7 +13,6 @@ import MobileCopilotAssistant from "./mobile-copilot-assistant";
 import MobileCopilotBusinessProfileBridge from "./mobile-copilot-business-profile-bridge";
 import MobileCopilotDictationBridge from "./mobile-copilot-dictation-bridge";
 import MobileCopilotLauncherGuard from "./mobile-copilot-launcher-guard";
-import MobileCopilotMenuBridge from "./mobile-copilot-menu-bridge";
 import MobileDesktopSyncBridge, { hydrateMobileCoreFromDesktop } from "./mobile-desktop-sync-bridge";
 import MobileElectronicInvoiceSendBridge from "./mobile-electronic-invoice-send-bridge";
 import MobileElectronicInvoicingReadiness from "./mobile-electronic-invoicing-readiness";
@@ -88,7 +88,6 @@ export default function MobilePrototypeGate() {
       <MobileCopilotAssistant />
       <MobileCopilotDictationBridge />
       <MobileCopilotLauncherGuard />
-      <MobileCopilotMenuBridge />
       <MobileForgeoBusinessSettings />
       <MobileProjectProfitability />
       <MobileAgendaAiBridge />
@@ -99,6 +98,7 @@ export default function MobilePrototypeGate() {
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
       <MobileInvoiceSendStateBridge />
+      <InvoiceDeliveryStatus />
       <MobileCommercialDemo />
       <MobileElectronicInvoiceSendBridge />
       <MobileElectronicInvoicingReadiness />

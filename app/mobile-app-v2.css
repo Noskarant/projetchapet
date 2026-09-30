@@ -1,4 +1,4 @@
-@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+@media all {
   .rm-v2-editor textarea,
   .rm-v2-email textarea {
     width: 100%;

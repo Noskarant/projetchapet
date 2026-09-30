@@ -1,3 +1,4 @@
+import { recalculatePercentageLines } from "./percentage-adjustments";
 import type { LineItem, MobileQuote, MobileWorkspace } from "./mobile-prototype";
 
 export const QUOTE_META_STORAGE_KEY = "projetchapet-mobile-quote-meta-v1";
@@ -34,7 +35,7 @@ export function calculateQuotePreviewTotals(
 ): QuotePreviewTotals {
   const normalizedDiscount = normalizeDiscountPercent(discountPercent);
   const multiplier = 1 - normalizedDiscount / 100;
-  const pricedItems = items.filter(
+  const pricedItems = recalculatePercentageLines(items).filter(
     (item): item is PricedLineItem =>
       item.quantity !== null && item.unitPrice !== null,
   );
@@ -71,7 +72,7 @@ export function calculateQuotePreviewTotals(
 export function quoteTaxBreakdown(items: LineItem[], discountPercent = 0) {
   const multiplier = 1 - normalizeDiscountPercent(discountPercent) / 100;
   const groups = new Map<number, number>();
-  for (const item of items) {
+  for (const item of recalculatePercentageLines(items)) {
     if (item.quantity === null || item.unitPrice === null || item.taxRate === null) continue;
     const rate = Number(item.taxRate);
     groups.set(rate, (groups.get(rate) || 0) + item.quantity * item.unitPrice * rate / 100 * multiplier);

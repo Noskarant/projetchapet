@@ -113,8 +113,8 @@ export default function MobileCopilotBusinessProfileBridge() {
       </div>
       <style>{`
         .fbs-launchers{position:fixed;z-index:4190;left:14px;bottom:calc(166px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:flex-start;gap:7px;pointer-events:none}.fbs-launchers button{min-height:40px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #c9d6e2;border-radius:999px;background:rgba(255,255,255,.96);color:#214d73;box-shadow:0 8px 22px rgba(15,47,82,.15);font:800 12px/1 Arial,sans-serif;backdrop-filter:blur(8px);pointer-events:auto}
-        @media(max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse){.fbs-launchers button{width:40px;height:40px;justify-content:center;padding:0}.fbs-launchers button span{display:none}body:has([role="dialog"]) .fbs-launchers,body:has(.rm-v2-editor) .fbs-launchers,body:has(.rm-create-sheet) .fbs-launchers,body:has([data-philippe-quote-editor="true"]) .fbs-launchers,body:has([data-philippe-quote-sheet="true"]) .fbs-launchers{display:none}}
-        @media(min-width: 1024px) and (not (any-pointer: coarse)), (min-width: 1401px){.fbs-launchers{display:none}}
+        @mediaall{.fbs-launchers button{width:40px;height:40px;justify-content:center;padding:0}.fbs-launchers button span{display:none}body:has([role="dialog"]) .fbs-launchers,body:has(.rm-v2-editor) .fbs-launchers,body:has(.rm-create-sheet) .fbs-launchers,body:has([data-philippe-quote-editor="true"]) .fbs-launchers,body:has([data-philippe-quote-sheet="true"]) .fbs-launchers{display:none}}
+        @medianot all{.fbs-launchers{display:none}}
       `}</style>
     </>
   );

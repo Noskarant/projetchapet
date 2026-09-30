@@ -1,3 +1,5 @@
+import { sendSupplierPriceRequest } from "./supplier-price-request";
+import { createServiceSupabase } from "./server-organization";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiInputError } from "@/lib/api-guard";
 import type { ActionIntent } from "@/lib/action-engine";
@@ -338,6 +340,13 @@ async function executeProposal(
       p_items: items,
     });
     if (error || !data) throw new Error(error?.message || "Création du brouillon de devis impossible.");
+    const discount = Number(payload.discount_percent || 0);
+    if (discount > 0 && discount <= 100) {
+      const quoteResult = await context.client.from("quotes").select("number").eq("id", String(data)).eq("organization_id", proposal.organization_id).single();
+      if (quoteResult.error || !quoteResult.data) throw new Error("Le devis est créé mais sa remise ne peut pas être enregistrée.");
+      const metaResult = await context.client.from("quote_private_meta").upsert({ organization_id: proposal.organization_id, quote_number: quoteResult.data.number, discount_percent: discount, internal_notes: "", updated_at: new Date().toISOString() }, { onConflict: "organization_id,quote_number" });
+      if (metaResult.error) throw new Error("Le devis est créé mais sa remise ne peut pas être enregistrée.");
+    }
     return {
       proposalId: proposal.id,
       intentType: proposal.intent_type,
@@ -399,6 +408,11 @@ async function executeProposal(
   }
 
   if (proposal.intent_type === "prepare_supplier_order") {
+    if (payload.request_type === "price_request" && payload.send_requested === true && /(?:envoie|envoyer|envoies|envois|adresse|adresser|transmets)/iu.test(proposal.raw_text)) {
+      const result = await sendSupplierPriceRequest(createServiceSupabase(), proposal.organization_id, { supplierId: string(payload.supplier_id,160), requestId: proposal.id, label: string(payload.label,500), quantity: numberOrNull(payload.quantity) ?? 0, unit: string(payload.unit,40), targetPrice: numberOrNull(payload.unit_price), notes: string(payload.notes,3000) });
+      return { proposalId: proposal.id, intentType: proposal.intent_type, entityType: "supplier_price_request", entityId: proposal.id, message: result.duplicate ? "Demande de prix déjà envoyée au fournisseur." : "Demande de prix envoyée au fournisseur." };
+    }
+
     const supplierName = string(payload.supplier_name, 200);
     const supplierEmail = string(payload.supplier_email, 254);
     const label = string(payload.label, 500);
@@ -499,6 +513,7 @@ export async function executeProposalBatch({
 }) {
   const membership = context.memberships.find((item) => item.organizationId === organizationId);
   if (!membership) throw new ApiInputError("Entreprise non autorisée.", 403);
+  if (!["owner", "admin", "office", "manager"].includes(membership.role)) throw new ApiInputError("Votre rôle ne permet pas d’exécuter ces actions.", 403);
 
   const { data, error } = await context.client
     .from("action_proposals")

@@ -1,5 +1,7 @@
 "use client";
 
+import { listArtisanRecords, saveArtisanRecord } from "@/lib/artisan-records";
+import { learnedCostEstimate, type CostSample } from "@/lib/learned-costs";
 import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
@@ -66,6 +68,28 @@ export default function MobileProjectProfitability() {
   const [quoteId, setQuoteId] = useState("");
   const [form, setForm] = useState<ActualForm>(EMPTY);
   const [saved, setSaved] = useState(false);
+  const [samples, setSamples] = useState<CostSample[]>([]);
+  const [estimateLabel, setEstimateLabel] = useState("");
+  const [hourlyRate, setHourlyRate] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    listArtisanRecords<CostSample>("project_cost").then(records => {
+      if (!active) return;
+      const values = records.map(record => record.data);
+      setSamples(values);
+      const current = workspace?.quotes.find(item => item.id === quoteId);
+      if (!current) return;
+      const existing = values.find(sample => sample.quoteId === current.id);
+      const estimate = learnedCostEstimate(current, values);
+      setForm(existing?.costs || estimate?.costs || EMPTY);
+      setHourlyRate(estimate?.hourlyRate ?? null);
+      setEstimateLabel(existing ? "Coûts réels enregistrés" : estimate ? `Estimation issue de ${estimate.samples} chantier(s) de votre entreprise, à confirmer.` : "Renseignez les premiers coûts réels pour apprendre vos habitudes.");
+    }).catch(() => { if (active) setError("Historique cloud indisponible. Vos coûts existants restent conservés."); });
+    return () => { active = false; };
+  }, [open]);
 
   useEffect(() => {
     const handler = () => {
@@ -73,7 +97,7 @@ export default function MobileProjectProfitability() {
       setWorkspace(nextWorkspace);
       const first = nextWorkspace?.quotes[0]?.id ?? "";
       setQuoteId(first);
-      setForm(readActuals()[first] ?? EMPTY);
+      setForm(EMPTY);
       setSaved(false);
       setOpen(true);
     };
@@ -96,21 +120,32 @@ export default function MobileProjectProfitability() {
 
   function selectQuote(id: string) {
     setQuoteId(id);
-    setForm(readActuals()[id] ?? EMPTY);
+    const current = workspace?.quotes.find(item => item.id === id);
+    const existing = samples.find(sample => sample.quoteId === id);
+    const estimate = current ? learnedCostEstimate(current, samples) : null;
+    setForm(existing?.costs || estimate?.costs || EMPTY);
+    setHourlyRate(estimate?.hourlyRate ?? null);
+    setEstimateLabel(existing ? "Coûts réels enregistrés" : estimate ? `Estimation issue de ${estimate.samples} chantier(s), à confirmer.` : "Coûts à renseigner.");
     setSaved(false);
   }
 
   function patch<K extends keyof ActualForm>(key: K, value: number) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({ ...current, [key]: value, ...(key === "labourHours" && hourlyRate !== null ? { labourCost: Math.round(value * hourlyRate * 100) / 100 } : {}) }));
     setSaved(false);
   }
 
-  function save() {
-    if (!quoteId) return;
-    const actuals = readActuals();
-    actuals[quoteId] = form;
-    localStorage.setItem(ACTUALS_KEY, JSON.stringify(actuals));
-    setSaved(true);
+  async function save() {
+    if (!quote) return;
+    setSaving(true); setError("");
+    try {
+      const sample: CostSample = { quoteId: quote.id, revenue: quote.subtotal, title: quote.title, costs: form, confirmed: true };
+      await saveArtisanRecord("project_cost", quote.id, sample);
+      const actuals = readActuals(); actuals[quote.id] = form;
+      localStorage.setItem(ACTUALS_KEY, JSON.stringify(actuals));
+      setSamples(current => [...current.filter(item => item.quoteId !== quote.id), sample]);
+      setSaved(true); setEstimateLabel("Coûts réels confirmés et sauvegardés.");
+    } catch (error) { setError(error instanceof Error ? error.message : "Enregistrement impossible."); }
+    finally { setSaving(false); }
   }
 
   if (!open) return null;
@@ -123,6 +158,9 @@ export default function MobileProjectProfitability() {
           {!workspace?.quotes.length ? <div className="fpa-empty">Aucun devis disponible dans le prototype.</div> : <>
             <label className="fpa-quote">Chantier / devis<select value={quoteId} onChange={(event) => selectQuote(event.target.value)}>{workspace.quotes.map((item) => <option key={item.id} value={item.id}>{item.number} · {item.customerName} · {item.title}</option>)}</select></label>
             {quote && <div className="fpa-revenue"><span>Revenu HT du devis</span><strong>{money(quote.subtotal)}</strong></div>}
+            <p role="status" style={{ fontSize: 12 }}>{estimateLabel}</p>
+            {error && <p role="alert" style={{ color: "#a32939" }}>{error}</p>}
+            <label className="fpa-quote">Coût horaire main-d’œuvre (€ / h)<input inputMode="decimal" value={hourlyRate ?? ""} placeholder="Appris après votre premier chantier" onChange={event => { const rate = numberValue(event.target.value); setHourlyRate(rate); setForm(current => ({ ...current, labourCost: Math.round(current.labourHours * rate * 100) / 100 })); setSaved(false); }} /></label>
             <div className="fpa-grid">
               <label>Coût main-d’œuvre (€)<input inputMode="decimal" value={form.labourCost} onChange={(event) => patch("labourCost", numberValue(event.target.value))} /></label>
               <label>Heures réelles<input inputMode="decimal" value={form.labourHours} onChange={(event) => patch("labourHours", numberValue(event.target.value))} /></label>
@@ -149,7 +187,7 @@ export default function MobileProjectProfitability() {
             </section>
           </>}
         </div>
-        <footer><button className="fpa-save" disabled={!quoteId} onClick={save}><Check size={19} /> {saved ? "Coûts enregistrés" : "Enregistrer les coûts réels"}</button></footer>
+        <footer><button className="fpa-save" disabled={!quoteId || saving} onClick={() => void save()}><Check size={19} /> {saved ? "Coûts enregistrés" : saving ? "Enregistrement…" : "Confirmer les coûts réels"}</button></footer>
       </section>
       <style>{`
         .fpa-backdrop{position:fixed;z-index:121000;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(9,24,40,.62);font-family:Arial,sans-serif;color:#102a43}.fpa-sheet{width:min(100%,650px);max-height:94dvh;display:flex;flex-direction:column;overflow:hidden;border-radius:24px 24px 0 0;background:#f4f7fa}.fpa-sheet>header{display:flex;align-items:center;justify-content:space-between;padding:18px;background:#fff;border-bottom:1px solid #dce4ec}.fpa-sheet>header small{display:block;color:#3674a9;font-size:11px;font-weight:900;letter-spacing:.08em}.fpa-sheet>header h2{margin:4px 0 0;font-size:21px}.fpa-sheet>header button{width:40px;height:40px;border:0;border-radius:50%;background:#edf2f7;color:#102a43}.fpa-scroll{overflow:auto;padding:16px}.fpa-quote{display:block;font-size:12px;font-weight:800}.fpa-quote select,.fpa-grid input{box-sizing:border-box;width:100%;min-height:42px;margin-top:6px;padding:9px 10px;border:1px solid #bdcbd8;border-radius:10px;background:#fff;color:#102a43}.fpa-revenue{display:flex;align-items:center;justify-content:space-between;margin:13px 0;padding:14px;border-radius:14px;background:#eaf3fb}.fpa-revenue span{font-size:12px;font-weight:700}.fpa-revenue strong{font-size:17px}.fpa-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fpa-grid label{font-size:11px;font-weight:800;color:#425b70}.fpa-result{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px;padding:15px;border-radius:16px;background:#fff;border:1px solid #dce5ed}.fpa-result div span,.fpa-result div strong{display:block}.fpa-result div span{font-size:11px;color:#607487}.fpa-result div strong{margin-top:3px;font-size:16px}.fpa-result.loss{border-color:#e9b8b8;background:#fff5f5}.fpa-result.below_target{border-color:#e6d3a6;background:#fffaf0}.fpa-result.on_target{border-color:#b9dccb;background:#f2fbf6}.fpa-coach{margin-top:12px;padding:14px;border:1px solid #dce5ed;border-radius:16px;background:#fff}.fpa-coach h3{margin:0 0 9px;font-size:14px}.fpa-coach article{margin-top:8px;padding:10px;border-radius:10px;background:#f5f8fb}.fpa-coach article.warning{background:#fff8e8}.fpa-coach article.critical{background:#fff0f0}.fpa-coach article.positive{background:#eef9f3}.fpa-coach article strong{font-size:12px}.fpa-coach article p{margin:4px 0 0;color:#526a7c;font-size:11px;line-height:1.4}.fpa-coach>small{display:block;margin-top:10px;color:#718293;font-size:10px;line-height:1.4}.fpa-empty{padding:20px;border-radius:14px;background:#fff;color:#607487}.fpa-sheet>footer{padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #dce4ec}.fpa-save{width:100%;min-height:50px;display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:14px;background:#176b4e;color:#fff;font:800 15px Arial,sans-serif}.fpa-save:disabled{background:#a8b7b1}.fpa-save svg{flex:0 0 auto}@media(max-width:500px){.fpa-grid{grid-template-columns:1fr}}

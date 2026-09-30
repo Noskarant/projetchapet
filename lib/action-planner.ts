@@ -1,3 +1,4 @@
+import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
 import {
   ACTION_INTENTS,
   riskLevelForIntent,
@@ -174,11 +175,14 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
   const labels = original.map((item) => text(record(item).label, 240));
   const roomSegments = roomEvidenceSegments(transcript, labels);
   const roomQuantities = roomQuantityEvidence(transcript, labels);
-  const items = original.map((item, index) => normalizeLine(item, transcript, roomSegments[index], roomQuantities[index], alreadyConverted)).filter((line) =>
+  const normalizedItems = original.map((item, index) => normalizeLine(item, transcript, roomSegments[index], roomQuantities[index], alreadyConverted)).filter((line) =>
     // A trailing empty placeholder from the model is not a requested service.
     Boolean(line.label && !/^prestation(?:\s+à\s+compléter)?$/i.test(line.label))
       || (line.quantity !== null && line.quantity > 0) || line.unit_price !== null,
   );
+  const items = applySpokenPercentageLines(normalizedItems.map((item, index) => ({ id: String(index), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unit_price, taxRate: item.tax_rate })), transcript).map(item => ({
+    ...(normalizedItems.find(line => line.label === item.label) || {}), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: item.taxRate,
+  }));
   const customerFromPosition = numberOrNull(source.customer_from_position);
   return {
     customer_id: text(source.customer_id, 80) || null,
@@ -194,6 +198,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     expiry_date: text(source.expiry_date, 20) || null,
     due_date: text(source.due_date, 20) || null,
     items,
+    discount_percent: spokenDiscount(transcript) ?? numberOrNull(source.discount_percent) ?? 0,
   };
 }
 
@@ -213,6 +218,10 @@ function normalizeOrderPayload(source: RecordLike, transcript = "") {
   return {
     project_id: text(source.project_id, 180) || null,
     supplier_name: text(source.supplier_name, 200),
+    supplier_id: text(source.supplier_id, 160),
+    request_type: /(?:demande\s+(?:de\s+)?(?:prix|devis)|devis\s+(?:au|à|a)\s+fournisseur)/iu.test(transcript) ? "price_request" : "order",
+    send_requested: /(?:envoie|envoyer|envoies|envois|adresse|adresser|transmets)/iu.test(transcript),
+    unit: text(source.unit, 40),
     supplier_email: normalizeSpokenEmail(source.supplier_email, transcript).slice(0, 254),
     label: text(source.label, 500),
     quantity: numberOrNull(source.quantity) ?? 1,

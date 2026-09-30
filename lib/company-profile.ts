@@ -9,6 +9,12 @@ export type CompanyProfile = {
   email: string;
   accountingEmail: string;
   monthlyAccountingEnabled?: boolean;
+  automaticPdpEnabled?: boolean;
+  automaticAccountantCopyEnabled?: boolean;
+  startupSoundEnabled?: boolean;
+  dashboardPeriod?: "exercise" | "month" | "rolling3" | "rolling6" | "custom";
+  dashboardFrom?: string;
+  dashboardTo?: string;
   phone: string;
   address: string;
   postalCode: string;
@@ -36,6 +42,12 @@ export function defaultCompanyProfile(): CompanyProfile {
     email: "",
     accountingEmail: "",
     monthlyAccountingEnabled: false,
+    automaticPdpEnabled: false,
+    automaticAccountantCopyEnabled: false,
+    startupSoundEnabled: true,
+    dashboardPeriod: "exercise",
+    dashboardFrom: "",
+    dashboardTo: "",
     phone: "",
     address: "",
     postalCode: "",
@@ -58,7 +70,8 @@ function text(value: unknown, max: number) {
 
 function monthDay(value: unknown, fallback: string) {
   const candidate = text(value, 5);
-  return /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(candidate) ? candidate : fallback;
+  const date = new Date(`2000-${candidate}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(5,10) === candidate ? candidate : fallback;
 }
 
 export function normalizeCompanyProfile(value: unknown): CompanyProfile {
@@ -75,6 +88,12 @@ export function normalizeCompanyProfile(value: unknown): CompanyProfile {
     email: text(raw.email, 254).toLowerCase(),
     accountingEmail: text(raw.accountingEmail, 254).toLowerCase(),
     monthlyAccountingEnabled: raw.monthlyAccountingEnabled === true,
+    automaticPdpEnabled: raw.automaticPdpEnabled === true,
+    automaticAccountantCopyEnabled: raw.automaticAccountantCopyEnabled === true,
+    startupSoundEnabled: raw.startupSoundEnabled !== false,
+    dashboardPeriod: (["exercise", "month", "rolling3", "rolling6", "custom"].includes(String(raw.dashboardPeriod)) ? raw.dashboardPeriod : "exercise") as CompanyProfile["dashboardPeriod"],
+    dashboardFrom: text(raw.dashboardFrom, 10),
+    dashboardTo: text(raw.dashboardTo, 10),
     phone: text(raw.phone, 40),
     address: text(raw.address, 240),
     postalCode: text(raw.postalCode, 10),

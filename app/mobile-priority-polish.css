@@ -1,4 +1,4 @@
-@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+@media all {
   .rm-header {
     height: calc(54px + env(safe-area-inset-top));
     grid-template-columns: 40px minmax(0, 1fr) auto;

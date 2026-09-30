@@ -1,6 +1,6 @@
 /* Final product-level UI layer. Keep business behavior in existing components. */
 
-@media (min-width: 1024px) and (not (any-pointer: coarse)), (min-width: 1401px) {
+@media not all {
   .pc-shell {
     --pc-navy: #0d2942;
     --pc-navy-2: #153b5b;
@@ -282,7 +282,7 @@
   }
 }
 
-@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+@media all {
   .rm-shell {
     --rm-blue: #1769aa;
     --rm-blue-strong: #125a92;

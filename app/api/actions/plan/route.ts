@@ -30,7 +30,7 @@ Intentions autorisées exactement :
 - prepare_invoice : créer uniquement un BROUILLON de facture ;
 - schedule_task : préparer un événement d'agenda ;
 - update_project_note : ajouter une note à un chantier existant ;
-- prepare_supplier_order : préparer uniquement un BROUILLON de commande fournisseur, jamais l'envoyer ;
+- prepare_supplier_order : préparer une commande fournisseur en brouillon ; pour une demande de prix/devis fournisseur, renseigne le fournisseur, label, quantity, unit, unit_price (prix souhaité facultatif). Si l’utilisateur demande explicitement son envoi, la demande de prix sera envoyée après validation des actions ; une commande ferme reste en brouillon ;
 - mark_payment : enregistrer un paiement uniquement si facture et montant sont explicitement donnés ;
 - prepare_email : préparer un brouillon de message, jamais l'envoyer.
 
@@ -39,6 +39,7 @@ Ne crée create_project que si l'utilisateur demande d'ouvrir/créer un chantier
 Si la demande crée un client puis un devis/facture pour ce même nouveau client, place create_customer avant le document et mets customer_from_position à l'index (base 0) de l'action client dans le payload du document.
 Pour un client existant, utilise customer_hint avec son nom prononcé. Les noms, prénoms, sociétés et e-mails épelés lettre par lettre prévalent sur une transcription phonétique ; respecte le nombre de lettres répétées (deux E, trois R). Ne devine pas une lettre que l'audio ou le texte ne contient pas. N'invente jamais un UUID.
 Dans une adresse e-mail, « arobase » ou « @ » désigne @ et « point » désigne un point. Si la transcription ne permet pas de placer @ sans ambiguïté, conserve l'adresse telle quelle et signale qu'elle doit être corrigée.
+Une majoration RSE ou un autre poste demandé en pourcentage est calculé automatiquement par MANUFEO : ne crée pas de ligne supplémentaire à prix forfaitaire pour ce pourcentage. Une remise dictée est une réduction globale, pas une prestation.
 Chaque prestation distincte explicitement demandée d'un devis/facture doit devenir une ligne. Une pièce citée, une répétition ou un fragment incompris ne suffit pas à créer une autre prestation. Reformule clairement les libellés malgré les erreurs évidentes de transcription, sans exiger une formule précise ni transformer une précision en nouvelle ligne.
 Recopie exactement les libellés dictés, y compris virgules et ponctuation utiles (ex. « Chambre 2, plafond »). Une virgule entre chiffres fait partie d'un nombre : 18,50 m² = 18.5, jamais 18 ni 50 ; « 18 mètres 50 » signifie 18,50 mètres, sans inventer « carrés » si ce n'est pas dit. N'attribue jamais à une autre pièce un métrage ou un prix dicté pour celle-ci.
 Pour chaque ligne recopie la courte expression exacte de la dictée dans quantity_evidence, price_evidence et tax_evidence si présente. « Un forfait à 180 euros » signifie une quantité de 1 et une unité forfait. Conserve la somme prononcée dans unit_price et indique price_type « ht », « ttc » ou « unknown » ; ne convertis PAS le TTC, le serveur le convertira seulement avec une TVA explicite. « Hors taxes » = HT, « toutes taxes comprises » = TTC. Si le type n'est pas précisé, laisse unknown ; si la TVA n'est pas donnée, laisse tax_rate à null. Une TVA annoncée au début du devis s'applique aux prestations suivantes jusqu'à l'annonce explicite d'un autre taux. Une TVA ponctuelle annoncée seulement pour une ligne ne modifie pas les autres lignes.
@@ -65,7 +66,7 @@ create_project: {"name":"","subtitle":"","customer_hint":"","customer_from_posit
 prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","items":[{"label":"","description":"","quantity":null,"quantity_evidence":"","unit":null,"unit_price":null,"price_evidence":"","price_type":"ht|ttc|unknown","tax_rate":null,"tax_evidence":""}]}
 schedule_task: {"customer_hint":"","title":"","date":"YYYY-MM-DD","time":"HH:MM","location":"","type":"Chantier|Commande|Facturation|Relance","notes":""}
 update_project_note: {"project_id":"","body":""}
-prepare_supplier_order: {"project_id":"","supplier_name":"","supplier_email":"","label":"","quantity":1,"unit_price":0,"notes":""}
+prepare_supplier_order: {"project_id":"","supplier_name":"","supplier_email":"","label":"","unit":"","quantity":1,"unit_price":0,"notes":""}
 mark_payment: {"invoice_number":"","amount":null,"method":"virement","reference":""}
 prepare_email: {"to":"","subject":"","body":"","related_entity":""}`;
 }
@@ -241,6 +242,27 @@ async function resolveProjectCollaborators(actions: PlannedAction[], organizatio
   }
 }
 
+async function resolveSupplierRequests(actions: PlannedAction[], organizationId: string, client: Awaited<ReturnType<typeof authenticateRequest>>["client"]) {
+  const requests = actions.filter(action => action.intentType === "prepare_supplier_order");
+  if (!requests.length) return;
+  const rows = await client.from("artisan_workflow_records").select("id,payload").eq("organization_id", organizationId).eq("kind", "supplier");
+  if (rows.error) throw new Error("Lecture des fournisseurs impossible.");
+  const normalize = (value: unknown) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  for (const action of requests) {
+    const matches = (rows.data || []).filter(row => normalize(row.payload.name) === normalize(action.payload.supplier_name) || normalize(row.payload.email) === normalize(action.payload.supplier_email) && Boolean(action.payload.supplier_email));
+    if (matches.length === 1) {
+      action.payload.supplier_id = matches[0].id;
+      action.payload.supplier_name = matches[0].payload.name;
+      action.payload.supplier_email = matches[0].payload.email;
+      action.missingFields = action.missingFields.filter(field => !["fournisseur", "email_fournisseur"].includes(field));
+    } else if (action.payload.request_type === "price_request") {
+      action.missingFields.push(matches.length ? "fournisseur_ambigu" : "fournisseur_à_créer");
+    }
+    if (action.payload.request_type === "price_request" && action.payload.send_requested) action.warnings.push("La demande de prix sera envoyée au fournisseur lorsque vous validerez les actions.");
+    action.status = action.missingFields.length ? "needs_input" : "ready";
+  }
+}
+
 async function persistPlan({
   actions,
   organizationId,
@@ -333,7 +355,7 @@ export async function POST(request: Request) {
     if (transcript.length > 14_000) throw new ApiInputError("La demande est trop longue.", 413);
 
     const context = await authenticateRequest(request);
-    requireOrganization(context, organizationId);
+    requireOrganization(context, organizationId, ["owner", "admin", "office", "manager"]);
     const target = cleanTarget(body.target);
 
     const planned = target === "command"
@@ -341,6 +363,7 @@ export async function POST(request: Request) {
       : [plannedActionFromParsed(target, body.parsed, transcript)];
     const actions = hardenPlannedActions(planned);
     await resolveProjectCollaborators(actions, organizationId, context.client);
+    await resolveSupplierRequests(actions, organizationId, context.client);
 
     if (actions.length > 12) throw new ApiInputError("La demande contient trop d’actions.", 413);
     const proposals = await persistPlan({

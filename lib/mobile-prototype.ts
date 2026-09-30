@@ -1,3 +1,4 @@
+import { recalculatePercentageLines } from "./percentage-adjustments";
 export type CustomerKind = "Professionnel" | "Particulier";
 export type QuoteStatus = "En attente" | "Validé" | "Terminé" | "Refusé";
 export type InvoiceStatus = "Brouillon" | "En cours" | "Payée" | "En retard" | "Avoir";
@@ -98,6 +99,7 @@ export function calculateLineTotal(item: LineItem) {
 }
 
 export function calculateTotals(items: LineItem[]) {
+  items = recalculatePercentageLines(items);
   const subtotal = round(items.reduce((sum, item) => sum + calculateLineTotal(item), 0));
   const taxTotal = round(items.reduce((sum, item) => sum + calculateLineTotal(item) * Number(item.taxRate ?? 0) / 100, 0));
   return { subtotal, taxTotal, total: round(subtotal + taxTotal) };
@@ -119,11 +121,11 @@ export function nextNumber(existing: Array<{ number: string }>, prefix: "D" | "F
 }
 
 export function normalizeQuote(quote: MobileQuote): MobileQuote {
-  return { ...quote, ...calculateTotals(quote.items), items: quote.items.map((item, index) => ({ ...item, id: item.id || makeId(`line-${index}`) })) };
+  return { ...quote, ...calculateTotals(quote.items), items: recalculatePercentageLines(quote.items).map((item, index) => ({ ...item, id: item.id || makeId(`line-${index}`) })) };
 }
 
 export function normalizeInvoice(invoice: MobileInvoice): MobileInvoice {
-  return { ...invoice, ...calculateTotals(invoice.items), items: invoice.items.map((item, index) => ({ ...item, id: item.id || makeId(`line-${index}`) })) };
+  return { ...invoice, ...calculateTotals(invoice.items), items: recalculatePercentageLines(invoice.items).map((item, index) => ({ ...item, id: item.id || makeId(`line-${index}`) })) };
 }
 
 export function upsertCustomer(workspace: MobileWorkspace, customer: MobileCustomer): MobileWorkspace {
@@ -144,8 +146,9 @@ export function upsertInvoice(workspace: MobileWorkspace, invoice: MobileInvoice
     ? workspace.invoices.map((item) => item.id === invoice.id ? normalized : item)
     : [normalized, ...workspace.invoices];
 
-  const quotes = normalized.sourceQuoteId
-    ? workspace.quotes.map((quote) => quote.id === normalized.sourceQuoteId
+  const closesQuote = !exists || normalized.status === "Payée" && workspace.invoices.find(item => item.id === invoice.id)?.status !== "Payée";
+  const quotes = closesQuote && normalized.sourceQuoteId
+    ? workspace.quotes.map((quote) => quote.id === normalized.sourceQuoteId && (!exists || quote.status !== "En attente")
       ? normalizeQuote({ ...quote, status: "Terminé" })
       : quote)
     : workspace.quotes;
@@ -158,7 +161,7 @@ export function upsertAgenda(workspace: MobileWorkspace, entry: MobileAgendaEntr
   return { ...workspace, agenda: exists ? workspace.agenda.map((item) => item.id === entry.id ? entry : item) : [entry, ...workspace.agenda] };
 }
 
-export function convertQuoteToInvoice(workspace: MobileWorkspace, quote: MobileQuote): { workspace: MobileWorkspace; invoice: MobileInvoice } {
+export function convertQuoteToInvoice(workspace: MobileWorkspace, quote: MobileQuote, discountPercent = 0): { workspace: MobileWorkspace; invoice: MobileInvoice } {
   const existing = workspace.invoices.find((item) => item.sourceQuoteId === quote.id);
   if (existing) return { workspace, invoice: existing };
   const now = new Date();
@@ -168,7 +171,7 @@ export function convertQuoteToInvoice(workspace: MobileWorkspace, quote: MobileQ
   const invoice = normalizeInvoice({
     id: makeId("invoice"), number: nextNumber(workspace.invoices, "F"), customerId: quote.customerId,
     customerName: quote.customerName, title: quote.title, issueDate, dueDate: due.toISOString().slice(0, 10),
-    status: "En cours", items: quote.items.map((item) => ({ ...item, id: makeId("line") })), notes: quote.notes,
+    status: "En cours", items: recalculatePercentageLines(quote.items).map((item) => ({ ...item, id: makeId("line"), unitPrice: item.unitPrice === null ? null : Math.round(item.unitPrice * (1 - Math.min(100, Math.max(0, discountPercent)) / 100) * 100) / 100 })), notes: quote.notes,
     subtotal: 0, taxTotal: 0, total: 0, paidTotal: 0, accountantSent: false, sourceQuoteId: quote.id,
   });
   return { workspace: upsertInvoice(workspace, invoice), invoice };

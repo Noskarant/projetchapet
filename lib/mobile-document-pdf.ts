@@ -1,3 +1,4 @@
+import { recalculatePercentageLines } from "./percentage-adjustments";
 import type { MobileCustomer, MobileInvoice, MobileQuote } from "./mobile-prototype";
 import { calculateQuotePreviewTotals, quoteTaxBreakdown, type QuoteInternalMeta } from "./mobile-quote-preview";
 import { companyProfileDisplayName, readCompanyProfile, type CompanyProfile } from "./company-profile";
@@ -255,7 +256,7 @@ export async function buildBusinessDocumentPdf({
   drawInformationBlocks();
   drawTableHeader();
 
-  document.items.forEach((item, index) => {
+  recalculatePercentageLines(document.items).forEach((item, index) => {
     const labelLines = lines(item.label || `Prestation ${index + 1}`, 86);
     const descriptionLines = item.description ? lines(item.description, 86) : [];
     const rowHeight = Math.max(12, labelLines.length * 4.2 + descriptionLines.length * 3.6 + 3);

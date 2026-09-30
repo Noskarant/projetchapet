@@ -1,20 +1,12 @@
 "use client";
 
-import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
-import { useEffect, useState } from "react";
 import ActionVoiceAssistant from "./action-voice-assistant";
-import AiChain from "./ai-chain";
-import AiRecordingHotfix from "./ai-recording-hotfix";
 import AppErrorBoundary from "./app-error-boundary";
 import AuthenticatedEmailFetchBridge from "./authenticated-email-fetch-bridge";
 import CompanyProfileSettings from "./company-profile-settings";
-import DashboardEnhancements from "./dashboard-enhancements";
 import DesktopExerciseBridge from "./desktop-exercise-bridge";
-import DocumentPreviewBridge from "./document-preview-bridge";
-import DocumentWorkflow from "./document-workflow";
 import FirstRunOnboarding from "./first-run-onboarding";
-import FunctionalPrototype from "./functional-prototype";
 import GuidedFirstRunTour from "./guided-first-run-tour";
 import ImportCenter from "./import-center";
 import ManufeoBrandingBridge from "./manufeo-branding-bridge";
@@ -23,29 +15,13 @@ import MobilePrototypeGate from "./mobile-prototype-gate";
 import PilotAuthGate from "./pilot-auth-gate";
 import PilotOperationsCenter from "./pilot-operations-center";
 import PilotReadinessUiBridge from "./pilot-readiness-ui-bridge";
-import ProductEnhancements from "./product-enhancements";
 import ProductUiPolish from "./product-ui-polish";
 import PwaRegister from "./pwa-register";
 
-type InterfaceMode = "mobile" | "desktop";
 
 const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
 
 export default function ResponsiveApp() {
-  const [mode, setMode] = useState<InterfaceMode | null>(null);
-
-  useEffect(() => {
-    const media = window.matchMedia(FIELD_INTERFACE_QUERY);
-    const synchronize = () => setMode(media.matches ? "mobile" : "desktop");
-    synchronize();
-    media.addEventListener("change", synchronize);
-    return () => media.removeEventListener("change", synchronize);
-  }, []);
-
-  if (!mode) {
-    return <ManufeoSplash />;
-  }
-
   return (
     <AppErrorBoundary>
       <ManufeoSplash />
@@ -62,23 +38,7 @@ export default function ResponsiveApp() {
         {!AUTH_BYPASS && <PilotOperationsCenter />}
         <DesktopExerciseBridge />
         <ProductUiPolish />
-        {mode === "mobile" ? (
-          <MobilePrototypeGate />
-        ) : (
-          <>
-            <FunctionalPrototype />
-            <ProductEnhancements />
-            {AUTH_BYPASS && (
-              <>
-                <AiChain />
-                <AiRecordingHotfix />
-              </>
-            )}
-            <DocumentWorkflow />
-            <DocumentPreviewBridge />
-            <DashboardEnhancements />
-          </>
-        )}
+        <MobilePrototypeGate />
       </PilotAuthGate>
     </AppErrorBoundary>
   );

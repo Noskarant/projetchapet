@@ -1,6 +1,6 @@
 .rm-shell { display: none; }
 
-@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+@media all {
   html:has(.rm-shell),
   body:has(.rm-shell) {
     width: 100%;

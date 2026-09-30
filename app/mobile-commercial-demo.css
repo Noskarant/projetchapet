@@ -1,7 +1,7 @@
 .rm-commercial-backdrop,
 .rm-commercial-toast { display: none; }
 
-@media (max-width: 1023px), (max-width: 1400px) and (any-pointer: coarse) {
+@media all {
   .rm-commercial-hidden { display: none !important; }
 
   .rm-search .rm-commercial-filter-trigger {
