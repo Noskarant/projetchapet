@@ -1,5 +1,7 @@
 "use client";
 
+import ManufeoMascot from "./manufeo-mascot";
+import { mascotPreparationMood } from "@/lib/mascot";
 import { Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import "./action-voice-experience.css";
@@ -21,34 +23,6 @@ type VoiceOverlayProps = {
   onClose: () => void;
 };
 
-type VoiceOrbMode = "preview" | "starting" | "listening" | "processing";
-
-function VoiceOrb({ mode }: { mode: VoiceOrbMode }) {
-  return (
-    <span className={`ava-voice-orb ava-voice-orb-${mode}`} aria-hidden="true">
-      <span className="ava-voice-color-wash" />
-      <span className="ava-construction-shell ava-construction-shell-a" />
-      <span className="ava-construction-shell ava-construction-shell-b" />
-      <span className="ava-orbit-ring ava-orbit-ring-a"><i /></span>
-      <span className="ava-orbit-ring ava-orbit-ring-b"><i /></span>
-      <span className="ava-orbit-ring ava-orbit-ring-c"><i /></span>
-      <span className="ava-voice-bloom ava-voice-bloom-a" />
-      <span className="ava-voice-bloom ava-voice-bloom-b" />
-      <span className="ava-voice-bloom ava-voice-bloom-c" />
-      <span className="ava-voice-bloom ava-voice-bloom-d" />
-      <span className="ava-voice-core" />
-      <span className="ava-voice-filament ava-voice-filament-a" />
-      <span className="ava-voice-filament ava-voice-filament-b" />
-      <span className="ava-voice-filament ava-voice-filament-c" />
-      <span className="ava-voice-speck ava-voice-speck-one" />
-      <span className="ava-voice-speck ava-voice-speck-two" />
-      <span className="ava-voice-speck ava-voice-speck-three" />
-      <span className="ava-voice-speck ava-voice-speck-four" />
-      <span className="ava-build-sweep" />
-    </span>
-  );
-}
-
 export function VoicePreviewButton({ onStart, disabled = false }: VoicePreviewButtonProps) {
   return (
     <button
@@ -60,7 +34,7 @@ export function VoicePreviewButton({ onStart, disabled = false }: VoicePreviewBu
       aria-label="Démarrer la dictée vocale"
     >
       <span className="ava-voice-preview-stage">
-        <VoiceOrb mode="preview" />
+        <span className="ava-mascot-stage"><ManufeoMascot mood="hello" /></span>
       </span>
       <span className="ava-voice-preview-copy">
         <strong>Appuyez pour parler</strong>
@@ -74,7 +48,7 @@ export function VoiceStartingVisualizer({ onClose }: VoiceOverlayProps) {
   return (
     <div className="ava-voice-immersive ava-voice-starting" data-testid="voice-starting-visualizer">
       <div className="ava-voice-processing-surface" role="status" aria-live="polite">
-        <VoiceOrb mode="starting" />
+        <span className="ava-mascot-stage"><ManufeoMascot mood="listening" /></span>
         <span className="ava-voice-processing-message">Activation du micro…</span>
       </div>
       <button type="button" className="ava-voice-immersive-close" aria-label="Fermer" onClick={onClose}>
@@ -110,7 +84,7 @@ export function VoiceListeningVisualizer({ level, activity, reactive, onFinish, 
         title="Appuyez lorsque vous avez terminé"
         onClick={onFinish}
       >
-        <VoiceOrb mode="listening" />
+        <span className="ava-mascot-stage"><ManufeoMascot mood="listening" level={normalized} /></span>
         <span className="ava-voice-listening-state">MANUFEO écoute</span>
         <span className="ava-voice-stop-hint">Appuyez lorsque vous avez terminé</span>
         <span className="ava-sr-only">Terminer la dictée</span>
@@ -124,16 +98,20 @@ export function VoiceListeningVisualizer({ level, activity, reactive, onFinish, 
 
 export function VoiceProcessingVisualizer({ onClose }: VoiceOverlayProps) {
   const [longWait, setLongWait] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setLongWait(true), 6500);
-    return () => window.clearTimeout(timeout);
+    const started = Date.now();
+    const sequence = window.setInterval(() => setElapsed(Date.now() - started), 2200);
+    return () => { window.clearTimeout(timeout); window.clearInterval(sequence); };
   }, []);
 
   return (
     <div className={`ava-voice-immersive ava-voice-processing ${longWait ? "long-wait" : ""}`} data-testid="voice-processing-visualizer">
       <div className="ava-voice-processing-surface" role="status" aria-live="polite">
-        <VoiceOrb mode="processing" />
+        <span className="ava-mascot-stage"><ManufeoMascot mood={mascotPreparationMood(elapsed)} /></span>
+        <span className="ava-voice-listening-state">MANUFEO prépare</span>
         <span className="ava-voice-processing-message">
           {longWait ? "Encore un peu de patience, MANUFEO finalise…" : "MANUFEO construit votre demande…"}
         </span>

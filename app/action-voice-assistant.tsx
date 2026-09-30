@@ -1,5 +1,7 @@
 "use client";
 
+import ManufeoMascot from "./manufeo-mascot";
+
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import {
@@ -842,6 +844,7 @@ export default function ActionVoiceAssistant() {
 
             {(stage === "review" || stage === "executing") && (
               <div className="ava-review">
+                <div className="ava-review-mascot"><ManufeoMascot mood={stage === "executing" ? "writing" : "ready"} /><span>{stage === "executing" ? "J’enregistre les actions validées…" : "Vérifiez les actions avant de les valider."}</span></div>
                 <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length} action{proposals.length > 1 ? "s" : ""} préparée{proposals.length > 1 ? "s" : ""}</strong><small>Vérifiez tout avant de valider.</small></div></div>
                 {blocking && <div className="ava-blocking" role="alert"><strong>Une ou plusieurs actions ont besoin d’une correction.</strong><span>Les champs concernés sont indiqués en rouge ci-dessous. Corrigez la demande ici, puis relancez l’analyse.</span></div>}
                 <details className="ava-transcript"><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>
@@ -881,7 +884,7 @@ export default function ActionVoiceAssistant() {
 
             {stage === "success" && (
               <div className="ava-success">
-                <div className="ava-success-icon"><Check size={30} /></div>
+                <ManufeoMascot mood="ready" />
                 <h3>Terminé.</h3>
                 <p>MANUFEO a exécuté uniquement ce que vous avez validé.</p>
                 <div>{results.map((result) => <span key={result.proposalId}><Check size={15} /> {result.message}</span>)}</div>

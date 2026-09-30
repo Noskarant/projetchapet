@@ -4,6 +4,9 @@ import { readCompanyProfile } from "@/lib/company-profile";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 type LoadingStage = { active: boolean; label: string };
+const StartupVisibleContext = createContext(true);
+export const useStartupVisible = () => useContext(StartupVisibleContext);
+
 const StartupContext = createContext<((id: string, stage: LoadingStage | null) => void) | null>(null);
 
 /** Loading gates share one screen instead of rendering their own overlays. */
@@ -95,7 +98,7 @@ export default function ManufeoSplash({ children }: { children: ReactNode }) {
   }, []);
 
   return <StartupContext.Provider value={update}>
-    <div style={{ display: "contents" }} inert={visible}>{children}</div>
+    <StartupVisibleContext.Provider value={visible}><div style={{ display: "contents" }} inert={visible}>{children}</div></StartupVisibleContext.Provider>
     {visible && <div className={`manufeo-splash${leaving ? " is-leaving" : ""}${introDone ? " intro-done" : ""}`} role="status" aria-live="polite" aria-label="Ouverture de MANUFEO">
       <div className="manufeo-splash-mark">
         <div className="manufeo-splash-logo"><img src="/icon-192.webp" width="96" height="96" alt="" fetchPriority="high" /></div>

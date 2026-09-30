@@ -1,4 +1,5 @@
 "use client";
+import ManufeoMascotWelcome from "./manufeo-mascot-welcome";
 import WorkerWorkspace from "./worker-workspace";
 import { useStartupLoading } from "./manufeo-splash";
 
@@ -545,6 +546,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
   return (
     <>
       {organization.role === "worker" ? <WorkerWorkspace /> : children}
+      <ManufeoMascotWelcome key={session.user.id} user={session.user} canUseVoice={organization.role !== "worker"} />
       <button
         type="button"
         className="forgeo-account-fallback"

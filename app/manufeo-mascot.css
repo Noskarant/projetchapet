@@ -1,0 +1,54 @@
+.manufeo-mascot{display:inline-block;width:104px;height:130px;flex:none;--mascot-level:0;filter:drop-shadow(0 5px 9px #0003)}
+.manufeo-mascot svg{display:block;width:100%;height:100%;overflow:visible}
+.mascot-head{transform-origin:121px 131px;animation:mascot-head-rest 6s ease-in-out infinite}
+.mascot-eyes{transform-origin:121px 88px;animation:mascot-blink 5.6s infinite}
+.mascot-action-arm{transform-origin:70px 158px}
+.mascot-forearm{transform-origin:61px 176px}
+.mascot-pencil,.mascot-thumb,.mascot-writing-arm,.mascot-sound,.mascot-thought,.mascot-check{display:none}
+.manufeo-mascot[data-mood=idle] .mascot-action-arm{transform:rotate(-26deg)}
+.manufeo-mascot[data-mood=hello] .mascot-forearm{animation:mascot-wave .9s ease-in-out 3}
+.manufeo-mascot[data-mood=listening] .mascot-head{transform:rotate(calc(-2deg - var(--mascot-level)*3deg));animation:mascot-listen 3.5s ease-in-out infinite}
+.manufeo-mascot[data-mood=listening] .mascot-forearm{transform:rotate(15deg)}
+.manufeo-mascot[data-mood=listening] .mascot-sound{display:block;opacity:calc(.2 + var(--mascot-level)*.8);transform:scale(calc(.95 + var(--mascot-level)*.12));transform-origin:26px 90px;transition:opacity .15s,transform .2s}
+.manufeo-mascot[data-mood=thinking] .mascot-head{animation:mascot-think 2.2s ease-in-out infinite}
+.manufeo-mascot[data-mood=thinking] .mascot-forearm{transform:rotate(27deg)}
+.manufeo-mascot[data-mood=thinking] .mascot-thought{display:block;animation:mascot-thought 2.2s ease-in-out infinite}
+.manufeo-mascot[data-mood=writing] .mascot-action-arm,.manufeo-mascot[data-mood=checking] .mascot-action-arm{display:none}
+.manufeo-mascot[data-mood=writing] .mascot-writing-arm,.manufeo-mascot[data-mood=checking] .mascot-writing-arm{display:block;transform-origin:66px 175px}
+.manufeo-mascot[data-mood=writing] .mascot-writing-arm{animation:mascot-write .65s ease-in-out infinite alternate}
+.manufeo-mascot[data-mood=writing] .mascot-head{transform:rotate(7deg) translateY(2px);animation:mascot-read 2.2s ease-in-out infinite}
+.manufeo-mascot[data-mood=checking] .mascot-head{animation:mascot-checking 2.2s ease-in-out infinite}
+.manufeo-mascot[data-mood=checking] .mascot-check,.manufeo-mascot[data-mood=ready] .mascot-check{display:block}
+.manufeo-mascot[data-mood=ready] .mascot-hand{display:none}
+.manufeo-mascot[data-mood=ready] .mascot-thumb{display:block}
+.manufeo-mascot[data-mood=ready] .mascot-forearm{animation:mascot-celebrate .8s ease-out 1}
+@keyframes mascot-head-rest{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(1deg)}}
+@keyframes mascot-blink{0%,42%,46%,100%{transform:scaleY(1)}44%{transform:scaleY(.08)}}
+@keyframes mascot-wave{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(12deg)}}
+@keyframes mascot-listen{0%,100%{transform:rotate(calc(-2deg - var(--mascot-level)*3deg))}50%{transform:rotate(calc(1deg + var(--mascot-level)*2deg))}}
+@keyframes mascot-think{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(-1deg)}}
+@keyframes mascot-thought{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes mascot-write{from{transform:rotate(-1deg)}to{transform:rotate(2deg)}}
+@keyframes mascot-read{0%,100%{transform:rotate(6deg) translateY(2px)}50%{transform:rotate(8deg) translateY(3px)}}
+@keyframes mascot-checking{0%,100%{transform:rotate(6deg)}50%{transform:rotate(-2deg)}}
+@keyframes mascot-celebrate{0%{transform:rotate(-12deg)}65%{transform:rotate(6deg)}100%{transform:rotate(0)}}
+.ava-mascot-stage{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.ava-mascot-stage::before{content:"";position:absolute;width:min(360px,60vw);height:min(360px,60vw);border-radius:50%;background:radial-gradient(circle,#2fc39a22,transparent 68%)}
+.ava-mascot-stage .manufeo-mascot{width:clamp(104px,13vw,150px);height:clamp(130px,16.25vw,187px);position:relative}
+.ava-voice-preview-stage .ava-mascot-stage .manufeo-mascot{width:72px;height:90px}
+.ava-mascot-preview{width:66px;height:82px}
+.ava-review-mascot{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 0;color:#476b5c;font-size:12px}
+.ava-review-mascot .manufeo-mascot{width:56px;height:70px}
+.ava-success>.manufeo-mascot{width:88px;height:110px}
+.manufeo-mascot-welcome{position:fixed;right:16px;bottom:calc(160px + env(safe-area-inset-bottom));z-index:85;display:flex;align-items:center;gap:4px;max-width:calc(100vw - 24px);pointer-events:none}
+.manufeo-mascot-welcome button{pointer-events:auto}
+.manufeo-mascot-toggle{padding:0;border:0;background:none;cursor:pointer;line-height:0;border-radius:16px}
+.manufeo-mascot-toggle:focus-visible,.manufeo-mascot-info:focus-visible{outline:2px solid #68d8bd;outline-offset:4px}
+.manufeo-mascot-toggle .manufeo-mascot{width:64px;height:80px}
+.manufeo-mascot-message{pointer-events:auto;max-width:245px;padding:12px 14px;border:1px solid #ffffff20;border-radius:16px;background:#101a2df5;color:#f4f7fb;box-shadow:0 8px 24px #0003;font:500 13px/1.45 system-ui,sans-serif}
+.manufeo-mascot-message strong{display:block;margin-bottom:4px}
+.manufeo-mascot-message button{display:block;margin-top:8px;border:0;border-radius:9px;background:#1a6651;color:white;padding:7px 10px;font:inherit;cursor:pointer}
+.manufeo-mascot-info{position:absolute;right:0;top:-6px;width:24px;height:24px;border-radius:50%;border:1px solid #8aa6ac66;background:#111e2b;color:#d0e6e1;cursor:pointer;font:700 12px system-ui}
+.manufeo-mascot-hide{position:absolute;left:-5px;top:-8px;width:22px;height:22px;border:1px solid #ffffff25;border-radius:50%;background:#111e2b;color:#b4c8d5;cursor:pointer;font-size:14px}
+@media(max-width:600px){.ava-mascot-stage .manufeo-mascot{width:104px;height:130px}.manufeo-mascot-welcome{right:10px}.manufeo-mascot-toggle .manufeo-mascot{width:52px;height:65px}.manufeo-mascot-message{max-width:205px;font-size:12px}}
+@media(prefers-reduced-motion:reduce){.manufeo-mascot *, .manufeo-mascot *::before{animation:none!important;transition:none!important}}
