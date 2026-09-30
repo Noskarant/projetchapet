@@ -18,7 +18,7 @@ import {
 } from "@/lib/voice-facts";
 import { polishFrenchTradeDesignation } from "@/lib/quote-language-polish";
 
-export type VoiceActionTarget = "command" | "quote" | "invoice" | "customer" | "agenda";
+export type VoiceActionTarget = "command" | "quote" | "invoice" | "customer" | "supplier" | "agenda";
 
 export type PlannedAction = {
   sourceType: "voice";
@@ -256,12 +256,27 @@ function normalizeCollaboratorPayload(source: RecordLike) {
   };
 }
 
+export function normalizeSupplierPayload(source: RecordLike, transcript = "") {
+  return {
+    name: text(source.name ?? source.supplier_name, 200),
+    email: normalizeSpokenEmail(source.email ?? source.supplier_email, transcript).slice(0, 254),
+    phone: text(source.phone, 40),
+    contact: text(source.contact, 200),
+    address: text(source.address, 500),
+    notes: text(source.notes, 3000),
+  };
+}
+
 function missingForIntent(intentType: ActionIntent, payload: RecordLike) {
   const missing: string[] = [];
   if (intentType === "create_customer") {
     const customer = normalizeCustomerPayload(payload);
     if (customer.kind === "business" && !customer.company_name) missing.push("raison_sociale");
     if (customer.kind === "individual" && !customer.last_name) missing.push("nom_client");
+  }
+  if (intentType === "create_supplier") {
+    if (!text(payload.name, 200)) missing.push("nom_fournisseur");
+    if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(String(payload.email))) missing.push("email_fournisseur_invalide");
   }
   if (intentType === "create_project" && !text(payload.name, 300)) missing.push("nom_chantier");
   if (intentType === "create_collaborator" && !text(payload.name, 240)) missing.push("nom_collaborateur");
@@ -302,6 +317,7 @@ function missingForIntent(intentType: ActionIntent, payload: RecordLike) {
 
 function payloadForIntent(intentType: ActionIntent, source: RecordLike, transcript = "", alreadyConverted = false) {
   if (intentType === "create_customer") return normalizeCustomerPayload(source, transcript);
+  if (intentType === "create_supplier") return normalizeSupplierPayload(source, transcript);
   if (intentType === "create_collaborator") return normalizeCollaboratorPayload(source);
   if (intentType === "create_project") return normalizeProjectPayload(source);
   if (intentType === "prepare_quote" || intentType === "prepare_invoice") return normalizeDocumentPayload(source, transcript, alreadyConverted);
@@ -371,7 +387,7 @@ export function plannedActionFromParsed(
   transcript: string,
 ): PlannedAction {
   const parsed = record(parsedValue);
-  const intentType: ActionIntent = target === "customer"
+  const intentType: ActionIntent = target === "supplier" ? "create_supplier" : target === "customer"
     ? "create_customer"
     : target === "quote"
       ? "prepare_quote"
@@ -408,7 +424,7 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
       !(hasValidEmail && /(?:e-mail|email|adresse).*(?:@|arobase|symbole)/iu.test(warning)));
     // The model can report stale, duplicate or invented field paths. Documents are
     // drafts: derive their blocking requirements from the normalized payload.
-    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator"
+    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier"
       ? missingForIntent(intentType, payload as RecordLike)
       : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)
         .filter((field) => !(hasValidEmail && ["destinataire", "email_client", "email", "adresse_email"].includes(field)))];
@@ -433,7 +449,7 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
 
 export function fallbackCommandPlan(transcript: string): PlannedAction[] {
   const lower = transcript.toLowerCase();
-  const likelyIntent: ActionIntent = /facture/.test(lower)
+  const likelyIntent: ActionIntent = /(?:cr[eé]e|ajoute|enregistre).{0,60}fournisseur/.test(lower) ? "create_supplier" : /facture/.test(lower)
     ? "prepare_invoice"
     : /devis|chiffr/.test(lower)
       ? "prepare_quote"
@@ -450,7 +466,7 @@ export function fallbackCommandPlan(transcript: string): PlannedAction[] {
     ? { project_id: "", body: transcript }
     : likelyIntent === "create_project"
       ? { name: "", subtitle: transcript, collaborator_names: [] }
-    : likelyIntent === "create_collaborator"
+    : likelyIntent === "create_collaborator" || likelyIntent === "create_supplier"
       ? { name: "" }
     : likelyIntent === "schedule_task"
       ? { title: transcript, date: "", time: "", location: "", type: "Chantier" }

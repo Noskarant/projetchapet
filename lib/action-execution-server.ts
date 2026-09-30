@@ -1,3 +1,4 @@
+import { createSupplierFromVoice } from "./voice-supplier";
 import { sendSupplierPriceRequest } from "./supplier-price-request";
 import { createServiceSupabase } from "./server-organization";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -251,6 +252,11 @@ async function executeProposal(
       entityId: String(data.id),
       message: "Client créé.",
     };
+  }
+
+  if (proposal.intent_type === "create_supplier") {
+    const supplier = await createSupplierFromVoice(context.client, proposal.organization_id, proposal.id, payload);
+    return { proposalId: proposal.id, intentType: proposal.intent_type, entityType: "supplier", entityId: supplier.id, message: `Fournisseur ${supplier.name} créé dans Fournisseurs.` };
   }
 
   if (proposal.intent_type === "create_collaborator") {

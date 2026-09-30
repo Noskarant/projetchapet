@@ -74,12 +74,14 @@ const choices: Choice[] = [
   { id: "quote", label: "Un devis", detail: "Client, prestations, quantités, prix et TVA", icon: FileText },
   { id: "invoice", label: "Une facture", detail: "Toujours créée en brouillon", icon: ReceiptText },
   { id: "customer", label: "Un client", detail: "Coordonnées, adresse, SIRET et TVA", icon: UserRound },
+  { id: "supplier", label: "Un fournisseur", detail: "Nom, contact, e-mail, téléphone et adresse", icon: ShoppingCart },
   { id: "agenda", label: "Agenda", detail: "Rendez-vous, intervention ou relance", icon: CalendarDays },
 ];
 
 const intentLabels: Record<string, string> = {
   create_customer: "Créer le client",
   create_collaborator: "Créer le collaborateur",
+  create_supplier: "Créer le fournisseur",
   create_project: "Créer le chantier",
   prepare_quote: "Créer un brouillon de devis",
   prepare_invoice: "Créer un brouillon de facture",
@@ -141,6 +143,9 @@ function proposalSummary(proposal: ActionProposalView) {
     const emails = Array.isArray(payload.emails) ? payload.emails.map(clean).filter(Boolean) : [];
     const phones = Array.isArray(payload.phones) ? payload.phones.map(clean).filter(Boolean) : [];
     return [name, clean(payload.siret) ? `SIRET ${clean(payload.siret)}` : "", emails[0] || "", phones[0] || ""].filter(Boolean).join(" · ");
+  }
+  if (proposal.intent_type === "create_supplier") {
+    return [clean(payload.name), clean(payload.contact), clean(payload.email), clean(payload.phone), clean(payload.address)].filter(Boolean).join(" · ");
   }
   if (proposal.intent_type === "create_project") {
     const names = [...(Array.isArray(payload.collaborator_names) ? payload.collaborator_names : []), ...(Array.isArray(payload.collaborator_new_names) ? payload.collaborator_new_names : [])];
@@ -205,6 +210,8 @@ function missingLabel(field: string) {
     heure: "Heure à préciser ou à corriger.",
     nom_client: "Nom du client à préciser.",
     nom_chantier: "Nom du chantier à préciser.",
+    nom_fournisseur: "Nom du fournisseur à préciser.",
+    email_fournisseur_invalide: "L’e-mail du fournisseur doit être corrigé avant la création.",
     nom_collaborateur: "Nom du collaborateur à préciser.",
     objet: "Objet à préciser.",
     message: "Message à préciser.",
@@ -223,6 +230,7 @@ function missingLabel(field: string) {
 
 function placeholder(target: VoiceActionTarget | null) {
   if (target === "command") return "Ex. Crée un chantier Peinture Dupont, affecte Lucas, prépare un devis pour 80 m² à 22 € HT et planifie une visite jeudi à 14 h.";
+  if (target === "supplier") return "Ex. Crée le fournisseur Tollens, contact Julie, e-mail julie arobase tollens point fr, téléphone 04…, adresse…";
   if (target === "customer") return "Ex. Société Martin Peinture, SIRET…, téléphone…, adresse…";
   if (target === "agenda") return "Ex. Mets une visite mardi prochain à 14 h chez Dupont.";
   return "Ex. Client Dupont, peinture 18 m² à 32 € HT, TVA 10 %.";
@@ -509,7 +517,7 @@ export default function ActionVoiceAssistant() {
     const timeout = window.setTimeout(() => controller.abort(), 35_000);
     try {
       const organizationId = await getActiveOrganizationId();
-      const parsed = selected === "command" ? undefined : await parseSingleTarget(selected, normalized, controller.signal);
+      const parsed = selected === "command" || selected === "supplier" ? undefined : await parseSingleTarget(selected, normalized, controller.signal);
       const planned = await planVoiceActions({
         organizationId,
         transcript: normalized,

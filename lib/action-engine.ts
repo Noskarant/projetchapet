@@ -1,6 +1,7 @@
 export const ACTION_INTENTS = [
   "create_customer",
   "create_collaborator",
+  "create_supplier",
   "create_project",
   "prepare_quote",
   "update_project_note",
@@ -68,7 +69,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function riskLevelForIntent(intent: ActionIntent): ActionRiskLevel {
   if (intent === "update_project_note") return "low";
-  if (intent === "create_customer" || intent === "create_collaborator" || intent === "create_project" || intent === "prepare_quote" || intent === "schedule_task") return "review";
+  if (intent === "create_customer" || intent === "create_collaborator" || intent === "create_supplier" || intent === "create_project" || intent === "prepare_quote" || intent === "schedule_task") return "review";
   return "explicit_confirmation";
 }
 

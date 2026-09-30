@@ -13,7 +13,7 @@ import { normalizeVoiceTranscript } from "@/lib/voice-facts";
 import { matchProjectCollaborator } from "@/lib/voice-project-matching";
 
 function cleanTarget(value: unknown): VoiceActionTarget {
-  return ["command", "quote", "invoice", "customer", "agenda"].includes(String(value))
+  return ["command", "quote", "invoice", "customer", "supplier", "agenda"].includes(String(value))
     ? (String(value) as VoiceActionTarget)
     : "command";
 }
@@ -24,6 +24,7 @@ Transforme UNE demande orale en une liste ordonnée d'actions structurées. Comp
 
 Intentions autorisées exactement :
 - create_customer : créer un client ;
+- create_supplier : créer une fiche fournisseur, nom obligatoire, contact, e-mail, téléphone, adresse et notes facultatifs ; ne jamais envoyer de message pour cette création ;
 - create_collaborator : créer une fiche collaborateur avec son nom, prénom éventuel, rôle et téléphone éventuels ;
 - create_project : créer une fiche chantier, éventuellement liée à un client, un devis et des collaborateurs ;
 - prepare_quote : créer uniquement un BROUILLON de devis ;
@@ -50,7 +51,7 @@ Réponds uniquement par ce JSON :
 {
   "actions":[
     {
-      "intent_type":"create_customer|create_collaborator|create_project|prepare_quote|prepare_invoice|schedule_task|update_project_note|prepare_supplier_order|mark_payment|prepare_email",
+      "intent_type":"create_customer|create_supplier|create_collaborator|create_project|prepare_quote|prepare_invoice|schedule_task|update_project_note|prepare_supplier_order|mark_payment|prepare_email",
       "confidence":0.0,
       "warnings":[],
       "missing_fields":[],
@@ -61,6 +62,7 @@ Réponds uniquement par ce JSON :
 
 Schémas de payload utiles :
 create_customer: {"kind":"business|individual","company_name":"","civility":"M.|Mme|M. et Mme","last_name":"","first_name":"","siret":"","vat_number":"","emails":[],"phones":[],"addresses":[{"line1":"","postal_code":"","city":"","country":"France"}],"notes":""}
+create_supplier: {"name":"","contact":"","email":"","phone":"","address":"","notes":""}
 create_collaborator: {"name":"prénom et nom ou seulement un nom","role":"","phone":""}
 create_project: {"name":"","subtitle":"","customer_hint":"","customer_from_position":null,"quote_from_position":null,"address":"","start_date":"YYYY-MM-DD ou vide","next_visit":"YYYY-MM-DD ou vide","collaborator_names":[],"collaborator_from_positions":[]}
 prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","items":[{"label":"","description":"","quantity":null,"quantity_evidence":"","unit":null,"unit_price":null,"price_evidence":"","price_type":"ht|ttc|unknown","tax_rate":null,"tax_evidence":""}]}
@@ -71,9 +73,9 @@ mark_payment: {"invoice_number":"","amount":null,"method":"virement","reference"
 prepare_email: {"to":"","subject":"","body":"","related_entity":""}`;
 }
 
-async function planWithDeepSeek(transcript: string) {
+async function planWithDeepSeek(transcript: string, supplierOnly = false) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) return fallbackCommandPlan(transcript);
+  if (!apiKey) return supplierOnly ? [plannedActionFromParsed("supplier", {}, transcript)] : fallbackCommandPlan(transcript);
 
   const dateParts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit",
@@ -93,7 +95,7 @@ async function planWithDeepSeek(transcript: string) {
       max_tokens: 3200,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: planningPrompt() },
+        { role: "system", content: planningPrompt() + (supplierOnly ? "\nL’utilisateur a choisi la création d’un fournisseur. Retourne uniquement une action create_supplier avec les coordonnées dictées. N’invente pas les coordonnées manquantes." : "") },
         { role: "user", content: `Date du jour en France : ${parisDate}. Demande : ${transcript}` },
       ],
     }),
@@ -108,7 +110,7 @@ async function planWithDeepSeek(transcript: string) {
   } catch {
     throw new Error("Le planificateur IA a retourné un JSON invalide.");
   }
-  const actions = normalizeModelPlan(raw, transcript);
+  const actions = normalizeModelPlan(raw, transcript).filter(action => !supplierOnly || action.intentType === "create_supplier");
   if (!actions.length) throw new ApiInputError("Aucune action exploitable n’a été reconnue.", 422);
   return actions;
 }
@@ -358,8 +360,8 @@ export async function POST(request: Request) {
     requireOrganization(context, organizationId, ["owner", "admin", "office", "manager"]);
     const target = cleanTarget(body.target);
 
-    const planned = target === "command"
-      ? await planWithDeepSeek(transcript)
+    const planned = target === "command" || target === "supplier"
+      ? await planWithDeepSeek(transcript, target === "supplier")
       : [plannedActionFromParsed(target, body.parsed, transcript)];
     const actions = hardenPlannedActions(planned);
     await resolveProjectCollaborators(actions, organizationId, context.client);
