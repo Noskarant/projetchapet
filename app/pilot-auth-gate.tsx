@@ -1,5 +1,6 @@
 "use client";
 import WorkerWorkspace from "./worker-workspace";
+import { useStartupLoading } from "./manufeo-splash";
 
 import type { Session } from "@supabase/supabase-js";
 import type { FormEvent, ReactNode } from "react";
@@ -35,18 +36,8 @@ function LoadingScreen({
 }: {
   label?: string;
 }) {
-  return (
-    <main
-      className="forgeo-auth-screen"
-      aria-label="Chargement sécurisé FORGEO"
-    >
-      <div className="forgeo-auth-loading">
-        <span className="forgeo-auth-loading-mark">F</span>
-        <strong>{label}</strong>
-      </div>
-      <AuthStyles />
-    </main>
-  );
+  useStartupLoading(true, label);
+  return null;
 }
 
 function friendlyAuthError(message: string) {

@@ -270,4 +270,17 @@ kbd { padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; color
   .modal-actions button { width: 100%; }
   .line-item { align-items: flex-start; }
 }
-.manufeo-splash{position:fixed;inset:0;z-index:250000;display:grid;place-items:center;background:linear-gradient(145deg,#0e2741,#0b4770);color:white;pointer-events:none;animation:manufeo-splash-out .65s ease-out forwards}.manufeo-splash-mark{display:grid;justify-items:center;gap:15px;animation:manufeo-splash-in .5s ease-out both}.manufeo-splash-mark img{width:80px;height:80px;object-fit:contain;filter:drop-shadow(0 10px 20px #081a2b55)}.manufeo-splash-mark strong{font:800 19px system-ui,sans-serif;letter-spacing:.21em}@keyframes manufeo-splash-in{from{opacity:0;transform:translateY(12px) scale(.94)}to{opacity:1;transform:none}}@keyframes manufeo-splash-out{0%,64%{opacity:1}100%{opacity:0}}@media(prefers-reduced-motion:reduce){.manufeo-splash,.manufeo-splash-mark{animation:none}}
+/* One shared startup screen: calm logo reveal, no rotating loaders. */
+.manufeo-splash{position:fixed;inset:0;z-index:250000;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 42%,#164d6b 0%,#102e49 45%,#091e33 100%);color:#fff;isolation:isolate;opacity:1;transition:opacity .25s ease;touch-action:manipulation}
+.manufeo-splash.is-leaving{opacity:0}
+.manufeo-splash-mark{display:grid;justify-items:center;gap:20px;padding:24px;text-align:center}
+.manufeo-splash-logo{position:relative;width:112px;height:112px;display:grid;place-items:center;animation:manufeo-logo-reveal 1.75s cubic-bezier(.2,.7,.2,1) both}
+.manufeo-splash-logo::before{content:"";position:absolute;inset:-28px;border-radius:50%;background:radial-gradient(circle,#68b8e52b,transparent 70%);animation:manufeo-logo-glow 1.75s ease-out both}
+.manufeo-splash-logo img{position:relative;width:96px;height:96px;object-fit:contain;border-radius:24px;filter:drop-shadow(0 12px 26px #04132255)}
+.manufeo-splash-mark strong{font:800 clamp(20px,4vw,26px) system-ui,sans-serif;letter-spacing:.2em;margin-right:-.2em;animation:manufeo-word-reveal .75s .2s ease-out both}
+.manufeo-splash-caption{font:400 13px/1.5 system-ui,sans-serif;color:#c0d5e4;min-height:20px;animation:manufeo-word-reveal .7s .4s ease-out both}
+.manufeo-splash.intro-done .manufeo-splash-logo,.manufeo-splash.intro-done .manufeo-splash-logo::before,.manufeo-splash.intro-done strong,.manufeo-splash.intro-done .manufeo-splash-caption{animation:none}
+@keyframes manufeo-logo-reveal{0%{opacity:0;transform:translateY(8px) scale(.92)}45%,80%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes manufeo-logo-glow{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@keyframes manufeo-word-reveal{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.manufeo-splash{transition:none}.manufeo-splash-logo,.manufeo-splash-logo::before,.manufeo-splash-mark strong,.manufeo-splash-caption{animation:none}}

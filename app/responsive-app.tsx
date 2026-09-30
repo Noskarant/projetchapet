@@ -24,7 +24,7 @@ const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
 export default function ResponsiveApp() {
   return (
     <AppErrorBoundary>
-      <ManufeoSplash />
+      <ManufeoSplash>
       <PwaRegister />
       <ManufeoBrandingBridge />
       <PilotAuthGate>
@@ -40,6 +40,7 @@ export default function ResponsiveApp() {
         <ProductUiPolish />
         <MobilePrototypeGate />
       </PilotAuthGate>
+      </ManufeoSplash>
     </AppErrorBoundary>
   );
 }

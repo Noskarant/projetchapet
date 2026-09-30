@@ -1,5 +1,6 @@
 "use client";
 
+import { useStartupLoading } from "./manufeo-splash";
 import InvoiceDeliveryStatus from "./invoice-delivery-status";
 import { useEffect, useState } from "react";
 import MobileAccountingAction from "./mobile-accounting-action";
@@ -35,6 +36,7 @@ const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
 
 export default function MobilePrototypeGate() {
   const [ready, setReady] = useState(false);
+  useStartupLoading(!ready, "Préparation de votre espace…");
 
   useEffect(() => {
     let active = true;
@@ -54,24 +56,7 @@ export default function MobilePrototypeGate() {
     };
   }, []);
 
-  if (!ready) {
-    return (
-      <main
-        aria-label="Chargement de MANUFEO"
-        style={{
-          minHeight: "100dvh",
-          display: "grid",
-          placeItems: "center",
-          background: "#f3f6f9",
-          color: "#102a43",
-          fontFamily: "Arial, sans-serif",
-          fontWeight: 800,
-        }}
-      >
-        MANUFEO
-      </main>
-    );
-  }
+  if (!ready) return null;
 
   return (
     <>
