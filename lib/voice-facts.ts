@@ -75,7 +75,7 @@ export function explicitPrice(phrase: string) {
 }
 
 export function explicitTax(phrase: string) {
-  const match = phrase.match(/(?:tva|taxe\s+sur\s+la\s+valeur\s+ajoutée)\s*(?:à|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/iu);
+  const match = phrase.match(/(?:tva|taxe\s+sur\s+la\s+valeur\s+ajoutée)\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/iu);
   return match ? decimal(match[1]) : null;
 }
 

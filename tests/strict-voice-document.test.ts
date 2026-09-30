@@ -313,3 +313,60 @@ test("les lignes incomplètes sont exclues du calcul mobile sans être gratuites
   assert.equal(totals.taxTotal, 134.4);
   assert.equal(totals.total, 1478.4);
 });
+
+
+test("route stricte propage la TVA initiale unique aux lignes locales et IA", async () => {
+  const previousApiKey = process.env.DEEPSEEK_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.DEEPSEEK_API_KEY = "test-only";
+  try {
+    for (const rate of [0, 5.5, 10, 20]) {
+      globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+        client: { nom: "Quentin Dubois" },
+        prestations: [
+          { designation: "Installation domotique", quantite: 1, unite: "forfait", prix_unitaire_ht: 100, taux_tva: null },
+          { designation: "Configuration réseau", quantite: 2, unite: "h", prix_unitaire_ht: 50, taux_tva: 20 },
+        ],
+      }) } }] }), { status: 200 });
+      const response = await parseStrictPost(new Request("http://localhost/api/ai/parse-strict", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: `Fais un devis pour Quentin Dubois, TVA à ${String(rate).replace(".", ",")} pour cent. Installation domotique 1 forfait à 100 euros. Configuration réseau 2 h à 50 euros.`, target: "quote" }),
+      }));
+      const payload = await response.json();
+      assert.equal(response.ok, true);
+      assert.equal(payload.mode, "strict-non-thinking");
+      assert.ok(payload.data.items.length >= 2);
+      assert.ok(payload.data.items.every((line: { tax_rate: number }) => line.tax_rate === rate));
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousApiKey;
+  }
+});
+
+test("route stricte ne remplace pas une exception TVA explicite", async () => {
+  const previousApiKey = process.env.DEEPSEEK_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.DEEPSEEK_API_KEY = "test-only";
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+    client: { nom: "Quentin Dubois" },
+    prestations: [
+      { designation: "Installation domotique", quantite: 1, unite: "forfait", prix_unitaire_ht: 100, taux_tva: 10 },
+      { designation: "Configuration réseau", quantite: 2, unite: "h", prix_unitaire_ht: 50, taux_tva: 20 },
+    ],
+  }) } }] }), { status: 200 });
+  try {
+    const response = await parseStrictPost(new Request("http://localhost/api/ai/parse-strict", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcript: "Fais un devis pour Quentin Dubois, TVA 10 %. Installation domotique 1 forfait à 100 euros. Configuration réseau 2 h à 50 euros, TVA 20 % pour cette prestation.", target: "quote" }),
+    }));
+    const payload = await response.json();
+    assert.equal(response.ok, true);
+    assert.deepEqual(payload.data.items.filter((line: { label: string }) => ["Installation domotique", "Configuration réseau"].includes(line.label)).map((line: { tax_rate: number }) => line.tax_rate), [10, 20]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousApiKey;
+  }
+});

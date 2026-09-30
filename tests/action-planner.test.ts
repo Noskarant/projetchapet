@@ -177,3 +177,16 @@ test("sans modèle multi-actions le fallback garde la demande mais n’invente r
   assert.ok(action.missingFields.includes("client"));
   assert.ok(action.missingFields.includes("prestations"));
 });
+
+
+test("TVA initiale avec a sans accent et taux zéro se propage sans evidence IA", () => {
+  for (const rate of [0, 5.5, 10, 20]) {
+    const [action] = normalizeModelPlan({ actions: [{ intent_type: "prepare_quote", payload: {
+      customer_hint: "Philippe", items: [
+        { label: "Protection", quantity: 1, unit: "forfait", unit_price: 100, price_type: "ht" },
+        { label: "Pose", quantity: 2, unit: "h", unit_price: 50, price_type: "ht" },
+      ],
+    } }] }, `TVA a ${String(rate).replace(".", ",")} pour cent. Protection à 100 euros HT. Pose 2 heures à 50 euros HT.`);
+    assert.deepEqual((action.payload.items as Array<{ tax_rate: number }>).map((line) => line.tax_rate), [rate, rate]);
+  }
+});

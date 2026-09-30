@@ -111,6 +111,21 @@ function repeatedSharedTax(transcript: string) {
   return matches.every((value) => value === matches[0]) ? matches[0] : null;
 }
 
+function initialSharedTax(transcript: string) {
+  const matches = [...transcript.matchAll(/\btva\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/giu)];
+  const first = matches[0];
+  if (!first) return null;
+  const firstPrice = transcript.search(/\d+(?:[,.]\d+)?\s*(?:€|euros?)/iu);
+  if (firstPrice >= 0 && first.index > firstPrice) return null;
+  const scope = /\b(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
+  const before = transcript.slice(0, first.index).split(/[.!?;]/u).at(-1) ?? "";
+  const after = transcript.slice(first.index + first[0].length).split(/[.!?;]/u)[0];
+  if (scope.test(before) || scope.test(after)) return null;
+  const rate = Number(first[1].replace(",", "."));
+  // A later different rate needs line-specific interpretation; never overwrite it.
+  return matches.every((match) => Number(match[1].replace(",", ".")) === rate) ? rate : null;
+}
+
 function applyFinalTranscriptGuards(
   transcript: string,
   data: StrictDocument,
@@ -118,13 +133,19 @@ function applyFinalTranscriptGuards(
 ) {
   const spoken = normalizeSemanticText(transcript);
   const correctedDoorQuantity = finalDoorQuantityCorrection(transcript);
-  const sharedTax = repeatedSharedTax(transcript);
+  const initialTax = initialSharedTax(transcript);
+  const sharedTax = initialTax ?? repeatedSharedTax(transcript);
   const explicitlyMentionsSiteProtection = /\bprotection\s+(?:du\s+)?chantier\b/u.test(spoken);
   let changed = false;
 
   const prestations = data.prestations.map((service) => {
     const family = semanticServiceFamily(service.designation);
     let next = service;
+
+    if (initialTax !== null && next.taux_tva !== initialTax) {
+      next = { ...next, taux_tva: initialTax };
+      changed = true;
+    }
 
     if (family === "doors" && service.unite === "unite" && correctedDoorQuantity !== null && correctedDoorQuantity > 0) {
       next = {
