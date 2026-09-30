@@ -6,6 +6,7 @@ import path from 'node:path';
 const root = path.resolve(__dirname, '..');
 const build = buildSync({
  stdin:{resolveDir:root,loader:'tsx',contents:`
+ import './app/action-voice-assistant.css';
  import React,{useState} from 'react';import {createRoot} from 'react-dom/client';
  import ManufeoSplash from './app/manufeo-splash';
  import Welcome from './app/manufeo-mascot-welcome';
@@ -39,16 +40,18 @@ test('accueil personnel, quotidien, discret et masquable',async({page})=>{
  expect(errors).toEqual([]);
 });
 
-test('deuxième appui, réflexion, écriture, vérification et fermeture',async({page})=>{
+test('deuxième appui, réflexion, écriture, vérification et fermeture',async({page},testInfo)=>{
  await page.locator('#start').click();
  await expect(page.locator('.manufeo-mascot-welcome')).toHaveCount(0);
  const robot=page.locator('[data-testid="voice-listening-visualizer"] .manufeo-mascot');await expect(robot).toHaveAttribute('data-mood','listening');
  const box=await robot.boundingBox();expect(box!.height).toBeLessThanOrEqual(190);
  expect(await robot.locator('.mascot-sound').evaluate(el=>getComputedStyle(el).opacity)).not.toBe('0');
+ await page.screenshot({path:testInfo.outputPath('mascot-listening.png')});
  const before=await robot.locator('.mascot-head').evaluate(el=>getComputedStyle(el).transform);await page.waitForTimeout(500);expect(await robot.locator('.mascot-head').evaluate(el=>getComputedStyle(el).transform)).not.toBe(before);
  await page.getByRole('button',{name:'J’ai fini de parler'}).click();
  const processing=page.locator('[data-testid="voice-processing-visualizer"] .manufeo-mascot');await expect(processing).toHaveAttribute('data-mood','thinking');
  await expect(processing).toHaveAttribute('data-mood','writing',{timeout:5000});
+ await page.screenshot({path:testInfo.outputPath('mascot-writing.png')});
  const writing=processing.locator('.mascot-writing-arm');expect(await writing.evaluate(el=>getComputedStyle(el).display)).not.toBe('none');const hand=await writing.evaluate(el=>getComputedStyle(el).transform);await page.waitForTimeout(300);expect(await writing.evaluate(el=>getComputedStyle(el).transform)).not.toBe(hand);
  await expect(processing).toHaveAttribute('data-mood','checking',{timeout:6000});
  await page.locator('#review').click();await expect(page.locator('.manufeo-mascot[data-mood="ready"]')).toBeVisible();await expect(page.locator('#confirm')).toBeVisible();
