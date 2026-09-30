@@ -17,7 +17,7 @@ const ALLOWED_AUDIO_TYPES = new Set([
 ]);
 
 const BTP_PROMPT =
-  "Dictée de devis d'un artisan français : virgules décimales et centimes exacts, par exemple 18,50 mètres carrés à 21 euros hors taxes, TVA à 10 %, ou 21 euros TTC. Conserver chaque chiffre, chaque virgule, les noms et prénoms épelés lettre par lettre, les e-mails dictés avec arobase et point. Vocabulaire : client, chantier, peinture, papier peint, rouleau, fourniture, pose, mètre carré, mètre linéaire, HT, TTC.";
+  "Dictée de devis d'un artisan français : virgules décimales et centimes exacts, par exemple 18,50 mètres carrés à 21 euros hors taxes, TVA à 10 %, ou 21 euros TTC. Conserver chaque chiffre, chaque virgule, les noms et prénoms épelés lettre par lettre, les e-mails dictés : arobase = @, point = ., tiret = -, tiret du bas = _. Exemple : jean point dupont arobase atelier point fr = jean.dupont@atelier.fr. Vocabulaire : client, chantier, peinture, papier peint, rouleau, fourniture, pose, mètre carré, mètre linéaire, HT, TTC.";
 
 const TRANSCRIPTION_MODEL = "whisper-large-v3";
 

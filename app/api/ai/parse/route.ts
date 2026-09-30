@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import { robustArtisanDictation } from "@/lib/robust-artisan-dictation";
 import { strictDocumentToLegacy } from "@/lib/strict-voice-document";
-import { normalizeVoiceTranscript } from "@/lib/voice-facts";
+import { isEmailSeparatorWarning, normalizeSpokenEmail, normalizeVoiceTranscript, spokenEmailsFromTranscript } from "@/lib/voice-facts";
 
 type ParseKind = "customer" | "document";
 type PriceType = "ht" | "ttc" | "unknown";
@@ -51,11 +51,17 @@ function uniqueWarnings(values: unknown) {
   return [...new Set(values.map((value) => cleanText(value, 240)).filter(Boolean))].slice(0, 20);
 }
 
-function normalizeCustomer(data: Record<string, unknown>) {
+function normalizeCustomer(data: Record<string, unknown>, transcript = "") {
   const kind = data.kind === "individual" ? "individual" : "business";
   const companyName = cleanText(data.company_name, 160);
   const lastName = cleanText(data.last_name, 100);
-  const warnings = uniqueWarnings(data.warnings);
+  const heardEmails = spokenEmailsFromTranscript(transcript);
+  const email1 = normalizeSpokenEmail(data.email1, transcript).slice(0, 160) || heardEmails[0] || "";
+  const email2 = normalizeSpokenEmail(data.email2, transcript).slice(0, 160)
+    || heardEmails.find((email) => email !== email1) || "";
+  const validEmails = [email1, email2].filter(Boolean);
+  const hasValidEmails = validEmails.length > 0 && validEmails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email));
+  const warnings = uniqueWarnings(data.warnings).filter((warning) => !(hasValidEmails && isEmailSeparatorWarning(warning)));
 
   if (kind === "business" && !companyName) warnings.push("La raison sociale n’a pas été clairement dictée.");
   if (kind === "individual" && !lastName) warnings.push("Le nom du particulier n’a pas été clairement dicté.");
@@ -68,8 +74,8 @@ function normalizeCustomer(data: Record<string, unknown>) {
     first_name: cleanText(data.first_name, 100),
     siret: cleanText(data.siret, 20).replace(/\D/g, ""),
     vat_number: cleanText(data.vat_number, 24).replace(/\s/g, "").toUpperCase(),
-    email1: cleanText(data.email1, 160),
-    email2: cleanText(data.email2, 160),
+    email1,
+    email2,
     phone1: cleanText(data.phone1, 40),
     phone2: cleanText(data.phone2, 40),
     line1: cleanText(data.line1, 220),
@@ -132,7 +138,7 @@ function normalizeDocument(data: Record<string, unknown>) {
 }
 
 function fallbackCustomer(text: string) {
-  const emailMatches = [...text.matchAll(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g)].map((match) => match[0]);
+  const emailMatches = spokenEmailsFromTranscript(text);
   const phoneMatches = [...text.matchAll(/(?:\+33|0)[1-9](?:[ .-]?\d{2}){4}/g)].map((match) => match[0]);
   const siret = text.match(/\b\d{3}[ .]?\d{3}[ .]?\d{3}[ .]?\d{5}\b/)?.[0]?.replace(/\D/g, "") ?? "";
   const postalCode = text.match(/\b\d{5}\b/)?.[0] ?? "";
@@ -222,6 +228,7 @@ Schéma exact :
   "notes":"",
   "warnings":[""]
 }
+Dans les e-mails, « arobase », « arrobase » ou « a robase » = @, « point » = ., « tiret » = - et « tiret du bas » = _. Par exemple « jean point dupont arobase atelier point fr » donne jean.dupont@atelier.fr. Ne signale pas une arobase absente lorsqu'elle a été dictée.
 Les nombres dictés chiffre par chiffre doivent être réunis sans inventer de chiffre. Réponds uniquement avec le JSON.`;
   }
 
@@ -302,7 +309,7 @@ export async function POST(request: Request) {
     } catch {
       throw new Error("DeepSeek a retourné un JSON invalide.");
     }
-    const data = kind === "customer" ? normalizeCustomer(raw) : normalizeDocument(raw);
+    const data = kind === "customer" ? normalizeCustomer(raw, transcript) : normalizeDocument(raw);
 
     return NextResponse.json({
       provider: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",

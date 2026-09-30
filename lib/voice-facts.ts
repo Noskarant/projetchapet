@@ -1,9 +1,45 @@
+const spokenAt = /\b(?:ar{1,2}obase|a\s+robase|arobas)\b/giu;
+const emailAtom = "[a-z0-9_%+-]+";
+const emailSeparator = "(?:\\s*\\.\\s*|\\s+(?:point|tiret(?:\\s+du\\s+bas)?|underscore)\\s+)";
+const emailPart = `${emailAtom}(?:${emailSeparator}${emailAtom})*`;
+const spokenAddress = new RegExp(`(${emailPart})\\s*@\\s*(${emailPart})`, "giu");
+
+function emailSeparators(value: string) {
+  return value.replace(/\s+point\s+/giu, ".")
+    .replace(/\s+(?:tiret\s+du\s+bas|underscore)\s+/giu, "_")
+    .replace(/\s+tiret\s+/giu, "-")
+    .replace(/\s*([@.])\s*/g, "$1");
+}
+
+// Only compact spoken punctuation inside an address with an explicit @.
+// A “point” elsewhere in a dictation must retain its original meaning.
+function normalizeTranscriptEmails(input: string) {
+  return input.replace(spokenAt, "@").replace(spokenAddress,
+    (address) => {
+      // A sentence-ending dot after the domain is not part of the address.
+      const domainStart = address.indexOf("@") + 1;
+      const boundary = address.slice(domainStart).search(/(?<=\b(?:fr|com|net|org|eu|be|ch|io|info|biz))\.\s+/iu);
+      const end = boundary < 0 ? address.length : domainStart + boundary;
+      return emailSeparators(address.slice(0, end)).toLocaleLowerCase("fr-FR") + address.slice(end);
+    });
+}
+
+export function spokenEmailsFromTranscript(transcript: string) {
+  return [...new Set([...normalizeTranscriptEmails(transcript)
+    .matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}(?![a-z0-9_-])/giu)]
+    .map((match) => match[0].toLocaleLowerCase("fr-FR")))];
+}
+
+export function isEmailSeparatorWarning(warning: string) {
+  return /(?:@|ar{1,2}obase|arobas|symbole)/iu.test(warning)
+    && /(?:e-?mail|adresse|manqu|absen|contien)/iu.test(warning);
+}
+
 // Keep decimal facts in the transcript before asking the model to interpret them.
 // These substitutions only join a clearly spoken fractional part; they do not
 // infer an area unit from a length unit or invent a monetary/tax value.
 export function normalizeVoiceTranscript(input: string) {
-  return input
-    .replace(/\b(?:arobase|arrobase|a\s+robase)\b/giu, "@")
+  return normalizeTranscriptEmails(input)
     .replace(/(\d{1,6})\s+(?:virgule|point)\s+(\d{1,3})(?=\D|$)/giu, "$1,$2")
     .replace(/(?<![\d,.])(\d{1,6})\s*(m(?:ètres?(?:\s+(?:carrés?|linéaires?))?|[²2l])|rouleaux?|euros?|€)\s+(\d{2})(?=\s|[.,;!?]|$)/giu, "$1,$3 $2")
     .replace(/\b((?:prénom|nom)\s+(?:(?:s['’]écrit|s['’]épelle|épelé)\s*)?:?\s*)((?:[a-z]\s*[,.-]?\s+){2,}[a-z])(?=\s|[.,;!?]|$)/giu,
@@ -19,17 +55,12 @@ export function normalizeVoiceTranscript(input: string) {
 export function normalizeSpokenEmail(value: unknown, transcript = "") {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) return "";
-  let email = raw.toLocaleLowerCase("fr-FR")
-    .replace(/\b(?:arobase|arrobase|a\s+robase)\b/giu, "@")
-    .replace(/\s+point\s+/giu, ".")
-    .replace(/\s*@\s*/g, "@")
-    .replace(/\s*\.\s*/g, ".")
-    .replace(/[\s,;!]+$/g, "");
+  let email = emailSeparators(raw.toLocaleLowerCase("fr-FR").replace(spokenAt, "@"))
+    .replace(/[\s.,;!]+$/g, "");
   if (!email.includes("@")) {
-    const heard = [...normalizeVoiceTranscript(transcript).toLocaleLowerCase("fr-FR")
-      .matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gu)]
-      .map((match) => match[0]);
-    const grounded = heard.filter((candidate) => candidate.replace("@", ".") === email);
+    const heard = spokenEmailsFromTranscript(transcript);
+    const grounded = heard.filter((candidate) => candidate.replace("@", ".") === email
+      || candidate.replace("@", "") === email || candidate.replace("@", " ") === email);
     if (grounded.length === 1) email = grounded[0];
     else email = email.replace(
       /^([a-z0-9][a-z0-9._%+-]*)\.(gmail|outlook|hotmail|yahoo|icloud|orange|free|laposte|example|exemple)\.(com|fr|net|org)$/u,

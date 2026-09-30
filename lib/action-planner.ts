@@ -10,6 +10,7 @@ import {
   explicitQuantity,
   explicitTax,
   groundedEvidence,
+  isEmailSeparatorWarning,
   normalizeSpokenEmail,
   roomEvidenceSegments,
   roomQuantityEvidence,
@@ -395,7 +396,9 @@ export function plannedActionFromParsed(
         ? "prepare_invoice"
         : "schedule_task";
   const payload = payloadForIntent(intentType, parsed, transcript, true);
-  const warnings = stringArray(parsed.warnings, 20);
+  const emails = intentType === "create_customer" ? (payload as RecordLike).emails as string[] : [];
+  const hasValidEmails = emails.length > 0 && emails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email));
+  const warnings = stringArray(parsed.warnings, 20).filter((warning) => !(hasValidEmails && isEmailSeparatorWarning(warning)));
   const missingFields = missingForIntent(intentType, payload as RecordLike);
   return finalizeAction({
     intentType,
@@ -421,7 +424,7 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
       : intentType === "prepare_email" ? [(payload as RecordLike).to as string] : [];
     const hasValidEmail = emails.length > 0 && emails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email));
     const warnings = stringArray(source.warnings, 20).filter((warning) =>
-      !(hasValidEmail && /(?:e-mail|email|adresse).*(?:@|arobase|symbole)/iu.test(warning)));
+      !(hasValidEmail && isEmailSeparatorWarning(warning)));
     // The model can report stale, duplicate or invented field paths. Documents are
     // drafts: derive their blocking requirements from the normalized payload.
     const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier"

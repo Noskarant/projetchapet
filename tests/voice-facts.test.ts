@@ -5,6 +5,7 @@ import {
   explicitQuantity,
   normalizeVoiceTranscript,
   normalizeSpokenEmail,
+  spokenEmailsFromTranscript,
   roomQuantityEvidence,
   spokenPriceType,
 } from "../lib/voice-facts";
@@ -21,8 +22,20 @@ test("conserve les décimales françaises et les lettres explicitement épelées
   assert.equal(spokenPriceType("21 euros toutes taxes comprises"), "ttc");
 });
 
+test("compacte les adresses dictées avant l'IA sans changer les phrases voisines", () => {
+  for (const at of ["arobase", "arrobase", "a robase", "arobas", "@"]) {
+    const dictation = `Crée Jean Dupont, email jean point dupont ${at} mon tiret atelier point fr, téléphone 0612345678. Un point important.`;
+    assert.equal(normalizeVoiceTranscript(dictation), "Crée Jean Dupont, email jean.dupont@mon-atelier.fr, téléphone 0612345678. Un point important.");
+    assert.deepEqual(spokenEmailsFromTranscript(dictation), ["jean.dupont@mon-atelier.fr"]);
+  }
+  assert.equal(normalizeSpokenEmail("Jean tiret du bas Dupont arobase Atelier point FR."), "jean_dupont@atelier.fr");
+  assert.equal(normalizeSpokenEmail("jean.dupont.atelier.fr", "Email jean point dupont arobase atelier point fr"), "jean.dupont@atelier.fr");
+  assert.deepEqual(spokenEmailsFromTranscript("Sans mail, on fait le point sur les travaux."), []);
+  assert.equal(normalizeVoiceTranscript("Email jean arobase atelier point fr. Téléphone 0612345678."), "Email jean@atelier.fr. Téléphone 0612345678.");
+});
+
 test("restaure une arobase dictée et ne devine pas une adresse ambiguë", () => {
-  assert.equal(normalizeVoiceTranscript("julien point morel arobase exemple point com"), "julien point morel @ exemple point com");
+  assert.equal(normalizeVoiceTranscript("julien point morel arobase exemple point com"), "julien.morel@exemple.com");
   assert.equal(normalizeSpokenEmail("julien point morel arobase exemple point com"), "julien.morel@exemple.com");
   assert.equal(normalizeSpokenEmail("julien.morel.exemple.com"), "julien.morel@exemple.com");
   assert.equal(normalizeSpokenEmail("jean.dupont.societe.fr"), "jean.dupont.societe.fr");
