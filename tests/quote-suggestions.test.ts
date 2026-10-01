@@ -50,12 +50,15 @@ test('le plan vocal lit seulement les devis validés de son entreprise et prése
   const client={from:(table:string)=>{assert.equal(table,'quotes');return chain;}} as unknown as Parameters<typeof proposeLearnedSellingPrices>[2];
   const action=plannedActionFromParsed('quote',{customer_hint:'Dupont',items:[{label:'Peinture murs',unit:'m²',quantity:10,unit_price:null},{label:'Peinture murs',unit:'m²',unit_price:0},{label:'Peinture murs',unit:'m²',unit_price:45}]},'Peinture murs pour Dupont');
   (action.payload.items as Array<Record<string, unknown>>).push({label:'Peinture murs',unit:'m²',unit_price:null,spoken_price_ttc:60});
+  action.warnings.push('Ligne 1 : prix unitaire absent.', 'Adresse à préciser.');
   await proposeLearnedSellingPrices([action],'company-A',client);
   assert.ok(calls.some(call=>call[1]==='organization_id'&&call[2]==='company-A'));
   assert.ok(calls.some(call=>call[1]==='status'&&call[2]==='accepted'));
   const items=action.payload.items as Array<{unit_price:number;price_source?:string}>;
   assert.deepEqual(items.map(i=>i.unit_price),[30,0,45,null]);
   assert.equal(items[0].price_source,'company_history');
+  assert.ok(!action.warnings.includes('Ligne 1 : prix unitaire absent.'));
+  assert.ok(action.warnings.includes('Adresse à préciser.'));
   assert.match(action.warnings.at(-1)!,/À confirmer/);
 });
 test('un historique indisponible ne bloque pas le devis et ne fournit aucun prix inventé',async()=>{
