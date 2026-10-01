@@ -11,6 +11,7 @@ import {
 import { authenticateRequest, requireOrganization } from "@/lib/server-auth";
 import { normalizeVoiceTranscript } from "@/lib/voice-facts";
 import { matchProjectCollaborator } from "@/lib/voice-project-matching";
+import { proposeLearnedSellingPrices } from "@/lib/learned-selling-prices-server";
 
 function cleanTarget(value: unknown): VoiceActionTarget {
   return ["command", "quote", "invoice", "customer", "supplier", "agenda"].includes(String(value))
@@ -363,6 +364,7 @@ export async function POST(request: Request) {
     const planned = target === "command" || target === "supplier"
       ? await planWithDeepSeek(transcript, target === "supplier")
       : [plannedActionFromParsed(target, body.parsed, transcript)];
+    await proposeLearnedSellingPrices(planned, organizationId, context.client);
     const actions = hardenPlannedActions(planned);
     await resolveProjectCollaborators(actions, organizationId, context.client);
     await resolveSupplierRequests(actions, organizationId, context.client);

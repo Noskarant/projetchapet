@@ -720,6 +720,8 @@ export default function ActionVoiceAssistant() {
 
   const busy = ["requesting", "transcribing", "analysing", "executing"].includes(stage);
   const sensitive = proposals.some((proposal) => proposal.risk_level === "explicit_confirmation");
+  const learnedPrices = proposals.filter(proposal => proposal.intent_type === 'prepare_quote').flatMap(proposal =>
+    Array.isArray(proposal.payload?.items) ? (proposal.payload.items as Array<Record<string, unknown>>).filter(item => item.price_source === 'company_history') : []);
   const blocking = proposals.some((proposal) => proposal.status !== "ready" || (proposal.missing_fields ?? []).length > 0);
   const changedSincePlan = transcript !== plannedTranscript;
 
@@ -844,7 +846,8 @@ export default function ActionVoiceAssistant() {
 
             {(stage === "review" || stage === "executing") && (
               <div className="ava-review">
-                <div className="ava-review-mascot"><ManufeoMascot mood={stage === "executing" ? "writing" : "ready"} /><span>{stage === "executing" ? "J’enregistre les actions validées…" : "Vérifiez les actions avant de les valider."}</span></div>
+                <div className="ava-review-mascot"><ManufeoMascot mood={stage === "executing" ? "writing" : "ready"} /><span>{stage === "executing" ? "J’enregistre les actions validées…" : learnedPrices.length ? "Psst… j’ai retrouvé tes tarifs pour compléter ce devis 💡" : "Vérifiez les actions avant de les valider."}</span></div>
+                {learnedPrices.length > 0 && <div className="ava-confirmation" role="status"><strong>{learnedPrices.length} tarif(s) proposé(s) depuis tes devis validés</strong>{learnedPrices.slice(0, 3).map((item, index) => <p key={index}>{String(item.label)} : {euro(item.unit_price)} HT/{String(item.unit)}</p>)}<small>Confirme ces prix avant de valider les actions, ou corrige ta demande.</small></div>}
                 <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length} action{proposals.length > 1 ? "s" : ""} préparée{proposals.length > 1 ? "s" : ""}</strong><small>Vérifiez tout avant de valider.</small></div></div>
                 {blocking && <div className="ava-blocking" role="alert"><strong>Une ou plusieurs actions ont besoin d’une correction.</strong><span>Les champs concernés sont indiqués en rouge ci-dessous. Corrigez la demande ici, puis relancez l’analyse.</span></div>}
                 <details className="ava-transcript"><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>

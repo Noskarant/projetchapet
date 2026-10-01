@@ -2,6 +2,11 @@
 
 import { recalculatePercentageLines } from "@/lib/percentage-adjustments";
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
+import QuoteSuggestions from './quote-suggestions';
+import { applyQuoteSuggestion, type PriceHistoryQuote, type QuoteSuggestion } from '@/lib/quote-suggestions';
+import { getActiveOrganizationId, saveQuote } from '@/lib/project-chapet';
+import { quoteInputFromMobile } from '@/lib/mobile-desktop-sync';
+import { supabase } from '@/lib/supabase';
 
 import {
   ArrowLeft,
@@ -416,6 +421,35 @@ export default function MobileAutoPdfPreview() {
   const [deleteLineId, setDeleteLineId] = useState<string | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryQuote[]>([]);
+  const previewQuoteId = preview?.quote.id;
+  useEffect(() => {
+    if (!previewQuoteId) return;
+    let active = true;
+    setPriceHistory([]);
+    void (async () => {
+      const organizationId = await getActiveOrganizationId();
+      const { data, error } = await supabase.from('quotes').select('id,status,items:quote_items(label,unit,unit_price)').eq('organization_id', organizationId).eq('status', 'accepted').order('updated_at', { ascending: false }).limit(100);
+      if (!error && active) setPriceHistory((data || []) as unknown as PriceHistoryQuote[]);
+    })().catch(() => undefined);
+    return () => { active = false; };
+  }, [previewQuoteId]);
+
+  async function addSuggestion(suggestion: QuoteSuggestion, input: { quantity: number; unitPrice: number; taxRate: number; id: string }) {
+    if (!preview) throw new Error('Ouvre à nouveau le devis.');
+    const workspace = readWorkspace();
+    const current = workspace?.quotes.find(item => item.id === preview.quote.id);
+    if (!workspace || !current) throw new Error('Le devis est indisponible.');
+    const changed = applyQuoteSuggestion(current, suggestion, input);
+    const items = recalculatePercentageLines(changed.items);
+    const totals = calculateQuotePreviewTotals(items, preview.meta.discountPercent);
+    const quote = { ...changed, items, subtotal: totals.subtotal, taxTotal: totals.taxTotal, total: totals.total };
+    await saveQuote(quoteInputFromMobile(quote, quote.customerId), workspace.quotes.map(item => item.number), quote.id);
+    const latest = readWorkspace() || workspace;
+    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({ ...latest, quotes: latest.quotes.map(item => item.id === quote.id ? quote : item) }));
+    window.dispatchEvent(new Event('manufeo:local-workspace-updated'));
+    await openQuotePreview(quote, preview.customer);
+  }
 
   useEffect(() => {
     const saved = (() => { try { return JSON.parse(window.localStorage.getItem(QUOTE_META_STORAGE_KEY) || "{}"); } catch { return {}; } })() as Record<string, QuoteInternalMeta>;
@@ -572,6 +606,7 @@ export default function MobileAutoPdfPreview() {
           </button>
         </header>
 
+        <QuoteSuggestions key={preview.quote.id} quote={preview.quote} history={priceHistory} onApply={addSuggestion}/>
         <div className="rm-philippe-summary">
           <div>
             <small>Client</small>

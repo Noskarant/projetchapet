@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'app/manufeo-mascot*'
+      - 'app/quote-suggestions*'
+      - 'app/mobile-auto-pdf-preview.tsx'
+      - 'lib/quote-suggestions.ts'
+      - 'e2e/quote-suggestions.spec.ts'
       - 'app/manufeo-splash.tsx'
       - 'app/action-voice-experience.tsx'
       - 'lib/mascot.ts'

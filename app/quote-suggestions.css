@@ -1,0 +1,19 @@
+.quote-suggestions { flex:0 0 auto; margin:8px 12px; border:1px solid #397b73; border-radius:16px; background:#103c36; color:#ecfff7; overflow:hidden; }
+.quote-suggestions-intro { display:flex; align-items:center; gap:10px; width:100%; padding:8px 10px; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; min-height:68px; }
+.quote-suggestions-intro .manufeo-mascot { width:40px; height:50px; flex:0 0 40px; }
+.quote-suggestions-intro span:not(.manufeo-mascot) { min-width:0; flex:1; }
+.quote-suggestions-intro strong { display:block; font-size:13px; line-height:1.4; }
+.quote-suggestions-intro small { display:block; color:#bcdfd0; font-size:12px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.quote-suggestions-intro b { font-size:12px; padding:8px; border:1px solid #628a79; border-radius:10px; flex-shrink:0; }
+.quote-suggestions-content { padding:4px 14px 12px; max-height:35dvh; overflow-y:auto; overscroll-behavior:contain; }
+.quote-suggestions-content > strong { font-size:14px; }
+.quote-suggestions-content p { font-size:13px; margin:6px 0; }
+.quote-suggestions-content small { font-size:12px; color:#bddaca; }
+.quote-suggestions-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.quote-suggestions-actions button { min-height:40px; padding:8px 10px; border:1px solid #6ca189; border-radius:10px; background:transparent; color:inherit; cursor:pointer; font-size:12px; }
+.quote-suggestions-actions button:first-child { background:#c1efcf; color:#123725; font-weight:700; }
+.quote-suggestions-fields { display:grid; grid-template-columns:1fr 1fr 80px; gap:8px; margin-top:10px; }
+.quote-suggestions-fields label { min-width:0; font-size:11px; }
+.quote-suggestions-fields input,.quote-suggestions-fields select { display:block; width:100%; box-sizing:border-box; min-height:38px; border:1px solid #93bca5; border-radius:8px; padding:6px; margin-top:4px; background:#f1fff6; color:#173c27; }
+.quote-suggestions button:focus-visible { outline:2px solid #fff; outline-offset:-3px; }
+.quote-suggestions button:disabled { opacity:.6; cursor:wait; }
