@@ -390,7 +390,7 @@ export default function RappidosMobileShellV2() {
         <header className="rm-header">
           <button className="rm-header-menu" onClick={() => setDrawer("menu")} aria-label="Menu"><Menu size={24} /></button>
           <h1>{tabTitle()}</h1>
-          <div className="rm-header-actions"><button onClick={() => notify("Aucune nouvelle notification.")} aria-label="Notifications"><Bell size={21} /></button><button className="rm-header-plus" onClick={openCreate} aria-label="Créer"><Plus size={23} /></button></div>
+          <div className="rm-header-actions"><button onClick={() => notify("Aucune nouvelle notification.")} aria-label="Notifications"><Bell size={21} /></button>{/* Internal trigger used by the manual-create and agenda bridges. */}<button className="rm-header-plus" onClick={openCreate} hidden aria-hidden="true" tabIndex={-1} style={{ display: "none" }} /></div>
         </header>
 
         <main className="rm-content">
