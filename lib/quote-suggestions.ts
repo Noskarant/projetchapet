@@ -55,7 +55,7 @@ export function applyQuoteSuggestion(quote: MobileQuote, suggestion: QuoteSugges
   if (suggestion.lineId) {
     const line = quote.items.find(item => item.id === suggestion.lineId);
     if (!line || line.unitPrice !== null) throw new Error('Le prix de cette ligne a déjà été renseigné.');
-    items = quote.items.map(item => item.id === line.id ? { ...item, quantity: item.quantity ?? input.quantity, taxRate: item.taxRate ?? input.taxRate, unitPrice: input.unitPrice, provenance: 'company_history' as const } : item);
+    items = quote.items.map(item => item.id === line.id ? { ...item, quantity: item.quantity ?? input.quantity, taxRate: item.taxRate ?? input.taxRate, unitPrice: input.unitPrice, incomplete: false, provenance: 'company_history' as const } : item);
   } else {
     if (quote.items.some(item => key(item.label) === key(suggestion.label))) throw new Error('Ce poste est déjà présent dans le devis.');
     items = [...quote.items, { id: input.id, label: suggestion.label, description: '', quantity: input.quantity, unit: suggestion.unit, unitPrice: input.unitPrice, taxRate: input.taxRate, provenance: 'user_explicit' }];
