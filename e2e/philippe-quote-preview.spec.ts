@@ -19,7 +19,7 @@ test("affiche la fiche unique, le détail des postes et le PDF", async ({ page }
   await expect(preview.locator(".rm-philippe-totals")).toContainText("Remise");
 
   await preview.getByRole("button", { name: "PDF", exact: true }).click();
-  await expect(preview.locator("iframe")).toBeVisible();
+  await expect(preview.locator(".manufeo-pdf-viewer canvas").first()).toBeVisible();
 });
 
 test("ouvre directement la modification depuis le menu en haut", async ({ page }, testInfo) => {

@@ -65,6 +65,53 @@ function installWorkspace(page: Page, itemCount: number) {
   );
 }
 
+test("iPad Safari : toutes les pages PDF restent lisibles et défilent en plein écran", async ({ playwright }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium");
+  const browser = await playwright.webkit.launch();
+  const context = await browser.newContext({ viewport: { width: 1194, height: 834 }, hasTouch: true, storageState: testInfo.project.use.storageState });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await installWorkspace(page, 32);
+  await page.goto("http://127.0.0.1:3000/");
+  await page.locator(".rm-document-card").first().click();
+  const preview = page.locator(".rm-philippe-preview");
+  await preview.getByRole("button", { name: "PDF", exact: true }).click();
+  const full = page.locator(".rm-document-fullscreen");
+  await expect(full).toBeVisible();
+  await expect(full.locator("canvas").first()).toBeVisible({ timeout: 20000 });
+  await expect.poll(() => full.locator("canvas").count()).toBeGreaterThan(1);
+  const first = await full.locator("canvas").first().boundingBox();
+  expect(first!.width).toBeGreaterThan(700);
+  const viewer = full.locator(".manufeo-pdf-viewer");
+  await expect.poll(() => viewer.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  await viewer.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(() => viewer.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await expect(full.locator("canvas").last()).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("ipad-pdf-last-page.png") });
+  expect(errors).toEqual([]);
+  await full.getByRole("button", { name: "Fermer le PDF plein écran" }).click();
+  await expect(preview.locator(".rm-philippe-totals")).toContainText("Total TTC");
+  await context.close();
+  await browser.close();
+});
+
+test("une dictée MP4 conserve son type et une alerte de qualité survit aux segments suivants", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone-webkit");
+  await page.route("**/api/transcribe", async route => {
+    expect(route.request().postDataBuffer()?.toString()).toContain("audio/mp4");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ text: "77,10 euros HT", lowConfidenceSegments: 1, needsReview: true }) });
+  });
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const body = new FormData();
+    body.append("file", new File(["compressed-audio-fixture"], "dictee.m4a", { type: "audio/mp4" }));
+    return (await fetch("/api/transcribe", { method: "POST", body })).json();
+  });
+  expect(result.needsReview).toBe(true);
+  expect(result.lowConfidenceSegments).toBe(1);
+});
+
 test("fait défiler tous les postes et change réellement de vue sur iPhone", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await installWorkspace(page, 9);
@@ -93,7 +140,7 @@ test("fait défiler tous les postes et change réellement de vue sur iPhone", as
   const detailTab = preview.getByRole("button", { name: "Détail", exact: true });
   await pdfTab.click();
   await expect(pdfTab).toHaveAttribute("aria-pressed", "true");
-  await expect(preview.locator("iframe")).toBeVisible();
+  await expect(preview.locator(".manufeo-pdf-viewer canvas").first()).toBeVisible();
 
   await detailTab.click();
   await expect(detailTab).toHaveAttribute("aria-pressed", "true");

@@ -91,6 +91,39 @@ export async function splitPcmWav(blob: Blob, maxSeconds = LONG_VOICE_CHUNK_SECO
   return chunks.length ? chunks : [blob];
 }
 
+// Trim only digital near-silence at the edges, keeping 250 ms around the signal.
+// Compressed audio passes through unchanged; it must never be relabelled as WAV.
+export async function trimPcmWavSilence(blob: Blob): Promise<Blob | null> {
+  const buffer = await blob.arrayBuffer();
+  const info = readWavInfo(buffer);
+  if (!info || info.bitsPerSample !== 16) return blob;
+  const view = new DataView(buffer);
+  const frameBytes = info.channels * 2;
+  const frames = Math.floor(info.dataLength / frameBytes);
+  const audible = (frame: number) => {
+    for (let channel = 0; channel < info.channels; channel += 1) {
+      if (Math.abs(view.getInt16(info.dataOffset + frame * frameBytes + channel * 2, true)) >= 16) return true;
+    }
+    return false;
+  };
+  let first = 0;
+  while (first < frames && !audible(first)) first += 1;
+  if (first === frames) return null;
+  let last = frames - 1;
+  while (last > first && !audible(last)) last -= 1;
+  const padding = Math.ceil(info.sampleRate * 0.25);
+  first = Math.max(0, first - padding);
+  last = Math.min(frames - 1, last + padding);
+  const length = (last - first + 1) * frameBytes;
+  const output = new Uint8Array(info.dataOffset + length);
+  output.set(new Uint8Array(buffer, 0, info.dataOffset));
+  output.set(new Uint8Array(buffer, info.dataOffset + first * frameBytes, length), info.dataOffset);
+  const header = new DataView(output.buffer);
+  header.setUint32(4, output.byteLength - 8, true);
+  header.setUint32(info.dataSizeOffset, length, true);
+  return new Blob([output], { type: "audio/wav" });
+}
+
 export function mergeTranscriptParts(parts: string[]) {
   return parts
     .map((part) => part.trim())

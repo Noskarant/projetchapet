@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { mergeTranscriptParts, splitPcmWav } from "@/lib/long-voice-audio";
+import { mergeTranscriptionPayloads } from "@/lib/transcription-quality";
 
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
@@ -70,7 +71,7 @@ async function transcribeLongAudio(
 
   const chunks = await splitPcmWav(entry);
   const transcripts: string[] = [];
-  let lastPayload: Record<string, unknown> = {};
+  const payloads: Record<string, unknown>[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
     window.dispatchEvent(new CustomEvent("projetchapet:voice-progress", {
@@ -79,8 +80,8 @@ async function transcribeLongAudio(
 
     const file = new File(
       [chunks[index]],
-      `dictee-${String(index + 1).padStart(3, "0")}.wav`,
-      { type: "audio/wav" },
+      chunks[index].type === "audio/wav" ? `dictee-${String(index + 1).padStart(3, "0")}.wav` : entry instanceof File ? entry.name : "dictee.audio",
+      { type: chunks[index].type || entry.type },
     );
     const response = await fetchWithRetry(fetcher, "/api/transcribe", {
       ...init,
@@ -94,12 +95,12 @@ async function transcribeLongAudio(
         headers: { "Content-Type": "application/json" },
       });
     }
-    lastPayload = payload;
+    payloads.push(payload);
     transcripts.push(String(payload.text ?? ""));
   }
 
   return new Response(JSON.stringify({
-    ...lastPayload,
+    ...mergeTranscriptionPayloads(payloads),
     text: mergeTranscriptParts(transcripts),
     chunks: chunks.length,
     long_audio: chunks.length > 1,

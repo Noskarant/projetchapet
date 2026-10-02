@@ -10,7 +10,7 @@ test("la dictée de devis utilise le modèle de transcription précis et guide l
     const form = options?.body as FormData;
     assert.equal(form.get("model"), "whisper-large-v3");
     assert.match(String(form.get("prompt")), /18,50 mètres carrés/);
-    assert.match(String(form.get("prompt")), /noms et prénoms épelés/);
+    assert.match(String(form.get("prompt")), /Noms et prénoms épelés/);
     return Response.json({ text: "18,50 mètres carrés à 21 euros hors taxes, TVA 10 %." });
   };
   try {

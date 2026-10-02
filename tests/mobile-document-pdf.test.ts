@@ -96,6 +96,25 @@ test("un devis long génère un PDF multi-pages sans erreur", async () => {
   const blob = await buildBusinessDocumentPdf({ document: quote, customer, company });
   assert.equal(blob.type, "application/pdf");
   assert.ok(blob.size > 5_000);
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+  const pdf = await task.promise;
+  assert.ok(pdf.numPages > 1);
+  const allText: string[] = [];
+  for (let number = 1; number <= pdf.numPages; number += 1) {
+    const page = await pdf.getPage(number);
+    const content = await page.getTextContent();
+    for (const item of content.items) {
+      if (!("str" in item)) continue;
+      allText.push(item.str);
+      assert.ok(item.transform[5] >= 0 && item.transform[5] <= page.view[3], `Texte hors page : ${item.str}`);
+    }
+  }
+  assert.match(allText.join(" "), /Sous-total HT/);
+  assert.match(allText.join(" "), /TVA \(10 %\)/);
+  assert.match(allText.join(" "), /TOTAL TTC/);
+  assert.match(allText.join(" "), /BON POUR ACCORD/);
+  await task.destroy();
 });
 
 test("facture, avoir et version chantier utilisent le même générateur robuste", async () => {

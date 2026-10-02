@@ -677,6 +677,14 @@ export default function ActionVoiceAssistant() {
       if (!response.ok) throw new Error(result?.error || "Transcription impossible.");
       const text = clean(result.text);
       if (!text) throw new Error("Aucun texte reconnu.");
+      if (result.needsReview || Number(result.lowConfidenceSegments) > 0) {
+        updateTranscript(text);
+        setProposals([]);
+        setEditing(true);
+        setMessage("Certains passages sont incertains. Réécoutez l’enregistrement et corrigez la dictée avant de relancer l’analyse.");
+        setStage("review");
+        return;
+      }
       await prepare(text);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Transcription impossible.");
@@ -878,7 +886,7 @@ export default function ActionVoiceAssistant() {
                   </label>
                 )}
                 {(blocking || editing) && <div className="ava-review-edit"><label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={stage === "executing"} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={stage === "executing" || !transcript.trim()} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
-                <button type="button" className="ava-primary" disabled={blocking || changedSincePlan || stage === "executing" || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
+                <button type="button" className="ava-primary" disabled={!proposals.length || blocking || changedSincePlan || stage === "executing" || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
                   {stage === "executing" ? <><Loader2 size={17} className="ava-spin" /> Exécution sécurisée…</> : "Valider et exécuter"}
                 </button>
                 {!blocking && !editing && <button type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => setEditing(true)}>Corriger la demande</button>}
