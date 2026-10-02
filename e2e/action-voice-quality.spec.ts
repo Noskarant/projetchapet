@@ -45,7 +45,9 @@ test("l’assistant de production impose la correction d’une transcription inc
   const health = page.waitForResponse(response => response.url().endsWith("/api/ai/status"));
   await page.addScriptTag({ content: build.outputFiles.find(file => file.path.endsWith(".js"))!.text });
   await (await health).finished();
-  await expect(page.getByRole("button", { name: "Ouvrir le mode IA" })).toBeVisible();
+  // The mobile shell opens this assistant through the event bridge; its desktop
+  // launcher is intentionally hidden by the production CSS.
+  await expect(page.locator(".ava-launcher")).toHaveCount(1);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: "quote" } })));
   await page.getByTestId("voice-preview-button").click();
   await expect(page.getByTestId("voice-listening-visualizer")).toBeVisible();
