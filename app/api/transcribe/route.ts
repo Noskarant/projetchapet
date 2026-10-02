@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     if (file.size > MAX_AUDIO_BYTES) {
       throw new ApiInputError("Le segment audio dépasse 24 Mo. Relancez la dictée.", 413);
     }
-    if (file.type && !ALLOWED_AUDIO_TYPES.has(file.type.toLowerCase())) {
+    if (file.type && !ALLOWED_AUDIO_TYPES.has(file.type.toLowerCase().split(";")[0].trim())) {
       throw new ApiInputError("Format audio non pris en charge.");
     }
 

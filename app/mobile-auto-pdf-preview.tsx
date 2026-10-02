@@ -547,7 +547,7 @@ export default function MobileAutoPdfPreview() {
 
         <aside className="rm-philippe-totals" aria-label="Totaux du devis">
           <div>
-            <small>Sous-total HT</small>
+            <small>Total HT</small>
             <strong>{money(totals.subtotal)}</strong>
           </div>
           {quoteTaxBreakdown(preview.quote.items, preview.meta.discountPercent).map((group) => <div key={group.rate}><small>TVA ({new Intl.NumberFormat("fr-FR").format(group.rate)} %)</small><strong>{money(group.amount)}</strong></div>)}

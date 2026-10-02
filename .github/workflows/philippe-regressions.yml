@@ -28,7 +28,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium webkit
-      - run: npx playwright test e2e/philippe-quote-preview.spec.ts e2e/mobile-quote-preview-scroll.spec.ts e2e/mobile-long-voice.spec.ts e2e/mobile-unified-quote-sheet.spec.ts e2e/mobile-copilot-dictation.spec.ts e2e/mobile-copilot-painting.spec.ts e2e/quote-suggestions.spec.ts
+      - run: npx playwright test e2e/action-voice-quality.spec.ts e2e/philippe-quote-preview.spec.ts e2e/mobile-quote-preview-scroll.spec.ts e2e/mobile-long-voice.spec.ts e2e/mobile-unified-quote-sheet.spec.ts e2e/mobile-copilot-dictation.spec.ts e2e/mobile-copilot-painting.spec.ts e2e/quote-suggestions.spec.ts --retries=0
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

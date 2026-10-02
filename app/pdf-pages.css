@@ -3,3 +3,4 @@
 .manufeo-pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 0 12px 24px; }
 .manufeo-pdf-pages canvas { display: block; width: 100%; max-width: 900px; height: auto; background: white; box-shadow: 0 2px 8px #18334c22; }
 .rm-philippe-pdf-page > .manufeo-pdf-viewer { height: 100%; }
+.rm-document-fullscreen > header { color: #18334c; background: #eef2f6; }

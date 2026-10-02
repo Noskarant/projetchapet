@@ -78,9 +78,11 @@ async function transcribeLongAudio(
       detail: { current: index + 1, total: chunks.length },
     }));
 
+    const mime = (chunks[index].type || entry.type).split(";")[0].trim().toLowerCase();
+    const extension = ({ "audio/wav": "wav", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3" } as Record<string, string>)[mime];
     const file = new File(
       [chunks[index]],
-      chunks[index].type === "audio/wav" ? `dictee-${String(index + 1).padStart(3, "0")}.wav` : entry instanceof File ? entry.name : "dictee.audio",
+      extension ? `dictee-${String(index + 1).padStart(3, "0")}.${extension}` : entry instanceof File ? entry.name : "dictee.audio",
       { type: chunks[index].type || entry.type },
     );
     const response = await fetchWithRetry(fetcher, "/api/transcribe", {

@@ -26,3 +26,23 @@ test("la dictée de devis utilise le modèle de transcription précis et guide l
     else process.env.GROQ_API_KEY = priorKey;
   }
 });
+
+test("accepte le MIME avec codec renvoyé par MediaRecorder Safari", async () => {
+  const priorKey = process.env.GROQ_API_KEY;
+  const priorFetch = globalThis.fetch;
+  process.env.GROQ_API_KEY = "test-key";
+  globalThis.fetch = async () => Response.json({ text: "Laine de verre 4,50 mètres carrés à 38,90 euros HT.", segments: [{ text: "Laine de verre", avg_logprob: -0.9, no_speech_prob: 0.1 }] });
+  try {
+    const form = new FormData();
+    form.append("file", new File(["compressed"], "dictee.m4a", { type: "audio/mp4;codecs=mp4a.40.2" }));
+    const response = await POST(new Request("http://localhost/api/transcribe", { method: "POST", body: form }));
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.needsReview, true);
+    assert.match(payload.text, /4,50 mètres carrés à 38,90/);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorKey === undefined) delete process.env.GROQ_API_KEY;
+    else process.env.GROQ_API_KEY = priorKey;
+  }
+});

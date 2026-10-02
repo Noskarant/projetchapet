@@ -72,6 +72,7 @@ test("iPad Safari : toutes les pages PDF restent lisibles et défilent en plein 
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/rest/v1/**", route => route.fulfill({ status: 503, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: '{"message":"Offline PDF fixture"}' }));
   await installWorkspace(page, 32);
   await page.goto("http://127.0.0.1:3000/");
   await page.locator(".rm-document-card").first().click();
@@ -142,6 +143,7 @@ test("fait défiler tous les postes et change réellement de vue sur iPhone", as
   await expect(pdfTab).toHaveAttribute("aria-pressed", "true");
   await expect(preview.locator(".manufeo-pdf-viewer canvas").first()).toBeVisible();
 
+  await page.getByRole("button", { name: "Fermer le PDF plein écran" }).click();
   await detailTab.click();
   await expect(detailTab).toHaveAttribute("aria-pressed", "true");
   await expect(preview.getByText("Prestation 1")).toBeVisible();

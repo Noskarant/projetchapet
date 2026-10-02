@@ -1,10 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 async function openCopilot(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Menu" }).click();
-  const entry = page.getByRole("button", { name: /Copilote chantier/ });
-  await expect(entry).toBeVisible();
-  await entry.click();
+  // The unified assistant now delegates to this component; the old menu entry
+  // was removed. Exercise its dictation/price controls through the existing bridge.
+  await page.locator(".mcp-launcher").evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.getByRole("dialog", { name: "Copilote chantier" })).toBeVisible();
 }
 
