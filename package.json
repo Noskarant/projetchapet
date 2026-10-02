@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "npm run typecheck && npm run test && npm run build",
+    "predev": "node scripts/prepare-pdf-worker.mjs",
+    "prebuild": "node scripts/prepare-pdf-worker.mjs"
   },
   "dependencies": {
     "@attestwire/en16931": "0.7.3",
@@ -17,6 +19,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^0.468.0",
     "next": "15.5.25",
+    "pdfjs-dist": "6.3.289",
     "react": "19.1.7",
     "react-dom": "19.1.7"
   },

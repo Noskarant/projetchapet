@@ -21,7 +21,8 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { companyProfileDisplayName, readCompanyProfile } from "@/lib/company-profile";
+import { buildBusinessDocumentPdf } from "@/lib/mobile-document-pdf";
+import PdfPages from "./pdf-pages";
 import { loadPrivateQuoteMeta, savePrivateQuoteMeta } from "@/lib/quote-private-cloud";
 import {
   calculateQuotePreviewTotals,
@@ -238,163 +239,7 @@ async function buildQuotePdf(
   customer: MobileCustomer | null,
   meta: QuoteInternalMeta,
 ) {
-  const { jsPDF } = await import("jspdf");
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
-  const profile = readCompanyProfile(window.localStorage);
-  const displayName = companyProfileDisplayName(profile, "Votre entreprise");
-  const companyAddress = [profile.address, profile.postalCode, profile.city].filter(Boolean).join(" · ");
-  const companyContact = [profile.phone, profile.email].filter(Boolean).join(" · ");
-  const totals = calculateQuotePreviewTotals(quote.items, meta.discountPercent);
-  const margin = 16;
-  let y = 18;
-
-  const drawHeader = () => {
-    const hasLogo = Boolean(profile.logoDataUrl);
-    if (hasLogo) {
-      try {
-        const format = profile.logoDataUrl.startsWith("data:image/png")
-          ? "PNG"
-          : profile.logoDataUrl.startsWith("data:image/webp")
-            ? "WEBP"
-            : "JPEG";
-        const dimensions = pdf.getImageProperties(profile.logoDataUrl);
-        const scale = Math.min(31 / dimensions.width, 14 / dimensions.height);
-        pdf.addImage(profile.logoDataUrl, format, margin, y - 7, dimensions.width * scale, dimensions.height * scale, undefined, "FAST");
-      } catch {
-        // Un logo incompatible ne doit jamais empêcher la génération du devis.
-      }
-    }
-    const identityX = hasLogo ? 51 : margin;
-    pdf.setTextColor(16, 42, 67);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(15);
-    pdf.text(displayName, identityX, y);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7.8);
-    if (companyAddress) pdf.text(companyAddress, identityX, y + 5, { maxWidth: 80 });
-    if (companyContact) pdf.text(companyContact, identityX, y + 10, { maxWidth: 80 });
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(18);
-    pdf.text("DEVIS", 194, y, { align: "right" });
-    pdf.setFontSize(10);
-    pdf.text(quote.number, 194, y + 7, { align: "right" });
-    y += 27;
-    pdf.setDrawColor(210, 220, 232);
-    pdf.line(margin, y, 194, y);
-    y += 9;
-  };
-
-  drawHeader();
-  pdf.setFontSize(10);
-  pdf.setFont("helvetica", "bold");
-  pdf.text("Client", margin, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(quote.customerName, margin, y + 6);
-  const address = customer
-    ? [customer.address, customer.postalCode, customer.city].filter(Boolean).join(" · ")
-    : "";
-  if (address) pdf.text(address, margin, y + 12);
-
-  pdf.setFont("helvetica", "bold");
-  pdf.text("Document", 120, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(`Émis le : ${dateFr(quote.issueDate)}`, 120, y + 6);
-  pdf.text(`Valable jusqu’au : ${dateFr(quote.expiryDate)}`, 120, y + 12);
-  pdf.text(`Objet : ${quote.title}`, 120, y + 18, { maxWidth: 74 });
-  y += 32;
-
-  const drawTableHeader = () => {
-    pdf.setFillColor(239, 245, 251);
-    pdf.rect(margin, y, 178, 9, "F");
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
-    pdf.text("Désignation", margin + 2, y + 6);
-    pdf.text("Qté", 118, y + 6, { align: "right" });
-    pdf.text("PU HT", 145, y + 6, { align: "right" });
-    pdf.text("TVA", 162, y + 6, { align: "right" });
-    pdf.text("Total HT", 192, y + 6, { align: "right" });
-    y += 13;
-    pdf.setFont("helvetica", "normal");
-  };
-
-  drawTableHeader();
-  for (const item of quote.items) {
-    if (y > 250) {
-      pdf.addPage();
-      y = 18;
-      drawHeader();
-      drawTableHeader();
-    }
-    const labelLines = pdf.splitTextToSize(item.label || "Prestation", 88);
-    pdf.text(labelLines, margin + 2, y);
-    if (item.description) {
-      pdf.setTextColor(95, 108, 124);
-      pdf.setFontSize(7.5);
-      pdf.text(pdf.splitTextToSize(item.description, 88), margin + 2, y + 5);
-      pdf.setTextColor(16, 42, 67);
-      pdf.setFontSize(8.5);
-    }
-    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 118, y, {
-      align: "right",
-    });
-    pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 145, y, { align: "right" });
-    pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 162, y, { align: "right" });
-    pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
-    y += Math.max(12, labelLines.length * 4.5 + (item.description ? 6 : 0));
-    pdf.setDrawColor(235, 239, 244);
-    pdf.line(margin, y - 4, 194, y - 4);
-  }
-
-  y += 4;
-  const totalX = 130;
-  pdf.setFontSize(9);
-  pdf.text("Sous-total HT", totalX, y);
-  pdf.text(money(totals.grossSubtotal), 192, y, { align: "right" });
-  if (totals.discountPercent > 0) {
-    y += 7;
-    pdf.text(`Remise (${totals.discountPercent} %)`, totalX, y);
-    pdf.text(`- ${money(totals.discountAmount)}`, 192, y, { align: "right" });
-  }
-  y += 7;
-  pdf.text("Total HT", totalX, y);
-  pdf.text(money(totals.subtotal), 192, y, { align: "right" });
-  y += 7;
-  const taxes = quoteTaxBreakdown(quote.items, meta.discountPercent);
-  if (taxes.length) {
-    taxes.forEach((group, index) => {
-      if (index) y += 7;
-      pdf.text(`TVA (${new Intl.NumberFormat("fr-FR").format(group.rate)} %)`, totalX, y);
-      pdf.text(money(group.amount), 192, y, { align: "right" });
-    });
-  } else {
-    pdf.text("TVA", totalX, y);
-    pdf.text(money(totals.taxTotal), 192, y, { align: "right" });
-  }
-  y += 8;
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text("Total TTC", totalX, y);
-  pdf.text(money(totals.total), 192, y, { align: "right" });
-
-  if (quote.notes.trim()) {
-    y += 15;
-    pdf.setFontSize(9);
-    pdf.text("Notes", margin, y);
-    pdf.setFont("helvetica", "normal");
-    pdf.text(pdf.splitTextToSize(quote.notes, 176), margin, y + 6);
-  }
-
-  const legalIdentity = [profile.legalName || displayName, profile.siret ? `SIRET ${profile.siret}` : "", profile.vatNumber ? `TVA ${profile.vatNumber}` : ""]
-    .filter(Boolean)
-    .join(" · ");
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(7);
-  pdf.setTextColor(100, 110, 124);
-  if (legalIdentity) pdf.text(legalIdentity, 105, 285, { align: "center", maxWidth: 176 });
-  pdf.text("Généré via FORGEO · les notes personnelles internes sont exclues.", 105, 290, {
-    align: "center",
-  });
-  return pdf.output("blob");
+  return buildBusinessDocumentPdf({ document: quote, customer, company: {}, quoteMeta: meta });
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -689,10 +534,7 @@ export default function MobileAutoPdfPreview() {
           ) : (
             <div className="rm-philippe-pdf-page">
               {preview.pdfUrl ? (
-                <iframe
-                  src={`${preview.pdfUrl}#toolbar=0&navpanes=0&view=FitH`}
-                  title={`Page complète du devis ${preview.quote.number}`}
-                />
+                <PdfPages url={preview.pdfUrl} title={`Devis ${preview.quote.number}`} />
               ) : (
                 <div className="rm-philippe-pdf-loading">
                   <ReceiptText size={30} />
@@ -705,7 +547,7 @@ export default function MobileAutoPdfPreview() {
 
         <aside className="rm-philippe-totals" aria-label="Totaux du devis">
           <div>
-            <small>Sous-total HT</small>
+            <small>Total HT</small>
             <strong>{money(totals.subtotal)}</strong>
           </div>
           {quoteTaxBreakdown(preview.quote.items, preview.meta.discountPercent).map((group) => <div key={group.rate}><small>TVA ({new Intl.NumberFormat("fr-FR").format(group.rate)} %)</small><strong>{money(group.amount)}</strong></div>)}
@@ -750,7 +592,7 @@ export default function MobileAutoPdfPreview() {
           }}><Share2 size={18} /> Partager / Fichiers</button>
         </footer>
       </section>
-      {fullScreen && preview.pdfUrl && <div className="rm-document-fullscreen" role="dialog" aria-modal="true" aria-label={`PDF ${preview.quote.number}`}><header><strong>{preview.quote.number}</strong><button onClick={() => setFullScreen(false)} aria-label="Fermer le PDF plein écran"><X size={22} /></button></header><iframe src={preview.pdfUrl} title={`PDF plein écran ${preview.quote.number}`} /></div>}
+      {fullScreen && preview.pdfUrl && <div className="rm-document-fullscreen" role="dialog" aria-modal="true" aria-label={`PDF ${preview.quote.number}`}><header><strong>{preview.quote.number}</strong><button onClick={() => setFullScreen(false)} aria-label="Fermer le PDF plein écran"><X size={22} /></button></header><PdfPages url={preview.pdfUrl} title={`Devis ${preview.quote.number}`} /></div>}
     </div>
   );
 }

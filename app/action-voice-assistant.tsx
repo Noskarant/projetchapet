@@ -677,6 +677,14 @@ export default function ActionVoiceAssistant() {
       if (!response.ok) throw new Error(result?.error || "Transcription impossible.");
       const text = clean(result.text);
       if (!text) throw new Error("Aucun texte reconnu.");
+      if (result.needsReview || Number(result.lowConfidenceSegments) > 0) {
+        updateTranscript(text);
+        setProposals([]);
+        setEditing(true);
+        setMessage("Certains passages sont incertains. Réécoutez l’enregistrement et corrigez la dictée avant de relancer l’analyse.");
+        setStage("review");
+        return;
+      }
       await prepare(text);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Transcription impossible.");
@@ -848,9 +856,9 @@ export default function ActionVoiceAssistant() {
               <div className="ava-review">
                 <div className="ava-review-mascot"><ManufeoMascot mood={stage === "executing" ? "writing" : "ready"} /><span>{stage === "executing" ? "J’enregistre les actions validées…" : learnedPrices.length ? "Psst… j’ai retrouvé tes tarifs pour compléter ce devis 💡" : "Vérifiez les actions avant de les valider."}</span></div>
                 {learnedPrices.length > 0 && <div className="ava-confirmation" role="status"><strong>{learnedPrices.length} tarif(s) proposé(s) depuis tes devis validés</strong>{learnedPrices.slice(0, 3).map((item, index) => <p key={index}>{String(item.label)} : {euro(item.unit_price)} HT/{String(item.unit)}</p>)}<small>Confirme ces prix avant de valider les actions, ou corrige ta demande.</small></div>}
-                <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length} action{proposals.length > 1 ? "s" : ""} préparée{proposals.length > 1 ? "s" : ""}</strong><small>Vérifiez tout avant de valider.</small></div></div>
+                <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length ? `${proposals.length} action${proposals.length > 1 ? "s" : ""} préparée${proposals.length > 1 ? "s" : ""}` : "Dictée à vérifier"}</strong><small>{proposals.length ? "Vérifiez tout avant de valider." : "Réécoutez puis corrigez les passages incertains."}</small></div></div>
                 {blocking && <div className="ava-blocking" role="alert"><strong>Une ou plusieurs actions ont besoin d’une correction.</strong><span>Les champs concernés sont indiqués en rouge ci-dessous. Corrigez la demande ici, puis relancez l’analyse.</span></div>}
-                <details className="ava-transcript"><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>
+                <details className="ava-transcript" open={!proposals.length}><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>
                 <div className="ava-action-list">
                   {proposals.map((proposal, index) => (
                     <article key={proposal.id} className={proposal.status === "needs_input" ? "blocked" : ""}>
@@ -878,7 +886,7 @@ export default function ActionVoiceAssistant() {
                   </label>
                 )}
                 {(blocking || editing) && <div className="ava-review-edit"><label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={stage === "executing"} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={stage === "executing" || !transcript.trim()} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
-                <button type="button" className="ava-primary" disabled={blocking || changedSincePlan || stage === "executing" || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
+                <button type="button" className="ava-primary" disabled={!proposals.length || blocking || changedSincePlan || stage === "executing" || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
                   {stage === "executing" ? <><Loader2 size={17} className="ava-spin" /> Exécution sécurisée…</> : "Valider et exécuter"}
                 </button>
                 {!blocking && !editing && <button type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => setEditing(true)}>Corriger la demande</button>}

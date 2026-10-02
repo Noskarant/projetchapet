@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit } from "@/lib/api-guard";
+import { transcriptionQuality } from "@/lib/transcription-quality";
+import { trimPcmWavSilence } from "@/lib/long-voice-audio";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -17,7 +19,7 @@ const ALLOWED_AUDIO_TYPES = new Set([
 ]);
 
 const BTP_PROMPT =
-  "Dictée de devis d'un artisan français : virgules décimales et centimes exacts, par exemple 18,50 mètres carrés à 21 euros hors taxes, TVA à 10 %, ou 21 euros TTC. Conserver chaque chiffre, chaque virgule, les noms et prénoms épelés lettre par lettre, les e-mails dictés : arobase = @, point = ., tiret = -, tiret du bas = _. Exemple : jean point dupont arobase atelier point fr = jean.dupont@atelier.fr. Vocabulaire : client, chantier, peinture, papier peint, rouleau, fourniture, pose, mètre carré, mètre linéaire, HT, TTC.";
+  "Dictée artisan français. Transcrire seulement la parole audible, sans ajout. Nombres et centimes exacts : 18,50 mètres carrés, 77,10 euros HT, TVA 10 %. Noms et prénoms épelés. Arobase, point, tiret. Placoplâtre hydrofuge, joints, laine de verre, trappe 60 par 60, accès pousse-lâche, fourniture et pose, plafond, murs, mat, deux couches, papier peint, échafaudage, rechampissage, HT, TTC.";
 
 const TRANSCRIPTION_MODEL = "whisper-large-v3";
 
@@ -125,27 +127,15 @@ export async function POST(request: Request) {
     if (file.size > MAX_AUDIO_BYTES) {
       throw new ApiInputError("Le segment audio dépasse 24 Mo. Relancez la dictée.", 413);
     }
-    if (file.type && !ALLOWED_AUDIO_TYPES.has(file.type.toLowerCase())) {
+    if (file.type && !ALLOWED_AUDIO_TYPES.has(file.type.toLowerCase().split(";")[0].trim())) {
       throw new ApiInputError("Format audio non pris en charge.");
     }
 
-    const data = await groqTranscription(file, apiKey);
-    const segments = Array.isArray(data.segments)
-      ? data.segments.slice(0, 500).map((segment: Record<string, unknown>) => ({
-          start: segment.start,
-          end: segment.end,
-          text: segment.text,
-          avg_logprob: segment.avg_logprob,
-          no_speech_prob: segment.no_speech_prob,
-        }))
-      : [];
-
-    const lowConfidenceSegments = segments.filter((segment: Record<string, unknown>) => {
-      const probability = Number(segment.avg_logprob);
-      const noSpeech = Number(segment.no_speech_prob);
-      return (Number.isFinite(probability) && probability < -0.55)
-        || (Number.isFinite(noSpeech) && noSpeech > 0.45);
-    }).length;
+    const trimmed = await trimPcmWavSilence(file);
+    if (!trimmed) throw new ApiInputError("Aucune voix audible. Rapprochez-vous du micro et recommencez la dictée.");
+    const audio = new File([trimmed], file.name, { type: file.type });
+    const data = await groqTranscription(audio, apiKey);
+    const { segments, lowConfidenceSegments, needsReview } = transcriptionQuality(data);
 
     return NextResponse.json({
       provider: TRANSCRIPTION_MODEL,
@@ -153,6 +143,7 @@ export async function POST(request: Request) {
       language: data.language ?? "fr",
       duration: data.duration ?? null,
       lowConfidenceSegments,
+      needsReview,
       segments,
     });
   } catch (error) {
