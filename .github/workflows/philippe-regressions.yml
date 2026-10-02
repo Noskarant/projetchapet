@@ -4,11 +4,15 @@ on:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: philippe-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   regression:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
+      MANUFEO_LOCAL_HTTP_TEST: "1"
       CI: "1"
       NEXT_PUBLIC_FORGEO_AUTH_BYPASS: "1"
       NEXT_PUBLIC_COMMERCIAL_CLOUD_ENABLED: "0"

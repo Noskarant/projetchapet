@@ -44,6 +44,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
+      MANUFEO_LOCAL_HTTP_TEST: "1",
       NEXT_PUBLIC_FORGEO_AUTH_BYPASS: "1",
       NEXT_PUBLIC_COMMERCIAL_CLOUD_ENABLED: "0",
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
