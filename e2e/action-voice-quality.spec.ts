@@ -8,12 +8,14 @@ import React from 'react'; import {createRoot} from 'react-dom/client';
 import Assistant from './app/action-voice-assistant';
 createRoot(document.getElementById('root')).render(<Assistant/>);
 ` }, bundle: true, write: false, outdir: "/tmp/voice-quality-bundle", jsx: "automatic", minify: true,
-  define: { "process.env.NODE_ENV": '"production"', "process.env.NEXT_PUBLIC_SUPABASE_URL": '"https://backend.manufeo.test"', "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": '"test-key"' },
+  define: { "process.env.NODE_ENV": '"production"', "process.env": JSON.stringify({ NODE_ENV: "production", NEXT_PUBLIC_SUPABASE_URL: "https://backend.manufeo.test", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-key" }) },
   tsconfig: path.join(root, "tsconfig.json") });
 
 test("l’assistant de production impose la correction d’une transcription incertaine avant toute action", async ({ page }, info) => {
   test.skip(info.project.name !== "iphone-webkit");
   let planningCalls = 0;
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
   await page.route("https://voice.manufeo.test/**", async route => {
     const url = route.request().url();
     if (url.endsWith("/api/ai/status")) return route.fulfill({ json: { groq: true } });
@@ -54,4 +56,5 @@ test("l’assistant de production impose la correction d’une transcription inc
   await expect(page.getByRole("button", { name: "Valider et exécuter" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Relancer l’analyse" })).toBeEnabled();
   expect(planningCalls).toBe(0);
+  expect(errors).toEqual([]);
 });
