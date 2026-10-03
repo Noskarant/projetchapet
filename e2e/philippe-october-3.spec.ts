@@ -134,6 +134,8 @@ test('Bazin : le rendez-vous sans heure apparaît immédiatement puis après rec
     } });
     Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: undefined });
     Object.defineProperty(window, 'webkitSpeechRecognition', { configurable: true, value: undefined });
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: undefined });
+    Object.defineProperty(window, 'webkitAudioContext', { configurable: true, value: undefined });
   });
   const state = await fixture(page);
   await page.getByRole('button', { name: 'Créer avec le micro IA', exact: true }).click();
