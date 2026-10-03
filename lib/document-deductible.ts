@@ -1,9 +1,10 @@
+import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 // A TTC deductible is a payment allocation, not a reduction of taxable work.
 // Persist it in public document notes so it survives edits, sync and invoicing.
 const notePattern = /Franchise à déduire du montant TTC\s*:\s*(\d+(?:[,.]\d+)?)\s*€\.?/iu;
 export function spokenDeductible(transcript: string) {
-  const match = transcript.match(/\bfranchise\s+(?:de\s+)?(\d+(?:[,.]\d+)?)\s*(?:€|euros?)\s*(?:TTC|toutes taxes comprises)/iu);
-  return match ? Number(match[1].replace(',', '.')) : null;
+  const match = transcript.match(new RegExp(`\\bfranchise\\s+(?:de\\s+)?(${spokenAmountPattern})\\s*(?:€|euros?)\\s*(?:TTC|toutes taxes comprises)`, 'iu'));
+  return match ? spokenFinancialNumber(match[1]) : null;
 }
 export function deductibleNotes(notes: string, transcript: string) {
   const amount = spokenDeductible(transcript);
@@ -17,5 +18,5 @@ export function documentDeductible(notes: string | null | undefined, total: numb
   return { amount, afterDeductible: Math.round(Math.max(0, total - amount) * 100) / 100 };
 }
 export function withoutPaymentAdjustments(transcript: string) {
-  return transcript.replace(/\b(?:franchise|acompte)\s+(?:de\s+)?\d+(?:[,.]\d+)?\s*(?:€|euros?)\s*(?:TTC|HT|toutes taxes comprises|hors taxes)?/giu, '');
+  return transcript.replace(new RegExp(`\\b(?:franchise|acompte)\\s+(?:de\\s+)?${spokenAmountPattern}\\s*(?:€|euros?)\\s*(?:TTC|HT|toutes taxes comprises|hors taxes)?`, 'giu'), '');
 }

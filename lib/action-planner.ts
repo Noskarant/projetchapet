@@ -1,3 +1,4 @@
+import { spokenAmountPattern } from "./spoken-financial-number";
 import { deductibleNotes, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
 import {
@@ -82,7 +83,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
       .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null
     ? sourcePrice : (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
-  const taxesInTranscript = [...transcript.matchAll(/(?:tva|taxe\s+sur\s+la\s+valeur\s+ajoutée)\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/giu)]
+  const taxesInTranscript = [...transcript.matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
       const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
       const after = transcript.slice(match.index + match[0].length, match.index + match[0].length + 65).split(/[.!?]/u)[0];
@@ -104,7 +105,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const linePosition = evidencePosition >= 0 ? evidencePosition : segmentPosition;
   const priorTax = linePosition >= 0
     ? persistentTaxes.filter((match) => match.position <= linePosition).at(-1)?.rate ?? null : null;
-  const confirmedTax = taxesInTranscript.length === 1 && (taxesInTranscript[0].rate === suppliedTax || /(?:pour|sur)\s+(?:tout|tous|toutes|l’ensemble|l’ensemble)|toujours\s+TVA/iu.test(transcript)) ? taxesInTranscript[0].rate : null;
+  const confirmedTax = taxesInTranscript.length === 1 && (taxesInTranscript[0].rate === suppliedTax || /(?:pour|sur)\s+(?:tout|tous|toutes|l['’]ensemble)|toujours\s+TVA/iu.test(transcript)) ? taxesInTranscript[0].rate : null;
   const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
   const priceTranscript = withoutPaymentAdjustments(transcript);
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(roomSegment)) : null;
@@ -122,7 +123,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     label: polishFrenchTradeDesignation(text(source.label, 240)),
     description: text(source.description, 800),
     quantity: quantity ?? (explicitSingleForfait ? 1 : null),
-    unit: text(source.unit, 40) || null,
+    unit: text(source.unit, 40) || (/^rouleaux?\b/iu.test(text(source.label, 240)) && /\brouleaux?\b/iu.test(transcript) ? 'rouleaux' : null),
     unit_price: unitPrice,
     tax_rate: normalizedTax,
     price_type: priceType,

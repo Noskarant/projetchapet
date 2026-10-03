@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeModelPlan } from '../lib/action-planner';
+import { normalizeModelPlan, plannedActionFromParsed } from '../lib/action-planner';
 import { hardenPlannedActions } from '../lib/action-plan-safety';
 import { orderVoicePlan } from '../lib/voice-plan-order';
 import { documentDeductible, deductibleNotes } from '../lib/document-deductible';
@@ -98,4 +98,32 @@ test('un chantier indépendant ne récupère pas un devis dont le client diffèr
     {intent_type:'prepare_quote',payload:{customer_id:'autre-client',items:[{label:'Peinture',quantity:1,unit_price:10}]}},
   ]}, 'Crée le chantier Atelier. Fais aussi le devis pour un autre client.'));
   assert.equal(actions[0].quoteFromPosition, undefined);
+});
+
+
+test('la sortie réelle du modèle avec nombres en lettres conserve prix, RSE, TVA et franchise', () => {
+  const transcript = 'TVA dix pour cent pour tout le devis. Peinture plafond, douze mètres carrés à vingt-deux euros quarante hors taxes. Papier peint murs, douze mètres carrés à douze euros hors taxes. Cinq rouleaux à dix euros hors taxes. RSE un pour cent du montant total des travaux. Franchise de cent cinquante euros TTC.';
+  const action = plannedActionFromParsed('quote', {customer_hint:'Client Fictif Test',items:[
+    {label:'Peinture plafond',quantity:12,unit:'m²',unit_price:22.4,tax_rate:10,price_type:'ht'},
+    {label:'Papier peint murs',quantity:12,unit:'m²',unit_price:12,tax_rate:10,price_type:'ht'},
+    {label:'Rouleaux',quantity:5,unit:null,unit_price:10,tax_rate:10,price_type:'ht'},
+  ]},transcript);
+  const lines=mobileLines(action.payload.items as Array<Record<string,unknown>>);
+  assert.deepEqual(lines.map(line=>line.unitPrice),[22.4,12,10,4.63]);
+  assert.deepEqual(lines.map(line=>line.taxRate),[10,10,10,10]);
+  assert.equal(lines[2].unit,'rouleaux');
+  assert.deepEqual(documentDeductible(String(action.payload.notes),calculateTotals(lines).total),{amount:150,afterDeductible:364.17});
+});
+
+
+test('RSE en lettres remplace le poste forfaitaire du modèle sans compter deux fois et la remise reste distincte', () => {
+  const [action] = normalizeModelPlan({actions:[{intent_type:'prepare_quote',payload:{customer_hint:'Client Test',items:[
+    {label:'Peinture',quantity:1,unit_price:1000,tax_rate:10},
+    {label:'Majoration RSE 1 %',quantity:1,unit_price:2.69,tax_rate:10},
+  ]}}]}, 'TVA 10 %, peinture un forfait à 1000 euros HT. RSE un pour cent, remise de quatre pour cent. Franchise de trois cent vingt euros TTC.');
+  const lines=mobileLines(action.payload.items as Array<Record<string,unknown>>);
+  assert.equal(lines.length,2);
+  assert.equal(lines[1].unitPrice,10);
+  assert.equal(action.payload.discount_percent,4);
+  assert.equal(documentDeductible(String(action.payload.notes),1111).amount,320);
 });

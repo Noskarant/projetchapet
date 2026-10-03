@@ -14,8 +14,8 @@ test("prépare un devis de peinture avec hypothèses, origine des prix et marge"
   await openCopilot(page);
   const dialog = page.getByRole("dialog", { name: "Copilote chantier" });
 
-  await dialog.getByLabel("Description du chantier").fill(
-    "Chez SCI BELLEVUE, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.",
+  await dialog.getByLabel("Description du chantier").pressSequentially(
+    "Chez SCI BELLEVUE, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.", { delay: 5 }
   );
   await dialog.getByRole("button", { name: "Analyser le chantier" }).click();
 
@@ -44,8 +44,8 @@ test("bloque le brouillon tant que les quantités métier sont absentes", async 
 
   await openCopilot(page);
   const dialog = page.getByRole("dialog", { name: "Copilote chantier" });
-  await dialog.getByLabel("Description du chantier").fill(
-    "Chez SCI BELLEVUE, je dois refaire la peinture intérieure.",
+  await dialog.getByLabel("Description du chantier").pressSequentially(
+    "Chez SCI BELLEVUE, je dois refaire la peinture intérieure.", { delay: 5 }
   );
   await dialog.getByRole("button", { name: "Analyser le chantier" }).click();
 
