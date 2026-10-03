@@ -18,6 +18,7 @@ import { archiveInvoice, deleteInvoice as deleteCloudInvoice, deleteQuote as del
 import { mobileInvoiceStatusToDesktop } from '@/lib/mobile-desktop-sync';
 import { customerToMobile, quoteToMobile, invoiceToMobile } from "@/lib/mobile-desktop-sync";
 import { isDatabaseId } from "@/lib/mobile-desktop-sync";
+import { flushMobileWorkspace } from "@/lib/mobile-workspace-flush";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
 import { voiceAgendaEntry, type ExecutedVoiceAction } from "@/lib/voice-action-history";
 import {
@@ -207,6 +208,8 @@ export default function RappidosMobileShellV2() {
     try {
       let paidTotal = selectedInvoice.paidTotal;
       if (isDatabaseId(selectedInvoice.id)) {
+        // Finish pending writes before changing a status directly on the server.
+        await flushMobileWorkspace();
         const server = await fetchWorkspace();
         const invoice = server.invoices.find(item => item.id === selectedInvoice.id);
         if (!invoice) throw new Error('Cette facture est introuvable.');
@@ -215,7 +218,13 @@ export default function RappidosMobileShellV2() {
         else if (status !== 'Payée') await updateInvoiceStatus(invoice.id, mobileInvoiceStatusToDesktop(status, invoice.status));
         paidTotal = status === 'Payée' ? Number(invoice.total) : Number(invoice.paid_total || 0);
       } else if (status === 'Payée') paidTotal = selectedInvoice.total;
-      setWorkspace(current => upsertInvoice(current, { ...selectedInvoice, status, paidTotal }));
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const current: MobileWorkspace = stored ? JSON.parse(stored) : workspace;
+      const latest = current.invoices.find(item => item.id === selectedInvoice.id) ?? selectedInvoice;
+      const next = upsertInvoice(current, { ...latest, status, paidTotal });
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setWorkspace(next);
+      if (isDatabaseId(selectedInvoice.id)) await flushMobileWorkspace();
       notify('Statut de la facture enregistré.');
     } catch (error) { notify(error instanceof Error ? error.message : 'Le statut n’a pas pu être enregistré.'); }
     finally { setSavingInvoiceStatus(false); }
