@@ -7,6 +7,7 @@ import {
   type BusinessDocumentCompany,
 } from "../lib/mobile-document-pdf";
 import type { LineItem, MobileCustomer, MobileInvoice, MobileQuote } from "../lib/mobile-prototype";
+import { normalizeCompanyProfile } from "../lib/company-profile";
 
 const customer: MobileCustomer = {
   id: "customer-1",
@@ -153,4 +154,59 @@ test('le PDF conserve HT, TVA, TTC et affiche la franchise séparément après T
   assert.match(text,/TOTAL TTC.*514,17/);
   assert.match(text,/Franchise TTC.*150,00.*Montant après franchise.*364,17/);
   await task.destroy();
+});
+
+for (const kind of ["quote", "invoice", "credit"] as const) {
+  test(`PDF ${kind} : logo intégré et montants français lisibles au-delà de mille euros`, async () => {
+    const sign = kind === "credit" ? -1 : 1;
+    const base = kind === "quote" ? quote : kind === "credit" ? { ...invoice, status: "Avoir" as const } : invoice;
+    const document = {
+      ...base,
+      notes: "",
+      items: [{ ...items[0], label: "Peinture plafond", description: "", quantity: sign * 18.5, unitPrice: 1100 }],
+      subtotal: sign * 20350, taxTotal: sign * 2035, total: sign * 22385,
+    };
+    const profile = normalizeCompanyProfile({
+      displayName: "Entreprise exemple",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAgCAIAAAAKUWg7AAAARklEQVR4nO3PAQ3AIADAMMABRtCBf0V38Sd7q2Cb+9zxJ+vrgLcZrjNcZ7jOcJ3hOsN1husM1xmuM1xnuM5wneE6w3WG6x7E2ADHyF5+NQAAAABJRU5ErkJggg==",
+    });
+    const blob = await buildBusinessDocumentPdf({ document, customer, company, profile });
+    const { getDocument, OPS } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+    try {
+      const pdf = await task.promise;
+      const page = await pdf.getPage(1);
+      const content = await page.getTextContent();
+      const chunks = content.items.filter(item => "str" in item);
+      const text = chunks.map(item => item.str).join(" ");
+      const prefix = sign < 0 ? "-" : "";
+      assert.ok(text.includes(`${prefix}20 350,00 €`), text);
+      assert.ok(text.includes(`${prefix}22 385,00 €`), text);
+      assert.ok(text.includes("1 100,00 €"), text);
+      assert.ok(text.includes(`${prefix}18,5 m²`), text);
+      const operators = await page.getOperatorList();
+      assert.ok(operators.fnArray.includes(OPS.paintImageXObject), "Le logo doit être incorporé au PDF");
+      for (const item of chunks.filter(item => item.str.includes("€"))) {
+        assert.ok(item.transform[4] + item.width <= 195 * 72 / 25.4, `Montant hors de sa marge : ${item.str} (fin ${item.transform[4] + item.width})`);
+      }
+    } finally { await task.destroy(); }
+  });
+}
+
+test("les grands totaux restent dans leur encadré sans chevaucher le libellé", async () => {
+  const blob = await buildBusinessDocumentPdf({
+    document: { ...invoice, items: [{ ...items[0], quantity: 1, unitPrice: 1234567890.12 }], subtotal: 1234567890.12, taxTotal: 123456789.01, total: 1358024679.13, notes: "" },
+    customer, company,
+  });
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+  try {
+    const content = await (await (await task.promise).getPage(1)).getTextContent();
+    const chunks = content.items.filter(item => "str" in item);
+    const label = chunks.find(item => item.str === "TOTAL TTC")!;
+    const amount = chunks.find(item => item.str === "1 358 024 679,13 €")!;
+    assert.ok(amount, "Le montant TTC doit être lisible et complet");
+    assert.ok(amount.transform[4] > label.transform[4] + label.width + 2, "Le montant ne doit pas chevaucher TOTAL TTC");
+    assert.ok(amount.transform[4] + amount.width <= 195 * 72 / 25.4, `Le montant doit rester dans l’encadré (fin ${amount.transform[4] + amount.width})`);
+  } finally { await task.destroy(); }
 });

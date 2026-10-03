@@ -32,7 +32,11 @@ const money = (value: number) =>
   new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
-  }).format(Number(value || 0));
+  }).format(Number(value || 0)).replace(/[\u00a0\u202f]/g, " ");
+
+const quantity = (value: number) =>
+  new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 20 })
+    .format(value).replace(/[\u00a0\u202f]/g, " ");
 
 const dateFr = (value: string) =>
   value
@@ -97,6 +101,18 @@ export async function buildBusinessDocumentPdf({
   const subtotal = quoteTotals?.subtotal ?? document.subtotal;
   const taxTotal = quoteTotals?.taxTotal ?? document.taxTotal;
   const total = quoteTotals?.total ?? document.total;
+
+  // Standard PDF fonts do not encode the narrow no-break spaces emitted by
+  // Intl in French. Measure and draw the same compatible text, and shrink
+  // exceptional amounts inside their column instead of clipping them.
+  const drawFittedRight = (value: string, x: number, baseline: number, width: number) => {
+    const size = pdf.getFontSize();
+    const text = value.replace(/[\u00a0\u202f]/g, " ");
+    const measured = pdf.getTextWidth(text);
+    if (measured > width) pdf.setFontSize(size * width / measured);
+    pdf.text(text, x, baseline, { align: "right" });
+    pdf.setFontSize(size);
+  };
 
   const lines = (value: string, width: number) => {
     const normalized = String(value || "").trim();
@@ -282,11 +298,11 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(20, 42, 65);
     pdf.setFontSize(8.5);
-    pdf.text(item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`.trim(), 120, y, { align: "right" });
+    drawFittedRight(item.quantity === null ? "À préciser" : `${quantity(item.quantity)} ${item.unit || ""}`.trim(), 120, y, 16);
     if (!withoutPrices) {
-      pdf.text(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, { align: "right" });
+      drawFittedRight(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, 24);
       pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, y, { align: "right" });
-      pdf.text(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, { align: "right" });
+      drawFittedRight(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, 24);
     }
     y += rowHeight;
     pdf.setDrawColor(229, 235, 241);
@@ -304,26 +320,26 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
     if (quoteTotals && quoteTotals.discountPercent > 0) {
       pdf.text("Sous-total HT", labelX, y);
-      pdf.text(money(quoteTotals.grossSubtotal), 192, y, { align: "right" });
+      drawFittedRight(money(quoteTotals.grossSubtotal), 192, y, 30);
       y += 6;
       pdf.setTextColor(181, 72, 21);
       pdf.text(`Remise (${quoteTotals.discountPercent} %)`, labelX, y);
-      pdf.text(`- ${money(quoteTotals.discountAmount)}`, 192, y, { align: "right" });
+      drawFittedRight(`- ${money(quoteTotals.discountAmount)}`, 192, y, 30);
       pdf.setTextColor(20, 42, 65);
       y += 6;
     }
     pdf.text("Sous-total HT", labelX, y);
-    pdf.text(money(subtotal), 192, y, { align: "right" });
+    drawFittedRight(money(subtotal), 192, y, 30);
     y += 6;
     if (taxLines.length) {
       taxLines.forEach((group, index) => {
         if (index) y += 6;
         pdf.text(`TVA (${new Intl.NumberFormat("fr-FR").format(group.rate)} %)`, labelX, y);
-        pdf.text(money(group.amount), 192, y, { align: "right" });
+        drawFittedRight(money(group.amount), 192, y, 30);
       });
     } else {
       pdf.text("TVA", labelX, y);
-      pdf.text(money(taxTotal), 192, y, { align: "right" });
+      drawFittedRight(money(taxTotal), 192, y, 30);
     }
     y += 7;
     pdf.setFillColor(17, 46, 72);
@@ -332,16 +348,16 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(10.5);
     pdf.text("TOTAL TTC", 130, y + 2.5);
-    pdf.text(money(total), 192, y + 2.5, { align: "right" });
+    drawFittedRight(money(total), 192, y + 2.5, 38);
     pdf.setTextColor(20, 42, 65);
     y += 17;
     if (deductible.amount > 0) {
       pdf.setFontSize(8.5);
       pdf.text("Franchise TTC", labelX, y);
-      pdf.text(`- ${money(deductible.amount)}`, 192, y, { align: "right" });
+      drawFittedRight(`- ${money(deductible.amount)}`, 192, y, 30);
       y += 7;
       pdf.text("Montant après franchise", labelX, y);
-      pdf.text(money(deductible.afterDeductible), 192, y, { align: "right" });
+      drawFittedRight(money(deductible.afterDeductible), 192, y, 30);
       y += 10;
     }
   } else {
