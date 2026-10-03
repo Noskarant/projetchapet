@@ -129,7 +129,7 @@ for (const failure of [false, true]) test(`remise vocale : sauvegarde ${failure 
 
 test('Bazin : le rendez-vous sans heure apparaît immédiatement puis après rechargement', async ({ page }) => {
   const state = await fixture(page);
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('projetchapet:open-ai', { detail: { target: 'command' } })));
+  await page.getByRole('button', { name: 'Ouvrir le mode IA', exact: true }).click();
   await page.getByRole('textbox', { name: 'Demande à MANUFEO' }).fill('Je me rappelle le 5 octobre où il faudra aller faire le chantier de Monsieur Bazin.');
   await page.getByRole('button', { name: 'Créer avec MANUFEO' }).click();
   await expect(page.getByRole('button', { name: /Toute la journée.*Chantier Monsieur Bazin/ })).toBeVisible();
