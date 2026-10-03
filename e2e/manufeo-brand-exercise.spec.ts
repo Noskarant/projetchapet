@@ -1,31 +1,22 @@
 import { expect, test } from "@playwright/test";
 
-test("affiche MANUFEO dans l’application et réserve Exercice au choix de l’année", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "iphone-webkit", "Contrôle desktop uniquement.");
-
-  await page.route("**/rest/v1/**", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
-  );
+test("affiche MANUFEO et conserve l’exercice configuré depuis Mon entreprise", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "iphone-webkit", "Contrôle ordinateur uniquement.");
   await page.goto("/");
-  await expect(page.locator(".pc-shell")).toBeVisible();
-  await expect(page.locator(".pc-brand strong")).toHaveText("MANUFEO");
-  await expect(page.locator(".pc-brand > div")).toHaveCSS("background-image", /manufeo-mark\.webp/);
-
-  const exercise = page.getByRole("button", { name: "Choisir l’année de l’exercice" });
-  await expect(exercise).toContainText("Exercice");
-  await exercise.click();
-
-  const menu = page.getByRole("menu", { name: "Choisir l’année de l’exercice" });
-  await expect(menu).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Paramètres de l’entreprise" })).toHaveCount(0);
-
-  const targetYear = new Date().getFullYear() - 1;
-  await menu.getByRole("menuitemradio", { name: new RegExp(`^${targetYear}`) }).click();
-  await expect(exercise).toContainText(`Exercice ${targetYear}`);
-  await expect(menu).toHaveCount(0);
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("manufeo:accounting-exercise-year:v1")))
-    .toBe(String(targetYear));
+  await expect(page.locator(".rm-shell")).toBeVisible();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect(page.locator(".rm-side-drawer header small")).toHaveText("MANUFEO");
+  await page.getByRole("button", { name: /Mon entreprise/ }).click();
+  const settings = page.getByRole("dialog", { name: "Paramètres de l’entreprise" });
+  await expect(settings).toBeVisible();
+  await settings.getByLabel("Date du bilan (MM-JJ)").fill("06-30");
+  await expect(settings.getByLabel("Début (MM-JJ)")).toHaveValue("07-01");
+  await settings.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await expect(settings).toBeHidden();
+  await expect.poll(() => page.evaluate(() => {
+    const profile = JSON.parse(localStorage.getItem("projetchapet:company-profile:v1") || "{}");
+    return [profile.accountingStart, profile.accountingEnd];
+  })).toEqual(["07-01", "06-30"]);
 });
 
 test("le mobile restauré conserve MANUFEO sans débordement des actions", async ({ page }, testInfo) => {

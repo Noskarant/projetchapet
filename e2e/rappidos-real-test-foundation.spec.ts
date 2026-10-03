@@ -52,11 +52,17 @@ test("les paramètres entreprise sont accessibles et l'exercice est modifiable",
   await openMobile(page);
   await page.getByLabel("Menu").click();
   await page.getByRole("button", { name: /Mon entreprise/ }).click();
-  await page.getByRole("button", { name: /Modifier les informations/ }).click();
 
   const settings = page.getByRole("dialog", { name: "Paramètres de l’entreprise" });
   await expect(settings).toBeVisible();
   await expect(settings.getByLabel("Raison sociale")).toBeVisible();
   await expect(settings.getByLabel("Début (MM-JJ)")).toHaveValue("01-01");
   await expect(settings.getByText(/Envoi réel (connecté|à configurer)/)).toBeVisible();
+  await settings.getByLabel("Date du bilan (MM-JJ)").fill("06-30");
+  await expect(settings.getByLabel("Début (MM-JJ)")).toHaveValue("07-01");
+  await settings.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await expect(settings).toBeHidden();
+  await page.getByLabel("Menu").click();
+  await page.getByRole("button", { name: /Mon entreprise/ }).click();
+  await expect(settings.getByLabel("Date du bilan (MM-JJ)")).toHaveValue("06-30");
 });

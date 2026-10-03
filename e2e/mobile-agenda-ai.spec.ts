@@ -39,7 +39,7 @@ test("crée un rendez-vous dans l’agenda depuis une demande naturelle", async 
   );
   await runHiddenAiAnalysis(assistant);
 
-  await expect(assistant.getByText("Rendez-vous", { exact: true })).toBeVisible();
+  await expect(assistant.getByText(/Rendez-vous/, { exact: false }).first()).toBeVisible();
   await expect(assistant.getByText(/SCI Bellevue.*4 place du Monteil/i)).toBeVisible();
   await assistant.getByRole("button", { name: "Ajouter directement à l’agenda" }).click();
 

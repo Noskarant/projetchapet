@@ -1,41 +1,27 @@
 import { expect, test } from "@playwright/test";
 
-test("monte uniquement l’interface adaptée à l’écran", async ({ page }, testInfo) => {
-  if (testInfo.project.name !== "iphone-webkit") {
-    await page.route("**/rest/v1/**", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: "[]",
-      }),
-    );
-  }
+test("conserve l’interface unifiée et la navigation sur chaque écran", async ({ page }) => {
+  await page.route("**/rest/v1/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    }),
+  );
 
   await page.goto("/");
 
-  if (testInfo.project.name === "iphone-webkit") {
-    await expect(page.locator(".rm-shell")).toBeVisible();
-    await expect(page.locator(".pc-shell")).toHaveCount(0);
-    await expect(page.locator(".rm-header h1")).toHaveText("Devis");
+  await expect(page.locator(".rm-shell")).toBeVisible();
+  await expect(page.locator(".pc-shell")).toHaveCount(0);
+  await expect(page.locator(".rm-header h1")).toHaveText("Devis");
 
-    await page.locator(".rm-bottom-nav").getByRole("button", { name: "Factures" }).click();
-    await expect(page.locator(".rm-header h1")).toHaveText("Factures");
+  await page.locator(".rm-bottom-nav").getByRole("button", { name: "Factures" }).click();
+  await expect(page.locator(".rm-header h1")).toHaveText("Factures");
 
-    await page.locator(".rm-bottom-nav").getByRole("button", { name: "Clients" }).click();
-    await expect(page.locator(".rm-header h1")).toHaveText("Clients");
-    return;
-  }
-
-  await expect(page.locator(".pc-shell")).toBeVisible();
-  await expect(page.locator(".rm-shell")).toHaveCount(0);
-  await expect(page.locator(".pc-sidebar nav").getByRole("button", { name: "Tableau de bord" })).toBeVisible();
-  await expect(page.locator(".pc-content h1")).toHaveText("Tableau de bord");
-
-  await page.locator(".pc-sidebar nav").getByRole("button", { name: "Devis" }).click();
-  await expect(page.locator(".pc-content h1")).toHaveText("Devis");
-
-  await page.locator(".pc-sidebar nav").getByRole("button", { name: "Clients" }).click();
-  await expect(page.locator(".pc-content h1")).toHaveText("Clients");
+  await page.locator(".rm-bottom-nav").getByRole("button", { name: "Clients" }).click();
+  await expect(page.locator(".rm-header h1")).toHaveText("Clients");
+  await page.locator(".rm-bottom-nav").getByRole("button", { name: "Devis", exact: true }).click();
+  await expect(page.locator(".rm-header h1")).toHaveText("Devis");
 });
 
 test("ne sélectionne jamais le premier client par défaut avec l’IA", async ({ page }, testInfo) => {
@@ -106,7 +92,7 @@ test("retourne les en-têtes de sécurité du prototype", async ({ request }) =>
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
   expect(response.headers()["x-frame-options"]).toBe("SAMEORIGIN");
   expect(response.headers()["permissions-policy"]).toContain("microphone=(self)");
-  expect(response.headers()["strict-transport-security"]).toBe("max-age=31536000");
+  expect(response.headers()["strict-transport-security"]).toBe("max-age=31536000; includeSubDomains");
 });
 
 test("ne met pas les réponses API en cache", async ({ request }) => {

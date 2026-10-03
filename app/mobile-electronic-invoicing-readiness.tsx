@@ -61,6 +61,15 @@ export default function MobileElectronicInvoicingReadiness() {
   const [providerStatus, setProviderStatus] = useState<ProviderStatus>(EMPTY_PROVIDER_STATUS);
   const [connecting, setConnecting] = useState(false);
 
+  useEffect(() => {
+    const openReadiness = () => {
+      setWorkspaceVersion((value) => value + 1);
+      setOpen(true);
+    };
+    window.addEventListener("manufeo:open-einvoice-readiness", openReadiness);
+    return () => window.removeEventListener("manufeo:open-einvoice-readiness", openReadiness);
+  }, []);
+
   const loadProviderStatus = useCallback(async () => {
     setProviderStatus((current) => ({ ...current, loading: true, error: "" }));
     try {

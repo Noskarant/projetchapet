@@ -8,10 +8,10 @@ async function openTradeSettings(page: import("@playwright/test").Page) {
 }
 
 async function openCopilot(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Menu" }).click();
-  const entry = page.getByRole("button", { name: /Copilote chantier/ });
-  await expect(entry).toBeVisible();
-  await entry.click();
+  // Component integration: the unified voice assistant delegates to this
+  // analysis component. Its former duplicate menu entry has been removed.
+  await expect(page.getByRole("status", { name: "Chargement de votre espace MANUFEO" })).toBeHidden();
+  await page.locator(".mcp-launcher").evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.getByRole("dialog", { name: "Copilote chantier" })).toBeVisible();
 }
 

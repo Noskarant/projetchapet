@@ -23,8 +23,8 @@ const org = '11111111-1111-4111-8111-111111111111';
 const customerId = '22222222-2222-4222-8222-222222222222';
 const entityId = '33333333-3333-4333-8333-333333333333';
 
-for (const scenario of ['quote', 'invoice', 'customer', 'quote-tablet', 'quote-network-retry'] as const) {
-  const kind = scenario === 'quote-tablet' || scenario === 'quote-network-retry' ? 'quote' : scenario;
+for (const scenario of ['quote', 'invoice', 'invoice-refresh', 'customer', 'quote-tablet', 'quote-network-retry'] as const) {
+  const kind = scenario === 'quote-tablet' || scenario === 'quote-network-retry' ? 'quote' : scenario === 'invoice-refresh' ? 'invoice' : scenario;
   test(`production : dictée → ${scenario} enregistré et ouvert sans validation, puis modification`, async ({ page }) => {
     if (scenario === 'quote-tablet') await page.setViewportSize({width:1024,height:768});
     const errors: string[] = [];
@@ -112,9 +112,33 @@ for (const scenario of ['quote', 'invoice', 'customer', 'quote-tablet', 'quote-n
     else {
       await expect(page.locator('.rm-detail-sheet')).toBeVisible();
       await expect(page.locator('.rm-detail-sheet h2')).toHaveText(document.number);
+      if (scenario === 'invoice-refresh') {
+        // A cloud synchronization adds another invoice while this one is open.
+        // The live shell must refresh its list and restore this exact detail.
+        await page.evaluate(() => {
+          const key = 'projetchapet-mobile-workspace-v3';
+          const workspace = JSON.parse(localStorage.getItem(key)!);
+          workspace.invoices.push({ ...workspace.invoices[0], id: '55555555-5555-4555-8555-555555555555', number: 'FAC-2026-100' });
+          localStorage.setItem(key, JSON.stringify(workspace));
+        });
+        await expect(page.locator('.rm-document-card .rm-document-main small', { hasText: 'FAC-2026-100' })).toHaveCount(1);
+        await expect(page.locator('.rm-detail-sheet h2')).toHaveText(document.number);
+      }
       await page.locator('.rm-detail-sheet').getByRole('button', { name: 'Tout modifier' }).click();
       await expect(page.locator('.rm-v2-editor')).toBeVisible();
       await expect(page.locator('.rm-v2-editor input[value="Papier peint"]')).toHaveCount(1);
+      if (scenario === 'invoice-refresh') {
+        const label = page.locator('.rm-v2-editor input[value="Papier peint"]');
+        await label.fill('Papier peint modifié');
+        await page.evaluate(() => {
+          const key = 'projetchapet-mobile-workspace-v3';
+          const workspace = JSON.parse(localStorage.getItem(key)!);
+          workspace.invoices.push({ ...workspace.invoices[0], id: '66666666-6666-4666-8666-666666666666', number: 'FAC-2026-101' });
+          localStorage.setItem(key, JSON.stringify(workspace));
+        });
+        await page.waitForTimeout(600);
+        await expect(page.locator('.rm-v2-editor input[value="Papier peint modifié"]')).toHaveCount(1);
+      }
     }
     expect(errors).toEqual([]);
     await page.screenshot({ path: test.info().outputPath(`direct-${scenario}.png`), fullPage: true });

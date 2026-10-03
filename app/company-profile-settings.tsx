@@ -104,6 +104,11 @@ export default function CompanyProfileSettings() {
     window.setTimeout(() => window.dispatchEvent(new CustomEvent("manufeo:open-import-center")), 0);
   }
 
+  function openElectronicInvoicing() {
+    setOpen(false);
+    window.dispatchEvent(new Event("manufeo:open-einvoice-readiness"));
+  }
+
   if (!open) return null;
 
   return (
@@ -135,6 +140,7 @@ export default function CompanyProfileSettings() {
             <p>Définissez le premier et le dernier jour de votre exercice.</p>
             <div className="cps-two"><label>Début (MM-JJ)<input value={profile.accountingStart} onChange={(event) => setProfile({ ...profile, accountingStart: event.target.value })} placeholder="01-01" /></label><label>Date du bilan (MM-JJ)<input value={profile.accountingEnd} onChange={(event) => setProfile({ ...profile, accountingEnd: event.target.value, accountingStart: /^\d{2}-\d{2}$/.test(event.target.value) ? nextFiscalStart(event.target.value, profile.accountingStart) : profile.accountingStart })} placeholder="12-31" /></label></div>
             <label>E-mail du comptable<input type="email" value={profile.accountingEmail} onChange={(event) => setProfile({ ...profile, accountingEmail: event.target.value })} placeholder="compta@cabinet.fr" /></label>
+            <button type="button" className="cps-import-button" onClick={openElectronicInvoicing} aria-label="Ouvrir le centre de facturation électronique">Facturation électronique : connexion et préparation</button>
             <label><span><input type="checkbox" checked={profile.monthlyAccountingEnabled} onChange={(event) => setProfile({ ...profile, monthlyAccountingEnabled: event.target.checked })} style={{ width: 18, marginRight: 8 }} />Envoyer chaque mois les factures complètes et le récapitulatif au comptable</span></label>
           </section>
 

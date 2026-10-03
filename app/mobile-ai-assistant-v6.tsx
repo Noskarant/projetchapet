@@ -84,6 +84,11 @@ const choices = [
   { id: "agenda" as Target, label: "Agenda", detail: "Rendez-vous, intervention, relance ou commande", icon: CalendarDays },
 ];
 
+function activeTabTarget(): Target {
+  const tab = document.querySelector(".rm-bottom-nav button.active")?.textContent || "";
+  return tab.includes("Factures") ? "invoice" : tab.includes("Clients") ? "customer" : tab.includes("Agenda") ? "agenda" : "quote";
+}
+
 function speechConstructor() {
   const scope = window as unknown as {
     SpeechRecognition?: RecognitionConstructor;
@@ -296,19 +301,15 @@ export default function MobileAiAssistantV6() {
       event.preventDefault();
       event.stopPropagation();
       (event as Event & { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
-      const activeTab = document.querySelector(".rm-bottom-nav button.active")?.textContent || "";
-      const preset: Target = activeTab.includes("Factures")
-        ? "invoice"
-        : activeTab.includes("Clients")
-          ? "customer"
-          : activeTab.includes("Agenda")
-            ? "agenda"
-            : "quote";
+      const preset = activeTabTarget();
       reset(preset);
       setOpen(true);
     };
     const custom = (event: Event) => {
-      const preset = (event as CustomEvent<{ target?: Target }>).detail?.target ?? null;
+      const requested = (event as CustomEvent<{ target?: Target | "command" }>).detail?.target;
+      // The unified dock emits "command". The legacy/local assistant only
+      // supports a single entity and must retain the selected workspace tab.
+      const preset = requested === "command" ? activeTabTarget() : requested ?? null;
       reset(preset);
       setOpen(true);
     };

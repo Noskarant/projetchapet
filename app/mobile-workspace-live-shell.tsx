@@ -93,6 +93,7 @@ export default function MobileWorkspaceLiveShell() {
   const previousWorkspace = useRef<MobileWorkspace | null>(null);
   const restore = useRef<RestoreTarget | null>(null);
   const remounting = useRef(false);
+  const invoiceMismatch = useRef<string | null>(null);
 
   useEffect(() => {
     previousWorkspace.current = readWorkspace();
@@ -106,6 +107,11 @@ export default function MobileWorkspaceLiveShell() {
 
     const inspect = () => {
       if (remounting.current) return;
+      // Never rebuild the shell while the artisan is editing a document.
+      if (document.querySelector(".rm-v2-editor")) {
+        invoiceMismatch.current = null;
+        return;
+      }
       const current = readWorkspace();
       const previous = previousWorkspace.current ?? current;
       const tab = activeTabLabel();
@@ -127,13 +133,22 @@ export default function MobileWorkspaceLiveShell() {
           const rendered = invoiceCardNumbers().sort().join("|");
           const stored = current.invoices.map((invoice) => invoice.number).sort().join("|");
           if (rendered !== stored) {
+            const mismatch = `${rendered}\n${stored}`;
+            // Storage can update before React commits the matching cards. Wait
+            // for a second observation before treating this as an external sync.
+            if (invoiceMismatch.current !== mismatch) {
+              invoiceMismatch.current = mismatch;
+              return;
+            }
+            invoiceMismatch.current = null;
             previousWorkspace.current = current;
-            requestRemount({ tab: "Factures" });
+            requestRemount({ tab: "Factures", invoiceNumber: detailNumber || undefined });
             return;
           }
         }
       }
 
+      invoiceMismatch.current = null;
       previousWorkspace.current = current;
     };
 

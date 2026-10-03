@@ -113,6 +113,21 @@ test("ouvre un centre chantier interactif et une vue collaborateur sans prix", a
 
 test("centralise notifications, sauvegarde et envoi du PDF", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
+  await page.addInitScript(() => {
+    localStorage.setItem("sb-127-auth-token", JSON.stringify({
+      access_token: "test-email-token", refresh_token: "test-refresh",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "44444444-4444-4444-8444-444444444444" },
+    }));
+  });
+  const sent: Array<{ documentKind: string; to: string; attachments: Array<{ filename: string; content: string }> }> = [];
+  await page.route("**/api/email", async route => {
+    if (route.request().method() === "POST") {
+      expect(route.request().headers().authorization).toBe("Bearer test-email-token");
+      sent.push(route.request().postDataJSON());
+    }
+    await route.fulfill({ json: { configured: true, ok: true } });
+  });
   await page.goto("/");
 
   await page.getByRole("button", { name: "Notifications" }).click();
@@ -132,8 +147,15 @@ test("centralise notifications, sauvegarde et envoi du PDF", async ({ page }, te
   const quote = page.getByRole("dialog", { name: "Fiche du devis" });
   await quote.getByRole("button", { name: "Envoyer le devis" }).click();
 
-  const email = page.getByRole("dialog", { name: "Envoyer le document" });
+  const email = page.getByRole("dialog", { name: "Envoyer le devis", exact: true });
   await expect(email).toBeVisible();
-  await expect(email.getByText(/notes personnelles restent exclues/i)).toBeVisible();
-  await expect(email.getByRole("button", { name: "Envoyer avec le PDF" })).toBeVisible();
+  await expect(email.getByRole("button", { name: "Avec les prix", exact: true })).toBeVisible();
+  await expect(email.getByRole("button", { name: "Sans les prix", exact: true })).toBeVisible();
+  await email.getByRole("button", { name: "Avec les prix", exact: true }).click();
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0].documentKind).toBe("quote");
+  expect(sent[0].to).toMatch(/@/);
+  expect(sent[0].attachments).toHaveLength(1);
+  expect(sent[0].attachments[0].filename).toMatch(/\.pdf$/);
+  expect(Buffer.from(sent[0].attachments[0].content, "base64").subarray(0, 5).toString()).toBe("%PDF-");
 });
