@@ -61,7 +61,7 @@ jobs:
         run: npx playwright test e2e/mobile-profitability.spec.ts
 
       - name: Browser regressions - full suite
-        run: npm run test:e2e
+        run: npm run test:e2e -- --workers=4
 
       - name: Build public auth app
         run: npm run build
