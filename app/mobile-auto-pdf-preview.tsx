@@ -268,6 +268,7 @@ export default function MobileAutoPdfPreview() {
   const [fullScreen, setFullScreen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryQuote[]>([]);
+  const lastPdfState = useRef<{ id: string; status: QuoteStatus } | null>(null);
   const previewQuoteId = preview?.quote.id;
   useEffect(() => {
     if (!previewQuoteId) return;
@@ -329,6 +330,13 @@ export default function MobileAutoPdfPreview() {
 
   const openQuotePreview = useCallback(
     async (quote: MobileQuote, customer: MobileCustomer | null) => {
+      // A freshly dictated quote may arrive after the initial metadata fetch.
+      // Await its persisted discount before rendering totals or building the PDF.
+      let hasLocalMeta = false;
+      try { hasLocalMeta = Object.hasOwn(JSON.parse(window.localStorage.getItem(QUOTE_META_STORAGE_KEY) || "{}"), quote.number); } catch { /* Reload a damaged cache. */ }
+      if (!hasLocalMeta && process.env.NEXT_PUBLIC_COMMERCIAL_CLOUD_ENABLED !== "0") {
+        await loadPrivateQuoteMeta(window.localStorage).catch(error => console.warn("[MANUFEO] Remise indisponible", error));
+      }
       const meta = readQuoteInternalMeta(window.localStorage, quote.number);
       setBusy(true);
       setPreview((current) => {
@@ -346,7 +354,7 @@ export default function MobileAutoPdfPreview() {
         const pdfBlob = await buildQuotePdf(quote, customer, meta);
         const pdfUrl = URL.createObjectURL(pdfBlob);
         setPreview((current) => {
-          if (!current || current.quote.number !== quote.number) {
+          if (!current || current.quote.number !== quote.number || current.quote.status !== quote.status) {
             URL.revokeObjectURL(pdfUrl);
             return current;
           }
@@ -358,6 +366,33 @@ export default function MobileAutoPdfPreview() {
     },
     [],
   );
+
+  useEffect(() => {
+    const statusChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string; status: QuoteStatus }>).detail;
+      setPreview(current => current?.quote.id === detail?.id
+        ? { ...current, quote: { ...current.quote, status: detail.status } } : current);
+    };
+    window.addEventListener("manufeo:quote-status-change", statusChanged);
+    return () => window.removeEventListener("manufeo:quote-status-change", statusChanged);
+  }, []);
+
+  useEffect(() => {
+    if (!preview) return;
+    const previous = lastPdfState.current;
+    lastPdfState.current = { id: preview.quote.id, status: preview.quote.status };
+    if (!previous || previous.id !== preview.quote.id || previous.status === preview.quote.status) return;
+    let cancelled = false;
+    void buildQuotePdf(preview.quote, preview.customer, preview.meta).then(blob => {
+      if (cancelled) return;
+      const pdfUrl = URL.createObjectURL(blob);
+      setPreview(current => {
+        if (!current || current.quote.id !== preview.quote.id) { URL.revokeObjectURL(pdfUrl); return current; }
+        return { ...current, pdfBlob: blob, pdfUrl };
+      });
+    }).catch(error => console.warn("[MANUFEO] Mise à jour du PDF impossible", error));
+    return () => { cancelled = true; };
+  }, [preview?.quote.id, preview?.quote.status]);
 
   useEffect(() => {
     const openCreated = (event: Event) => {
@@ -447,7 +482,7 @@ export default function MobileAutoPdfPreview() {
 
   return (
     <div className="rm-philippe-preview-backdrop" role="dialog" aria-modal="true">
-      <section className="rm-philippe-preview">
+      <section className="rm-philippe-preview" data-quote-id={preview.quote.id}>
         <header className="rm-philippe-preview-header">
           <button onClick={closePreview} aria-label="Fermer l’aperçu détaillé">
             <ArrowLeft size={21} />
@@ -463,11 +498,12 @@ export default function MobileAutoPdfPreview() {
 
         <QuoteSuggestions key={preview.quote.id} quote={preview.quote} history={priceHistory} onApply={addSuggestion}/>
         <div className="rm-philippe-summary">
-          <div>
+          <button type="button" className="rm-philippe-client-card" aria-label={`Modifier le client ${preview.quote.customerName}`}
+            onClick={() => { const customerId = preview.quote.customerId; closePreview(); window.dispatchEvent(new CustomEvent("manufeo:edit-document-customer", { detail: customerId })); }}>
             <small>Client</small>
             <strong>{preview.quote.customerName}</strong>
             <span>{preview.quote.title}</span>
-          </div>
+          </button>
           <div>
             <small>Émission</small>
             <strong>{dateFr(preview.quote.issueDate)}</strong>

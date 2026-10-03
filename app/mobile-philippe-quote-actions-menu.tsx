@@ -65,11 +65,9 @@ function runUnderlyingQuoteAction(pattern: RegExp) {
 function runUnderlyingStatusAction(status: string) {
   const preview = currentPreview();
   if (!preview) return;
-  const detail = findUnderlyingQuoteDetail(currentQuoteNumber(preview));
-  const button = Array.from(
-    detail?.querySelectorAll<HTMLButtonElement>(".rm-status-editor button") || [],
-  ).find((candidate) => normalize(candidate.textContent || "") === normalize(status));
-  button?.click();
+  const id = preview.dataset.quoteId;
+  if (!id) return;
+  window.dispatchEvent(new CustomEvent("manufeo:quote-status-change", { detail: { id, status } }));
   requestMenuSync(120);
 }
 

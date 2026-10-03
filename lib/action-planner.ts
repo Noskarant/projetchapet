@@ -90,7 +90,6 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
       const before = transcript.slice(Math.max(0, match.index - 65), match.index).split(/[.!?]/u).at(-1) ?? "";
       return { rate: explicitTax(match[0]), position: match.index, scoped: lineScope.test(after) || lineScope.test(before) };
     });
-  const suppliedTax = numberOrNull(source.tax_rate);
   const segmentPosition = roomSegment ? transcript.indexOf(roomSegment) : -1;
   const firstPricePosition = transcript.search(/\d+(?:[,.]\d+)?\s*(?:€|euros?)/iu);
   const initialTax = taxesInTranscript[0] && !taxesInTranscript[0].scoped
@@ -105,7 +104,10 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const linePosition = evidencePosition >= 0 ? evidencePosition : segmentPosition;
   const priorTax = linePosition >= 0
     ? persistentTaxes.filter((match) => match.position <= linePosition).at(-1)?.rate ?? null : null;
-  const confirmedTax = taxesInTranscript.length === 1 && (taxesInTranscript[0].rate === suppliedTax || /(?:pour|sur)\s+(?:tout|tous|toutes|l['’]ensemble)|toujours\s+TVA/iu.test(transcript)) ? taxesInTranscript[0].rate : null;
+  // A single unscoped rate remains the document default even when spoken
+  // after the first price. Never inherit a rate explicitly limited to a line.
+  const unscopedRates = [...new Set(taxesInTranscript.filter(match => !match.scoped).map(match => match.rate))];
+  const confirmedTax = unscopedRates.length === 1 ? unscopedRates[0] : null;
   const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
   const priceTranscript = withoutPaymentAdjustments(transcript);
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(roomSegment)) : null;
