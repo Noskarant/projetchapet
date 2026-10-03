@@ -699,7 +699,16 @@ export default function ActionVoiceAssistant() {
 
   async function createPlanned(planned: ActionProposalView[], organizationId: string, directCreation = true, remainingMessage = "") {
     setStage("executing");
-    const execution = await executeVoiceActions({ organizationId, proposalIds: planned.map(proposal => proposal.id), explicitConfirmation: directCreation ? false : explicitConfirmed, directCreation });
+    const request = { organizationId, proposalIds: planned.map(proposal => proposal.id), explicitConfirmation: directCreation ? false : explicitConfirmed, directCreation };
+    let execution: Awaited<ReturnType<typeof executeVoiceActions>>;
+    try { execution = await executeVoiceActions(request); }
+    catch (error) {
+      if (!directCreation || !(error instanceof TypeError)) throw error;
+      // A lost response may follow a successful save. Reuse proposal IDs so the
+      // server returns their recorded results rather than creating a second copy.
+      await new Promise(resolve => window.setTimeout(resolve, 400));
+      execution = await executeVoiceActions(request);
+    }
     setResults(execution.results);
     window.dispatchEvent(new CustomEvent("manufeo:workspace-changed", { detail: execution.results }));
     const created = execution.results.find(result => result.entityType === "quote")

@@ -23,8 +23,8 @@ const org = '11111111-1111-4111-8111-111111111111';
 const customerId = '22222222-2222-4222-8222-222222222222';
 const entityId = '33333333-3333-4333-8333-333333333333';
 
-for (const scenario of ['quote', 'invoice', 'customer', 'quote-tablet'] as const) {
-  const kind = scenario === 'quote-tablet' ? 'quote' : scenario;
+for (const scenario of ['quote', 'invoice', 'customer', 'quote-tablet', 'quote-network-retry'] as const) {
+  const kind = scenario === 'quote-tablet' || scenario === 'quote-network-retry' ? 'quote' : scenario;
   test(`production : dictée → ${scenario} enregistré et ouvert sans validation, puis modification`, async ({ page }) => {
     if (scenario === 'quote-tablet') await page.setViewportSize({width:1024,height:768});
     const errors: string[] = [];
@@ -58,6 +58,7 @@ for (const scenario of ['quote', 'invoice', 'customer', 'quote-tablet'] as const
       if (url.endsWith('/api/actions/execute')) {
         executionCalls++;
         expect(route.request().postDataJSON()).toMatchObject({ proposalIds: ['proposal-1'], directCreation: true, explicitConfirmation: false });
+        if (scenario === 'quote-network-retry' && executionCalls === 1) return route.abort('failed');
         return route.fulfill({ json: { requiresExplicit: kind === 'invoice', results: [{ proposalId: 'proposal-1', intentType: intent, entityType: kind, entityId: kind === 'customer' ? customerId : entityId, message: 'Création terminée.' }] } });
       }
       return route.fulfill({ contentType: 'text/html', body: '<html><body><div id="root"></div></body></html>' });
@@ -91,7 +92,7 @@ for (const scenario of ['quote', 'invoice', 'customer', 'quote-tablet'] as const
     await page.waitForTimeout(150);
     await page.getByRole('button', { name: 'J’ai fini de parler' }).click();
     await expect(page.locator('.ava-overlay')).toHaveCount(0);
-    expect(planningCalls).toBe(1); expect(executionCalls).toBe(1);
+    expect(planningCalls).toBe(1); expect(executionCalls).toBe(scenario === 'quote-network-retry' ? 2 : 1);
     await expect(page.getByRole('button', { name: 'Valider et exécuter' })).toHaveCount(0);
     if (kind === 'quote') {
       const sheet = page.getByRole('dialog', {name:'Fiche du devis'});
