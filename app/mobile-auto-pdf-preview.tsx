@@ -354,7 +354,7 @@ export default function MobileAutoPdfPreview() {
         const pdfBlob = await buildQuotePdf(quote, customer, meta);
         const pdfUrl = URL.createObjectURL(pdfBlob);
         setPreview((current) => {
-          if (!current || current.quote.number !== quote.number) {
+          if (!current || current.quote.number !== quote.number || current.quote.status !== quote.status) {
             URL.revokeObjectURL(pdfUrl);
             return current;
           }
