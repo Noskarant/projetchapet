@@ -22,7 +22,7 @@ createRoot(document.getElementById('root')).render(<><Shell/><Sync/><Edit/><Assi
 ` }, bundle: true, write: false, outdir: '/tmp/philippe-oct3-bundle', jsx: 'automatic', minify: true,
   define: { 'process.env.NODE_ENV': '"production"', 'process.env': JSON.stringify({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://backend.manufeo.test', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-key' }) },
   tsconfig: path.join(root, 'tsconfig.json') });
-const html = `<html><head><style>${build.outputFiles.filter(file => file.path.endsWith('.css')).map(file => file.text).join('\n')}</style></head><body><div id="root"></div><script>${build.outputFiles.find(file => file.path.endsWith('.js'))!.text.replace(/<\/script/giu, '<\\/script')}</script></body></html>`;
+const html = `<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${build.outputFiles.filter(file => file.path.endsWith('.css')).map(file => file.text).join('\n')}</style></head><body><div id="root"></div><script>${build.outputFiles.find(file => file.path.endsWith('.js'))!.text.replace(/<\/script/giu, '<\\/script')}</script></body></html>`;
 const org = '11111111-1111-4111-8111-111111111111';
 const customerId = '22222222-2222-4222-8222-222222222222';
 const quoteId = '33333333-3333-4333-8333-333333333333';
@@ -110,7 +110,7 @@ for (const failure of [false, true]) test(`remise vocale : sauvegarde ${failure 
   await expect(editor).toBeVisible();
   if (failure) {
     await expect(editor.getByRole('button', { name: 'Appliquer', exact: true })).toBeVisible();
-    await expect(editor).toContainText('Sauvegarde momentanément indisponible');
+    await expect(editor).toContainText('Sauvegarde impossible');
     await editor.getByRole('button', { name: 'Appliquer', exact: true }).click();
   }
   await expect.poll(() => state.saved).toBe(true);
