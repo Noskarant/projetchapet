@@ -1,4 +1,5 @@
 "use client";
+import { documentDeductible } from "@/lib/document-deductible";
 
 import { recalculatePercentageLines } from "@/lib/percentage-adjustments";
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
@@ -555,6 +556,10 @@ export default function MobileAutoPdfPreview() {
             <small>Total TTC</small>
             <strong>{money(totals.total)}</strong>
           </div>
+          {documentDeductible(preview.quote.notes, totals.total).amount > 0 && <>
+            <div><small>Franchise TTC</small><strong>-{money(documentDeductible(preview.quote.notes, totals.total).amount)}</strong></div>
+            <div className="primary"><small>Montant après franchise</small><strong>{money(documentDeductible(preview.quote.notes, totals.total).afterDeductible)}</strong></div>
+          </>}
           <div className={totals.discountPercent > 0 ? "discount active" : "discount"}>
             <small>Remise</small>
             <strong>

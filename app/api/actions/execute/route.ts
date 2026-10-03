@@ -12,6 +12,7 @@ export async function POST(request: Request) {
       organizationId?: unknown;
       proposalIds?: unknown;
       explicitConfirmation?: unknown;
+      directCreation?: unknown;
     }>(request, 30_000);
     const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
     if (!organizationId) throw new ApiInputError("Entreprise manquante.");
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
       organizationId,
       proposalIds,
       explicitConfirmation: body.explicitConfirmation === true,
+      directCreation: body.directCreation === true,
     });
     return NextResponse.json(result);
   } catch (error) {

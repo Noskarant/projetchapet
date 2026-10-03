@@ -1,3 +1,4 @@
+import { deductibleNotes, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
 import {
   ACTION_INTENTS,
@@ -105,11 +106,12 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     ? persistentTaxes.filter((match) => match.position <= linePosition).at(-1)?.rate ?? null : null;
   const confirmedTax = taxesInTranscript.length === 1 && taxesInTranscript[0].rate === suppliedTax ? suppliedTax : null;
   const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
-  const roomPriceType = roomSegment ? spokenPriceType(roomSegment) : null;
-  const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(transcript)
-    && /(?:\bht\b|hors taxes?)/iu.test(transcript);
+  const priceTranscript = withoutPaymentAdjustments(transcript);
+  const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(roomSegment)) : null;
+  const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)
+    && /(?:\bht\b|hors taxes?)/iu.test(priceTranscript);
   const priceType = spokenPriceType(priceEvidence) ?? roomPriceType
-    ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(transcript) ?? "unknown");
+    ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(priceTranscript) ?? "unknown");
   const normalizedTax = tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax : null;
   const needsTtcConversion = priceType === "ttc" && (!alreadyConverted || sourcePrice === null);
   const ttcWithoutTax = priceType === "ttc" && normalizedTax === null;
@@ -193,7 +195,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_id: text(source.quote_id, 80) || null,
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
-    notes: text(source.notes, 2400) || null,
+    notes: deductibleNotes(text(source.notes, 2400), transcript) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,
@@ -424,10 +426,11 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
       : intentType === "prepare_email" ? [(payload as RecordLike).to as string] : [];
     const hasValidEmail = emails.length > 0 && emails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email));
     const warnings = stringArray(source.warnings, 20).filter((warning) =>
-      !(hasValidEmail && isEmailSeparatorWarning(warning)));
+      !(hasValidEmail && isEmailSeparatorWarning(warning))
+      && !((intentType === "prepare_quote" || intentType === "prepare_invoice") && /(?:prix|quantit|TVA|HT|TTC|ligne|prestation)/iu.test(warning)));
     // The model can report stale, duplicate or invented field paths. Documents are
     // drafts: derive their blocking requirements from the normalized payload.
-    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier"
+    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier" || intentType === "create_customer"
       ? missingForIntent(intentType, payload as RecordLike)
       : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)
         .filter((field) => !(hasValidEmail && ["destinataire", "email_client", "email", "adresse_email"].includes(field)))];

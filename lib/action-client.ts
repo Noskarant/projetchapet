@@ -94,16 +94,18 @@ export async function executeVoiceActions({
   organizationId,
   proposalIds,
   explicitConfirmation,
+  directCreation = false,
 }: {
   organizationId: string;
   proposalIds: string[];
   explicitConfirmation: boolean;
+  directCreation?: boolean;
 }) {
   return authenticatedJson<{ requiresExplicit: boolean; results: ActionExecutionResult[] }>(
     "/api/actions/execute",
     {
       method: "POST",
-      body: JSON.stringify({ organizationId, proposalIds, explicitConfirmation }),
+      body: JSON.stringify({ organizationId, proposalIds, explicitConfirmation, directCreation }),
     },
   );
 }

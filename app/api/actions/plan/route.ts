@@ -1,3 +1,5 @@
+import { resolveVoicePlanCustomers } from "@/lib/voice-plan-customers";
+import { orderVoicePlan } from "@/lib/voice-plan-order";
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import { hardenPlannedActions } from "@/lib/action-plan-safety";
@@ -21,6 +23,7 @@ function cleanTarget(value: unknown): VoiceActionTarget {
 
 function planningPrompt() {
   return `Tu es le planificateur d'actions de MANUFEO, logiciel de gestion pour artisans français.
+Les références *_from_position sont des indices à partir de zéro. Le client et les collaborateurs précèdent le devis, le devis précède le chantier auquel il est lié.
 Transforme UNE demande orale en une liste ordonnée d'actions structurées. Comprends les formulations naturelles, les hésitations et les erreurs probables de transcription à partir du contexte, sans modifier les chiffres ni inventer de données. Si une information nécessaire manque, laisse-la vide/null et ajoute-la à missing_fields.
 
 Intentions autorisées exactement :
@@ -41,7 +44,7 @@ Ne crée create_project que si l'utilisateur demande d'ouvrir/créer un chantier
 Si la demande crée un client puis un devis/facture pour ce même nouveau client, place create_customer avant le document et mets customer_from_position à l'index (base 0) de l'action client dans le payload du document.
 Pour un client existant, utilise customer_hint avec son nom prononcé. Les noms, prénoms, sociétés et e-mails épelés lettre par lettre prévalent sur une transcription phonétique ; respecte le nombre de lettres répétées (deux E, trois R). Ne devine pas une lettre que l'audio ou le texte ne contient pas. N'invente jamais un UUID.
 Dans une adresse e-mail, « arobase » ou « @ » désigne @ et « point » désigne un point. Si la transcription ne permet pas de placer @ sans ambiguïté, conserve l'adresse telle quelle et signale qu'elle doit être corrigée.
-Une majoration RSE ou un autre poste demandé en pourcentage est calculé automatiquement par MANUFEO : ne crée pas de ligne supplémentaire à prix forfaitaire pour ce pourcentage. Une remise dictée est une réduction globale, pas une prestation.
+Une majoration RSE ou un autre poste demandé en pourcentage est calculé automatiquement par MANUFEO : ne crée pas de ligne supplémentaire à prix forfaitaire pour ce pourcentage. Une remise dictée est une réduction globale, pas une prestation. Une franchise TTC est une déduction après le total TTC, jamais une prestation ni un changement des prix HT. Ne laisse pas sa mention TTC rendre les autres prix ambigus.
 Chaque prestation distincte explicitement demandée d'un devis/facture doit devenir une ligne. Une pièce citée, une répétition ou un fragment incompris ne suffit pas à créer une autre prestation. Reformule clairement les libellés malgré les erreurs évidentes de transcription, sans exiger une formule précise ni transformer une précision en nouvelle ligne.
 Recopie exactement les libellés dictés, y compris virgules et ponctuation utiles (ex. « Chambre 2, plafond »). Une virgule entre chiffres fait partie d'un nombre : 18,50 m² = 18.5, jamais 18 ni 50 ; « 18 mètres 50 » signifie 18,50 mètres, sans inventer « carrés » si ce n'est pas dit. N'attribue jamais à une autre pièce un métrage ou un prix dicté pour celle-ci.
 Pour chaque ligne recopie la courte expression exacte de la dictée dans quantity_evidence, price_evidence et tax_evidence si présente. « Un forfait à 180 euros » signifie une quantité de 1 et une unité forfait. Conserve la somme prononcée dans unit_price et indique price_type « ht », « ttc » ou « unknown » ; ne convertis PAS le TTC, le serveur le convertira seulement avec une TVA explicite. « Hors taxes » = HT, « toutes taxes comprises » = TTC. Si le type n'est pas précisé, laisse unknown ; si la TVA n'est pas donnée, laisse tax_rate à null. Une TVA annoncée au début du devis s'applique aux prestations suivantes jusqu'à l'annonce explicite d'un autre taux. Une TVA ponctuelle annoncée seulement pour une ligne ne modifie pas les autres lignes.
@@ -125,7 +128,7 @@ async function assertCustomerNotDuplicate({
   organizationId: string;
   client: Awaited<ReturnType<typeof authenticateRequest>>["client"];
 }) {
-  if (action.intentType !== "create_customer") return;
+  if (action.intentType !== "create_customer" || action.payload.existing_customer_id) return;
   const siret = typeof action.payload.siret === "string" ? action.payload.siret.trim() : "";
   if (siret) {
     const { data, error } = await client
@@ -364,8 +367,9 @@ export async function POST(request: Request) {
     const planned = target === "command" || target === "supplier"
       ? await planWithDeepSeek(transcript, target === "supplier")
       : [plannedActionFromParsed(target, body.parsed, transcript)];
+    await resolveVoicePlanCustomers(planned, organizationId, context.client);
     await proposeLearnedSellingPrices(planned, organizationId, context.client);
-    const actions = hardenPlannedActions(planned);
+    const actions = hardenPlannedActions(orderVoicePlan(planned));
     await resolveProjectCollaborators(actions, organizationId, context.client);
     await resolveSupplierRequests(actions, organizationId, context.client);
 

@@ -1,4 +1,5 @@
 "use client";
+import { canCreateDirectly } from "@/lib/voice-direct-creation";
 
 import ManufeoMascot from "./manufeo-mascot";
 
@@ -532,7 +533,19 @@ export default function ActionVoiceAssistant() {
       setProposals(planned.proposals);
       setPlannedTranscript(normalized);
       setEditing(false);
-      setStage("review");
+      if (planned.proposals.every(canCreateDirectly)) {
+        const ready = new Set(planned.proposals.filter(proposal => proposal.status === "ready" && !proposal.missing_fields.length).map(proposal => proposal.id));
+        for (const proposal of planned.proposals) {
+          const dependencies = [proposal.payload.customer_from_proposal_id, proposal.payload.quote_from_proposal_id, ...(Array.isArray(proposal.payload.collaborator_from_proposal_ids) ? proposal.payload.collaborator_from_proposal_ids : [])].filter(Boolean);
+          if (dependencies.some(id => !ready.has(String(id)))) ready.delete(proposal.id);
+        }
+        const creatable = planned.proposals.filter(proposal => ready.has(proposal.id));
+        if (!creatable.length) throw new Error(planned.proposals.flatMap(proposal => proposal.missing_fields.map(missingLabel)).join(" ") || "Décrivez ce que vous souhaitez créer.");
+        const remaining = planned.proposals.filter(proposal => !ready.has(proposal.id));
+        await createPlanned(creatable, organizationId, true, remaining.length ? `À compléter : ${remaining.flatMap(proposal => proposal.missing_fields.map(missingLabel)).join(" ")}` : "");
+      } else {
+        setStage("review");
+      }
     } catch (error) {
       if (analysisControllerRef.current !== controller) return;
       setMessage(error instanceof DOMException && error.name === "AbortError"
@@ -677,19 +690,27 @@ export default function ActionVoiceAssistant() {
       if (!response.ok) throw new Error(result?.error || "Transcription impossible.");
       const text = clean(result.text);
       if (!text) throw new Error("Aucun texte reconnu.");
-      if (result.needsReview || Number(result.lowConfidenceSegments) > 0) {
-        updateTranscript(text);
-        setProposals([]);
-        setEditing(true);
-        setMessage("Certains passages sont incertains. Réécoutez l’enregistrement et corrigez la dictée avant de relancer l’analyse.");
-        setStage("review");
-        return;
-      }
       await prepare(text);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Transcription impossible.");
       setStage("error");
     }
+  }
+
+  async function createPlanned(planned: ActionProposalView[], organizationId: string, directCreation = true, remainingMessage = "") {
+    setStage("executing");
+    const execution = await executeVoiceActions({ organizationId, proposalIds: planned.map(proposal => proposal.id), explicitConfirmation: directCreation ? false : explicitConfirmed, directCreation });
+    setResults(execution.results);
+    window.dispatchEvent(new CustomEvent("manufeo:workspace-changed", { detail: execution.results }));
+    const created = execution.results.find(result => result.entityType === "quote")
+      ?? execution.results.find(result => result.entityType === "invoice")
+      ?? execution.results.find(result => result.entityType === "customer")
+      ?? execution.results.find(result => result.entityType === "project")
+      ?? execution.results[0];
+    if (created && directCreation) {
+      setOpen(false);
+      window.dispatchEvent(new CustomEvent("manufeo:open-created-entity", { detail: { ...created, messages: [...execution.results.map(result => result.message), remainingMessage].filter(Boolean) } }));
+    } else setStage("success");
   }
 
   async function execute() {
@@ -712,14 +733,7 @@ export default function ActionVoiceAssistant() {
     setMessage("");
     try {
       const organizationId = await getActiveOrganizationId();
-      const execution = await executeVoiceActions({
-        organizationId,
-        proposalIds: proposals.map((proposal) => proposal.id),
-        explicitConfirmation: explicitConfirmed,
-      });
-      setResults(execution.results);
-      window.dispatchEvent(new CustomEvent("manufeo:workspace-changed", { detail: execution.results }));
-      setStage("success");
+      await createPlanned(proposals, organizationId, false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Exécution impossible.");
       setStage("review");
@@ -758,7 +772,7 @@ export default function ActionVoiceAssistant() {
               onFinish={() => void stopRecording()}
               onClose={close}
             />
-          ) : stage === "transcribing" || stage === "analysing" ? (
+          ) : stage === "transcribing" || stage === "analysing" || stage === "executing" ? (
             <VoiceProcessingVisualizer onClose={close} />
           ) : (
           <section className="ava-panel">
@@ -783,7 +797,7 @@ export default function ActionVoiceAssistant() {
                 <span className="ava-target">{choices.find((choice) => choice.id === target)?.label ?? "Demande"}</span>
                 <VoicePreviewButton onStart={() => void startRecording()} />
                 <button type="button" className="ava-secondary" onClick={() => void showDrafts()}>Brouillons d’e-mails IA</button>
-                <p>Rien n’est exécuté avant votre validation.</p>
+                <p>MANUFEO crée vos fiches et brouillons. Vous pouvez ensuite les modifier.</p>
                 {target === "command" && <CommandPrecisionGuide />}
                 <textarea
                   value={transcript}
@@ -795,7 +809,7 @@ export default function ActionVoiceAssistant() {
                 {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
                 {(stage === "ready" || stage === "error") && transcript.trim() && (
-                  <button type="button" className="ava-primary" onClick={() => void prepare(transcriptRef.current)}>Analyser la demande</button>
+                  <button type="button" className="ava-primary" onClick={() => void prepare(transcriptRef.current)}>Créer avec MANUFEO</button>
                 )}
                 {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>
@@ -852,9 +866,9 @@ export default function ActionVoiceAssistant() {
               <button type="button" className="ava-secondary" disabled={emailBusy} onClick={() => { setStage("drafts"); setMessage(""); }}>Retour aux brouillons</button>
             </div>}
 
-            {(stage === "review" || stage === "executing") && (
+            {stage === "review" && (
               <div className="ava-review">
-                <div className="ava-review-mascot"><ManufeoMascot mood={stage === "executing" ? "writing" : "ready"} /><span>{stage === "executing" ? "J’enregistre les actions validées…" : learnedPrices.length ? "Psst… j’ai retrouvé tes tarifs pour compléter ce devis 💡" : "Vérifiez les actions avant de les valider."}</span></div>
+                <div className="ava-review-mascot"><ManufeoMascot mood={busy ? "writing" : "ready"} /><span>{busy ? "J’enregistre les actions validées…" : learnedPrices.length ? "Psst… j’ai retrouvé tes tarifs pour compléter ce devis 💡" : "Vérifiez les actions avant de les valider."}</span></div>
                 {learnedPrices.length > 0 && <div className="ava-confirmation" role="status"><strong>{learnedPrices.length} tarif(s) proposé(s) depuis tes devis validés</strong>{learnedPrices.slice(0, 3).map((item, index) => <p key={index}>{String(item.label)} : {euro(item.unit_price)} HT/{String(item.unit)}</p>)}<small>Confirme ces prix avant de valider les actions, ou corrige ta demande.</small></div>}
                 <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length ? `${proposals.length} action${proposals.length > 1 ? "s" : ""} préparée${proposals.length > 1 ? "s" : ""}` : "Dictée à vérifier"}</strong><small>{proposals.length ? "Vérifiez tout avant de valider." : "Réécoutez puis corrigez les passages incertains."}</small></div></div>
                 {blocking && <div className="ava-blocking" role="alert"><strong>Une ou plusieurs actions ont besoin d’une correction.</strong><span>Les champs concernés sont indiqués en rouge ci-dessous. Corrigez la demande ici, puis relancez l’analyse.</span></div>}
@@ -870,7 +884,7 @@ export default function ActionVoiceAssistant() {
                         {(proposal.missing_fields ?? []).map((field) => <small className="ava-missing" key={field}>À corriger : {missingLabel(field)}</small>)}
                         {(proposal.missing_fields ?? []).filter((field) => field.startsWith("collaborateur_introuvable: ")).map((field) => {
                           const name = field.slice("collaborateur_introuvable: ".length).trim();
-                          return <button key={field} type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => void prepare(`Crée ${name} comme collaborateur, puis ${transcript}`)}>
+                          return <button key={field} type="button" className="ava-secondary" disabled={busy} onClick={() => void prepare(`Crée ${name} comme collaborateur, puis ${transcript}`)}>
                             Créer {name} et reprendre
                           </button>;
                         })}
@@ -881,15 +895,15 @@ export default function ActionVoiceAssistant() {
                 {message && <div className="ava-message" role="status">{message}</div>}
                 {sensitive && (
                   <label className="ava-explicit">
-                    <input type="checkbox" checked={explicitConfirmed} onChange={(event) => setExplicitConfirmed(event.target.checked)} disabled={stage === "executing"} />
+                    <input type="checkbox" checked={explicitConfirmed} onChange={(event) => setExplicitConfirmed(event.target.checked)} disabled={busy} />
                     <span><strong>Je confirme les actions sensibles</strong><small>Paiement, facture, commande ou autre opération signalée. MANUFEO n’envoie jamais un document ou un e-mail sans étape dédiée.</small></span>
                   </label>
                 )}
-                {(blocking || editing) && <div className="ava-review-edit"><label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={stage === "executing"} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={stage === "executing" || !transcript.trim()} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
-                <button type="button" className="ava-primary" disabled={!proposals.length || blocking || changedSincePlan || stage === "executing" || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
-                  {stage === "executing" ? <><Loader2 size={17} className="ava-spin" /> Exécution sécurisée…</> : "Valider et exécuter"}
+                {(blocking || editing) && <div className="ava-review-edit"><label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={busy} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={busy || !transcript.trim()} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
+                <button type="button" className="ava-primary" disabled={!proposals.length || blocking || changedSincePlan || busy || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
+                  {busy ? <><Loader2 size={17} className="ava-spin" /> Exécution sécurisée…</> : "Valider et exécuter"}
                 </button>
-                {!blocking && !editing && <button type="button" className="ava-secondary" disabled={stage === "executing"} onClick={() => setEditing(true)}>Corriger la demande</button>}
+                {!blocking && !editing && <button type="button" className="ava-secondary" disabled={busy} onClick={() => setEditing(true)}>Corriger la demande</button>}
               </div>
             )}
 

@@ -59,7 +59,7 @@ test('le plan vocal lit seulement les devis validés de son entreprise et prése
   assert.equal(items[0].price_source,'company_history');
   assert.ok(!action.warnings.includes('Ligne 1 : prix unitaire absent.'));
   assert.ok(action.warnings.includes('Adresse à préciser.'));
-  assert.match(action.warnings.at(-1)!,/À confirmer/);
+  assert.match(action.warnings.at(-1)!,/Modifiable dans le devis/);
 });
 test('un historique indisponible ne bloque pas le devis et ne fournit aucun prix inventé',async()=>{
   const chain={select:()=>chain,eq:()=>chain,order:()=>chain,limit:async()=>({data:null,error:new Error('offline')})};

@@ -10,7 +10,7 @@ export function recalculatePercentageLines(items: LineItem[]) {
     const percent = linePercentage(item);
     if (percent === null) return item;
     const amount = base.filter(line => line.taxRate === item.taxRate).reduce((sum, line) => sum + (line.quantity ?? 0) * (line.unitPrice ?? 0), 0);
-    return { ...item, quantity: 1, unit: 'forfait', unitPrice: Math.round(amount * percent) / 100 };
+    return { ...item, quantity: 1, unit: 'forfait', unitPrice: base.some(line => line.taxRate === item.taxRate && (line.quantity === null || line.unitPrice === null)) ? null : Math.round(amount * percent) / 100 };
   });
 }
 export function spokenDiscount(transcript: string) {

@@ -13,8 +13,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listExecutedVoiceActions } from "@/lib/action-client";
 import { blobToBase64 } from "@/lib/document-tools";
 import { buildBusinessDocumentPdf } from "@/lib/mobile-document-pdf";
-import { archiveInvoice, deleteInvoice as deleteCloudInvoice, deleteQuote as deleteCloudQuote, fetchArchivedInvoices } from "@/lib/project-chapet";
-import { invoiceToMobile } from "@/lib/mobile-desktop-sync";
+import { archiveInvoice, deleteInvoice as deleteCloudInvoice, deleteQuote as deleteCloudQuote, fetchArchivedInvoices, fetchWorkspace } from "@/lib/project-chapet";
+import { customerToMobile, quoteToMobile, invoiceToMobile } from "@/lib/mobile-desktop-sync";
 import { isDatabaseId } from "@/lib/mobile-desktop-sync";
 import { getActiveOrganizationId } from "@/lib/project-chapet";
 import { voiceAgendaEntry, type ExecutedVoiceAction } from "@/lib/voice-action-history";
@@ -120,6 +120,45 @@ export default function RappidosMobileShellV2() {
       window.removeEventListener("manufeo:workspace-changed", changed);
       window.removeEventListener("manufeo:open-voice-agenda", showAgenda);
     };
+  }, []);
+  useEffect(() => {
+    const openCreated = async (event: Event) => {
+      const result = (event as CustomEvent<{ entityType: string; entityId: string | null; proposalId: string; intentType?: string; messages?: string[] }>).detail;
+      if (!result) return;
+      try {
+        if (["quote", "invoice", "customer"].includes(result.entityType)) {
+          const server = await fetchWorkspace();
+          if (result.entityType === "quote" && !server.quotes.some(item => item.id === result.entityId)
+            || result.entityType === "invoice" && !server.invoices.some(item => item.id === result.entityId)) throw new Error("Le document est enregistré. Rechargez pour le retrouver.");
+          setWorkspace(current => {
+            // Merge cloud entities by UUID; never discard pending local edits.
+            let merged = current;
+            for (const customer of server.customers) if (!current.customers.some(item => item.id === customer.id)) merged = upsertCustomer(merged, customerToMobile(customer));
+            if (result.entityType === "quote") {
+              const quote = server.quotes.find(item => item.id === result.entityId);
+              if (!quote) return merged;
+              merged = upsertQuote(merged, quoteToMobile(quote));
+            } else if (result.entityType === "invoice") {
+              const invoice = server.invoices.find(item => item.id === result.entityId);
+              if (!invoice) return merged;
+              merged = upsertInvoice(merged, invoiceToMobile(invoice));
+            }
+            return merged;
+          });
+          if (result.entityType === "quote") { setTab("quotes"); setSelectedQuoteId(result.entityId); }
+          if (result.entityType === "invoice") { setTab("invoices"); setSelectedInvoiceId(result.entityId); }
+          if (result.entityType === "customer") { setTab("clients"); setSelectedCustomerId(result.entityId); }
+        } else if (result.entityType === "project" || result.entityType === "collaborator") {
+          window.dispatchEvent(new CustomEvent("manufeo:open-workflow-panel", { detail: "team" }));
+        } else if (result.entityType === "supplier") {
+          window.dispatchEvent(new CustomEvent("manufeo:open-workflow-panel", { detail: "suppliers" }));
+        } else if (result.intentType === "schedule_task" || result.entityType === "agenda") { setTab("agenda"); setAgendaFilter("all"); }
+        else if (result.entityType === "email_draft") window.dispatchEvent(new Event("manufeo:open-email-drafts"));
+        setToast(result.messages?.join(" ") || "Création terminée.");
+      } catch (error) { setToast(error instanceof Error ? error.message : "Création enregistrée. Rechargez pour la retrouver."); }
+    };
+    window.addEventListener("manufeo:open-created-entity", openCreated);
+    return () => window.removeEventListener("manufeo:open-created-entity", openCreated);
   }, []);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
 

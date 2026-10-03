@@ -1,9 +1,10 @@
+import { canCreateDirectly } from "./voice-direct-creation";
 import { createSupplierFromVoice } from "./voice-supplier";
 import { sendSupplierPriceRequest } from "./supplier-price-request";
 import { createServiceSupabase } from "./server-organization";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiInputError } from "@/lib/api-guard";
-import type { ActionIntent } from "@/lib/action-engine";
+import { riskLevelForIntent, type ActionIntent } from "@/lib/action-engine";
 import type { AuthenticatedRequestContext } from "@/lib/server-auth";
 
 export type ProposalRow = {
@@ -20,6 +21,7 @@ export type ProposalRow = {
   confidence: number;
   warnings: string[];
   missing_fields: string[];
+  execution_result?: ExecutionResult;
 };
 
 export type ExecutionResult = {
@@ -218,6 +220,12 @@ async function executeProposal(
   const payload = proposal.payload;
 
   if (proposal.intent_type === "create_customer") {
+    const existingId = string(payload.existing_customer_id, 80);
+    if (existingId) {
+      const { data, error } = await context.client.from("customers").select("id").eq("organization_id", proposal.organization_id).eq("id", existingId).maybeSingle();
+      if (error || !data) throw new ApiInputError("Le client existant ne peut pas être retrouvé.", 409);
+      return { proposalId: proposal.id, intentType: proposal.intent_type, entityType: "customer", entityId: String(data.id), message: "Client existant retrouvé." };
+    }
     const kind = payload.kind === "individual" ? "individual" : "business";
     const companyName = string(payload.company_name, 180) || null;
     const lastName = string(payload.last_name, 120) || null;
@@ -511,11 +519,13 @@ export async function executeProposalBatch({
   organizationId,
   proposalIds,
   explicitConfirmation,
+  directCreation = false,
 }: {
   context: AuthenticatedRequestContext;
   organizationId: string;
   proposalIds: string[];
   explicitConfirmation: boolean;
+  directCreation?: boolean;
 }) {
   const membership = context.memberships.find((item) => item.organizationId === organizationId);
   if (!membership) throw new ApiInputError("Entreprise non autorisée.", 403);
@@ -523,7 +533,7 @@ export async function executeProposalBatch({
 
   const { data, error } = await context.client
     .from("action_proposals")
-    .select("id, organization_id, created_by, source_type, source_reference, raw_text, intent_type, payload, risk_level, status, confidence, warnings, missing_fields")
+    .select("id, organization_id, created_by, source_type, source_reference, raw_text, intent_type, payload, risk_level, status, confidence, warnings, missing_fields, execution_result")
     .eq("organization_id", organizationId)
     .in("id", proposalIds);
   if (error) throw new Error("Chargement des propositions impossible.");
@@ -536,6 +546,7 @@ export async function executeProposalBatch({
     if (proposal.created_by !== context.user.id && !canExecuteOthers) {
       throw new ApiInputError("Vous ne pouvez pas exécuter une proposition préparée par un autre membre.", 403);
     }
+    if (proposal.status === "executed" && proposal.execution_result) continue;
     if (proposal.status !== "ready") {
       throw new ApiInputError("Toutes les actions doivent être prêtes avant validation.", 409);
     }
@@ -544,13 +555,14 @@ export async function executeProposalBatch({
     }
   }
 
-  const requiresExplicit = proposals.some((proposal) => proposal.risk_level === "explicit_confirmation");
-  if (requiresExplicit && !explicitConfirmation) {
+  const requiresExplicit = proposals.some((proposal) => proposal.risk_level === "explicit_confirmation" || riskLevelForIntent(proposal.intent_type) === "explicit_confirmation");
+  if (requiresExplicit && !explicitConfirmation && !(directCreation && proposals.every(canCreateDirectly))) {
     throw new ApiInputError("Une confirmation explicite est requise pour les actions sensibles.", 409);
   }
 
   const results = new Map<string, ExecutionResult>();
   for (const proposal of proposals) {
+    if (proposal.status === "executed" && proposal.execution_result) { results.set(proposal.id, proposal.execution_result); continue; }
     await claimProposal(context.client, proposal, context.user.id);
     try {
       const result = await executeProposal(context, proposal, results);
