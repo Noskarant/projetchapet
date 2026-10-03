@@ -13,6 +13,7 @@ import Preview from './app/mobile-auto-pdf-preview';
 import Unified from './app/mobile-unified-quote-sheet';
 import LegacyGuard from './app/mobile-legacy-quote-detail-guard';
 import './app/rappidos-mobile-shell.css';
+import './app/mobile-quote-preview.css';
 createRoot(document.getElementById('root')).render(<><Shell/><Assistant/><Preview/><Unified/><LegacyGuard/></>);
 ` }, bundle: true, write: false, outdir: '/tmp/voice-quality-bundle', jsx: 'automatic', minify: true,
   define: { 'process.env.NODE_ENV': '"production"', 'process.env': JSON.stringify({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://backend.manufeo.test', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-key' }) },
@@ -21,8 +22,10 @@ const org = '11111111-1111-4111-8111-111111111111';
 const customerId = '22222222-2222-4222-8222-222222222222';
 const entityId = '33333333-3333-4333-8333-333333333333';
 
-for (const kind of ['quote', 'invoice', 'customer'] as const) {
-  test(`production : dictée → ${kind} enregistré et ouvert sans validation, puis modification`, async ({ page }) => {
+for (const scenario of ['quote', 'invoice', 'customer', 'quote-tablet'] as const) {
+  const kind = scenario === 'quote-tablet' ? 'quote' : scenario;
+  test(`production : dictée → ${scenario} enregistré et ouvert sans validation, puis modification`, async ({ page }) => {
+    if (scenario === 'quote-tablet') await page.setViewportSize({width:1024,height:768});
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     const transcript = 'TVA 10 %, crée un devis pour Crous de Lyon : peinture plafond, 12 mètres carrés à 22,40 euros HT. Papier peint à compléter.';
@@ -98,7 +101,12 @@ for (const kind of ['quote', 'invoice', 'customer'] as const) {
       await page.getByRole('dialog', {name:'Actions du devis'}).getByRole('button', {name:'Modifier le devis'}).click();
       await expect(page.locator('.rm-v2-editor')).toBeVisible();
       await expect(page.locator('.rm-v2-editor input[value="Papier peint"]')).toHaveCount(1);
-    } else if (kind === 'customer') await expect(page.locator('.rm-detail-sheet')).toBeVisible();
+    } else if (kind === 'customer') {
+      await expect(page.locator('.rm-detail-sheet')).toBeVisible();
+      await page.locator('.rm-detail-sheet').getByRole('button', {name:'Modifier',exact:true}).click();
+      await expect(page.locator('.rm-v2-editor')).toBeVisible();
+      await expect(page.locator('.rm-v2-editor input[value="Crous de Lyon"]')).toHaveCount(1);
+    }
     else {
       await expect(page.locator('.rm-detail-sheet')).toBeVisible();
       await expect(page.locator('.rm-detail-sheet h2')).toHaveText(document.number);
@@ -107,6 +115,6 @@ for (const kind of ['quote', 'invoice', 'customer'] as const) {
       await expect(page.locator('.rm-v2-editor input[value="Papier peint"]')).toHaveCount(1);
     }
     expect(errors).toEqual([]);
-    await page.screenshot({ path: test.info().outputPath(`direct-${kind}.png`), fullPage: true });
+    await page.screenshot({ path: test.info().outputPath(`direct-${scenario}.png`), fullPage: true });
   });
 }

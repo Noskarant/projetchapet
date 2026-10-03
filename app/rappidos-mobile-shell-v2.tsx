@@ -121,6 +121,11 @@ export default function RappidosMobileShellV2() {
       window.removeEventListener("manufeo:open-voice-agenda", showAgenda);
     };
   }, []);
+  const notify = useCallback((message: string) => {
+    setToast(message); if (toastTimer.current) window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(""), 2600);
+  }, []);
+  useEffect(() => () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); }, []);
+
   useEffect(() => {
     const openCreated = async (event: Event) => {
       const result = (event as CustomEvent<{ entityType: string; entityId: string | null; proposalId: string; intentType?: string; messages?: string[] }>).detail;
@@ -159,17 +164,14 @@ export default function RappidosMobileShellV2() {
           window.dispatchEvent(new CustomEvent("manufeo:open-workflow-panel", { detail: "suppliers" }));
         } else if (result.intentType === "schedule_task" || result.entityType === "agenda") { setTab("agenda"); setAgendaFilter("all"); }
         else if (result.entityType === "email_draft") window.dispatchEvent(new Event("manufeo:open-email-drafts"));
-        setToast(result.messages?.join(" ") || "Création terminée.");
-      } catch (error) { setToast(error instanceof Error ? error.message : "Création enregistrée. Rechargez pour la retrouver."); }
+        notify(result.messages?.join(" ") || "Création terminée.");
+      } catch (error) { notify(error instanceof Error ? error.message : "Création enregistrée. Rechargez pour la retrouver."); }
     };
     window.addEventListener("manufeo:open-created-entity", openCreated);
     return () => window.removeEventListener("manufeo:open-created-entity", openCreated);
-  }, []);
+  }, [notify]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
 
-  const notify = useCallback((message: string) => {
-    setToast(message); if (toastTimer.current) window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(""), 2600);
-  }, []);
 
   useEffect(() => {
     const reloadProfile = () => setCompanyProfile(readCompanyProfile(window.localStorage));
