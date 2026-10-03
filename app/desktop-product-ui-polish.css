@@ -2,8 +2,6 @@
 @import url("./product-ui-polish.css") screen and not all;
 
 /* Keep the pricing promise readable on the dark landing section. */
-@media not all {
-  .fp-page.fp-page-v2 .fp-pricing-v2 .fp-pricing-copy h2 {
-    color: #f4f8ff;
-  }
+.fp-page.fp-page-v2 .fp-pricing-v2 .fp-pricing-copy h2 {
+  color: #f4f8ff;
 }

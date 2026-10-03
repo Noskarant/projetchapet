@@ -607,6 +607,8 @@
 .fp-price-card > p { display: flex; align-items: baseline; gap: 8px; margin: 17px 0 24px; color: #fff; }
 .fp-price-card strong { color: #fff; font-size: 52px; line-height: 1; letter-spacing: -2.4px; }
 .fp-price-card p span { color: #bdd0e3; font-size: 12px; }
+.fp-price-terms { display: grid; gap: 8px; margin: 0 0 24px; color: #e2edf7; font-size: 12px; line-height: 1.6; }
+.fp-price-terms b { color: #fff; font-weight: 750; }
 .fp-price-card .fp-primary-v2 { width: 100%; }
 .fp-price-login { width: 100%; margin-top: 10px; padding: 10px; border: 0; color: #c9dbeb; background: transparent; font-size: 10px; font-weight: 650; }
 .fp-price-login:hover { color: #fff; }
@@ -624,8 +626,11 @@
   align-items: center;
 }
 .fp-footer-brand { display: grid; gap: 4px; }
-.fp-footer-lockup { display: inline-flex; width: 155px; height: 44px; align-items: center; overflow: hidden; }
-.fp-footer-lockup .manufeo-lockup { width: 145px; height: 145px; object-fit: contain; }
+.fp-page .fp-footer-lockup { display: inline-flex; width: fit-content; height: auto; align-items: center; overflow: visible; }
+.fp-footer-lockup .fp-brand { gap: 8px; }
+.fp-footer-lockup .fp-brand > img { width: 34px; height: auto; }
+.fp-footer-lockup .fp-brand b { font-size: 21px; letter-spacing: -.6px; }
+.fp-footer-lockup .fp-brand small { font-size: 6px; letter-spacing: 1px; }
 .fp-footer-brand p,
 .fp-footer-meta p { margin: 0; font-size: 10px; }
 .fp-footer-meta { display: grid; justify-items: end; gap: 7px; }

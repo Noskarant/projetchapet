@@ -24,7 +24,7 @@ import {
   Sparkles,
   UsersRound,
 } from "lucide-react";
-import { ArtisanPhoto, ForgeoBrand, ManufeoLockup } from "./forgeo-public-ui";
+import { ArtisanPhoto, ForgeoBrand } from "./forgeo-public-ui";
 
 type Props = { onLogin: () => void; onSignup: () => void };
 
@@ -428,6 +428,11 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
         <div className="fp-price-card">
           <small>MANUFEO</small>
           <p><strong>99 €</strong><span>HT / mois</span></p>
+          <div className="fp-price-terms">
+            <b>Engagement minimum de 12 mois</b>
+            <span>Paiement annuel : 1 188 € HT en une fois.</span>
+            <span>Paiement mensuel : 99 € HT / mois pendant 12 mois.</span>
+          </div>
           <button className="fp-primary fp-primary-v2" onClick={onSignup}>
             Créer mon espace <ArrowRight aria-hidden="true" />
           </button>
@@ -449,7 +454,7 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
       <footer className="fp-footer fp-footer-v2">
         <div className="fp-footer-brand">
           <a className="fp-footer-lockup" href="#accueil" aria-label="MANUFEO, accueil">
-            <ManufeoLockup />
+            <ForgeoBrand />
           </a>
           <p>L’assistant métier des artisans du bâtiment.</p>
         </div>
