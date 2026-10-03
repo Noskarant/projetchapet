@@ -27,6 +27,10 @@ test('montants français : espaces des milliers, décimales et une unité conser
   assert.equal(explicitPrice('12 350,75 euros TTC'), 12350.75);
   assert.equal(explicitPrice('mille sept cents euros HT'), 1700);
   assert.equal(explicitQuantity('une unité'), 1);
+  const workspace = seedMobileWorkspace();
+  const quote = workspace.quotes[0];
+  const command = fallbackMobileVoiceCommand('Sur la ligne peinture séjour, passe le prix à 1 800 euros HT.', { entity: 'quote', id: quote.id, data: quote }, workspace);
+  assert.equal(command.line_operations?.[0]?.prix_unitaire_ht, 1800);
 });
 
 test('dictée PERBET réelle : une intervention complète à 1700 HT, TVA170, TTC1870', () => {
@@ -125,6 +129,19 @@ test('une correction de notes ou de nom ne remet pas l’ancienne TVA depuis un 
   assert.deepEqual(renamed.items, server.items);
   const edited = { ...baseline, items: baseline.items.map(item => ({ ...item, taxRate: 20 })) };
   assert.deepEqual(mergeDocumentChanges(baseline, edited, server).items, edited.items);
+});
+
+test('changer un prix préserve les TVA corrigées et les nouvelles prestations du serveur', () => {
+  const baseline = seedMobileWorkspace().quotes[0];
+  const server = { ...baseline, items: [...baseline.items.map(item => ({ ...item, id: `server-${item.id}`, taxRate: 10 })), { ...baseline.items[0], id: 'cloud-added', label: 'Poste ajouté au bureau', taxRate: 10 }] };
+  const local = { ...baseline, items: baseline.items.map((item, index) => index === 0 ? { ...item, unitPrice: 42 } : item) };
+  const result = mergeDocumentChanges(baseline, local, server);
+  assert.equal(result.items[0].unitPrice, 42);
+  assert.ok(result.items.every(item => item.taxRate === 10));
+  assert.equal(result.items.at(-1)?.label, 'Poste ajouté au bureau');
+  const removed = mergeDocumentChanges(baseline, { ...local, items: local.items.slice(1) }, server);
+  assert.ok(!removed.items.some(item => item.label === baseline.items[0].label));
+  assert.equal(removed.items.at(-1)?.label, 'Poste ajouté au bureau');
 });
 
 test('facture PDF PERBET : une seule prestation, adresse dictée, HT1700 TVA170 TTC1870', async () => {

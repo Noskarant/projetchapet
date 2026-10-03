@@ -20,6 +20,7 @@ import {
 } from "./mobile-prototype";
 import { parseAgendaVoiceRequest } from "./mobile-agenda-voice";
 import { spokenDiscount } from "./percentage-adjustments";
+import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 
 export type VoiceEntityKind = "quote" | "invoice" | "agenda" | "customer";
 
@@ -273,8 +274,7 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
 function moneyValue(text: string, expression: RegExp) {
   const match = text.match(expression)?.[1];
   if (!match) return undefined;
-  const value = Number(match.replace(",", "."));
-  return Number.isFinite(value) ? value : undefined;
+  return spokenFinancialNumber(match) ?? undefined;
 }
 
 export function fallbackMobileVoiceCommand(
@@ -332,14 +332,14 @@ export function fallbackMobileVoiceCommand(
     operations.push({ action: "delete", match: deleteMatch });
   }
 
-  const addMatch = text.match(/(?:ajoute|rajoute)\s+(\d+(?:[,.]\d+)?)?\s*(m2|m²|m|ml|l|h|heures?|unit[eé]s?|u|forfait)?\s*(?:de\s+)?([^.;]+?)\s+(?:à|a)\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/i);
+  const addMatch = text.match(new RegExp(`(?:ajoute|rajoute)\\s+(\\d+(?:[,.]\\d+)?)?\\s*(m2|m²|m|ml|l|h|heures?|unit[eé]s?|u|forfait)?\\s*(?:de\\s+)?([^.;]+?)\\s+(?:à|a)\\s*(${spokenAmountPattern})\\s*(?:€|euros?)`, 'iu'));
   if (addMatch && (target.entity === "quote" || target.entity === "invoice")) {
     operations.push({
       action: "add",
       designation: addMatch[3].trim(),
       quantite: addMatch[1] ? Number(addMatch[1].replace(",", ".")) : undefined,
       unite: addMatch[2] || undefined,
-      prix_unitaire_ht: Number(addMatch[4].replace(",", ".")),
+      prix_unitaire_ht: spokenFinancialNumber(addMatch[4]) ?? undefined,
       taux_tva: moneyValue(text, /tva\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*%/i),
     });
   }
@@ -350,7 +350,7 @@ export function fallbackMobileVoiceCommand(
       action: "update",
       match: updateMatch,
       quantite: moneyValue(text, /(?:quantit[eé]|surface)\s*(?:à|a|de)?\s*(\d+(?:[,.]\d+)?)/i),
-      prix_unitaire_ht: moneyValue(text, /(?:prix|tarif|passe|mets?|remplace)\s*(?:le\s+prix\s*)?(?:à|a|par)?\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/i),
+      prix_unitaire_ht: moneyValue(text, new RegExp(`(?:prix|tarif|passe|mets?|remplace)\\s*(?:le\\s+prix\\s*)?(?:à|a|par)?\\s*(${spokenAmountPattern})\\s*(?:€|euros?)`, 'iu')),
       taux_tva: moneyValue(text, /tva\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*%/i),
     });
   }

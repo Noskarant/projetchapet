@@ -30,7 +30,7 @@ const invoiceId = '55555555-5555-4555-8555-555555555555';
 const storageKey = 'projetchapet-mobile-workspace-v3';
 const metaKey = 'projetchapet-mobile-quote-meta-v1';
 
-async function fixture(page: Page, failedSave = false) {
+async function fixture(page: Page, failedSave = false, staleTax = false) {
   const customer = { id: customerId, organization_id: org, kind: 'individual', first_name: 'Henri', last_name: 'Perbet', civility: 'M.', company_name: null, emails: [], phones: [], addresses: [{ line1: '54 avenue de Montesquieu', city: 'Vosges', postal_code: '' }], created_at: '2026-10-03', updated_at: '2026-10-03' };
   const item = { position: 0, label: 'Portail extérieur : préparation, peinture et antirouille', description: '', quantity: 1, unit: 'unité', unit_price: 1700, tax_rate: 10, total: 1700 };
   const quote = { id: quoteId, organization_id: org, customer_id: customerId, customer, number: 'DEV-2026-099', title: 'Portail extérieur', status: 'draft', issue_date: '2026-10-03', expiry_date: '2026-11-03', subtotal: 1700, tax_total: 170, total: 1870, notes: 'Remise globale de 2 % sur ce chantier. Franchise de 150 euros TTC.', items: [item] };
@@ -38,6 +38,7 @@ async function fixture(page: Page, failedSave = false) {
   const mobileCustomer = { id: customerId, kind: 'Particulier' as const, companyName: '', firstName: 'Henri', lastName: 'Perbet', civility: 'M.', address: '54 avenue de Montesquieu', postalCode: '', city: 'Vosges', siret: '', vat: '', emails: [], phones: [], notes: '' };
   const mobileDocument = { id: quoteId, number: quote.number, title: quote.title, customerId, customerName: 'M. Perbet Henri', issueDate: quote.issue_date, expiryDate: quote.expiry_date, status: 'En attente' as const, items: [{ id: 'line-1', label: item.label, description: '', quantity: 1, unit: 'unité', unitPrice: 1700, taxRate: 10 }], notes: quote.notes, subtotal: 1700, taxTotal: 170, total: 1870 };
   const workspace: MobileWorkspace = { customers: [mobileCustomer], quotes: [mobileDocument], invoices: [{ ...mobileDocument, id: invoiceId, number: invoice.number, status: 'Brouillon', dueDate: invoice.due_date, paidTotal: 0, accountantSent: false, notes: '' }], agenda: [] };
+  if (staleTax) { workspace.quotes[0].items[0].taxRate = null; workspace.quotes[0].taxTotal = 0; workspace.quotes[0].total = 1700; }
   const state = { discount: 2, saved: false, failures: failedSave ? 1 : 0, payments: 0, executions: 0, actions: [] as Array<Record<string, unknown>>, quote, invoice };
   await page.addInitScript(({ workspace, storageKey, metaKey }) => {
     if (!localStorage.getItem(storageKey)) {
@@ -55,6 +56,9 @@ async function fixture(page: Page, failedSave = false) {
       if (state.failures-- > 0) return route.fulfill({ status: 503, json: { message: 'Sauvegarde momentanément indisponible.' } });
       const body = request.postDataJSON();
       state.quote.notes = body.p_notes; state.quote.items = body.p_items; state.saved = true;
+      state.quote.subtotal = state.quote.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+      state.quote.tax_total = state.quote.items.reduce((sum, item) => sum + item.quantity * item.unit_price * item.tax_rate / 100, 0);
+      state.quote.total = state.quote.subtotal + state.quote.tax_total;
       return route.fulfill({ json: quoteId });
     }
     if (url.includes('record_invoice_payment')) { state.payments++; state.invoice.status = 'paid'; state.invoice.paid_total = state.invoice.total; return route.fulfill({ json: null }); }
@@ -78,7 +82,7 @@ async function fixture(page: Page, failedSave = false) {
     if (url.endsWith('/api/ai/command')) {
       const body = route.request().postDataJSON();
       const fallback = fallbackMobileVoiceCommand(body.transcript, body.target, body.workspace);
-      return route.fulfill({ json: { data: sanitizeMobileVoiceCommand({ changes: {}, line_operations: [{ action: 'delete', match: 'la remise de 2 %' }] }, fallback) } });
+      return route.fulfill({ json: { data: sanitizeMobileVoiceCommand({ changes: fallback.changes, line_operations: /remise/iu.test(body.transcript) ? [{ action: 'delete', match: 'la remise de 2 %' }] : fallback.line_operations }, fallback) } });
     }
     if (url.endsWith('/api/actions/plan')) return route.fulfill({ json: { proposals: [{ id: 'bazin-proposal', organization_id: org, intent_type: agenda.intentType, payload: agenda.payload, status: agenda.status, missing_fields: agenda.missingFields, warnings: [], risk_level: agenda.riskLevel }] } });
     if (url.endsWith('/api/actions/execute')) {
@@ -135,6 +139,24 @@ test('Bazin : le rendez-vous sans heure apparaît immédiatement puis après rec
   await page.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.getByRole('button', { name: /^Tous / }).click();
   await expect(page.getByRole('button', { name: /Toute la journée.*Chantier Monsieur Bazin/ })).toBeVisible();
+});
+
+test('prix vocal sur un ancien téléphone : garde la TVA corrigée au bureau et les bons totaux après rechargement', async ({ page }) => {
+  const state = await fixture(page, false, true);
+  await page.locator('.rm-document-card', { hasText: 'DEV-2026-099' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Fiche du devis' });
+  await sheet.getByRole('button', { name: 'Actions du devis' }).click();
+  await page.getByRole('dialog', { name: 'Actions du devis' }).getByRole('button', { name: 'Modifier à la voix' }).click();
+  const editor = page.getByRole('dialog', { name: 'Modifier à la voix' });
+  await editor.locator('textarea').fill('Sur la ligne Portail extérieur, passe le prix à 1 800 euros');
+  await editor.getByRole('button', { name: 'Analyser', exact: true }).click();
+  await editor.getByRole('button', { name: 'Appliquer', exact: true }).click();
+  await expect.poll(() => state.saved).toBe(true);
+  expect(state.quote.items[0].unit_price).toBe(1800);
+  expect(state.quote.items[0].tax_rate).toBe(10);
+  await expect(editor).toHaveCount(0);
+  await page.locator('.rm-document-card', { hasText: 'DEV-2026-099' }).click();
+  await expect(sheet).toContainText('1 940,40'); // Original 2% discount remains.
 });
 
 test('facture : statut modifiable et persistant, paiements conservés sans les compter deux fois', async ({ page }) => {
