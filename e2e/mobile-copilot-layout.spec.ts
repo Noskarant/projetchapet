@@ -4,7 +4,7 @@ test("l’assistant unifié reste accessible sans superposer une seconde command
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
   const launcher = page.getByRole("button", { name: "Ouvrir le copilote chantier" });
-  const manualCreate = page.locator(".rm-create-main");
+  const manualCreate = page.getByLabel("Créer manuellement", { exact: true });
   await expect(launcher).toBeHidden();
   await expect(manualCreate).toBeVisible();
   const voice = page.getByLabel("Créer avec l’IA", { exact: true });

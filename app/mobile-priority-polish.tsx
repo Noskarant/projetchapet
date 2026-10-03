@@ -118,7 +118,7 @@ function ensureVoiceMagic() {
   magic.setAttribute("aria-label", activating ? "Activation du microphone" : "Préparation en cours");
   updateVoiceText(title, activating
     ? "Ouverture du micro…"
-    : `FORGEO prépare ${voicePreparationLabel(capture)}…`);
+    : `MANUFEO prépare ${voicePreparationLabel(capture)}…`);
   updateVoiceText(detail, activating
     ? "Un instant, je me prépare à vous écouter"
     : "Votre demande est structurée directement dans le brouillon");
