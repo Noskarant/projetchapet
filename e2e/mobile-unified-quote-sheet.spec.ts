@@ -110,10 +110,17 @@ test("le PDF répond au pincement, aux boutons de zoom et garde toutes ses pages
   const originalWidth = await viewer.locator("canvas").first().evaluate(node => node.getBoundingClientRect().width);
   const pageCount = await viewer.locator("canvas").count();
   await viewer.evaluate(node => {
-    const touches = (offset: number) => [new Touch({ identifier: 1, target: node, clientX: 100 - offset, clientY: 200 }), new Touch({ identifier: 2, target: node, clientX: 200 + offset, clientY: 200 })];
-    node.dispatchEvent(new TouchEvent("touchstart", { touches: touches(0), bubbles: true, cancelable: true }));
-    node.dispatchEvent(new TouchEvent("touchmove", { touches: touches(50), bubbles: true, cancelable: true }));
-    node.dispatchEvent(new TouchEvent("touchend", { touches: [], bubbles: true }));
+    // WebKit exposes Touch but does not allow constructing it in scripts.
+    // Deliver the same coordinates through the viewer's actual event listeners.
+    const touches = (offset: number) => [{ identifier: 1, target: node, clientX: 100 - offset, clientY: 200 }, { identifier: 2, target: node, clientX: 200 + offset, clientY: 200 }];
+    const dispatch = (type: string, points: ReturnType<typeof touches>) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "touches", { value: points });
+      node.dispatchEvent(event);
+    };
+    dispatch("touchstart", touches(0));
+    dispatch("touchmove", touches(50));
+    dispatch("touchend", []);
   });
   await expect(viewer).toHaveAttribute("data-pdf-scale", "2.00");
   await expect.poll(() => viewer.locator("canvas").first().evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThan(originalWidth * 1.8);
