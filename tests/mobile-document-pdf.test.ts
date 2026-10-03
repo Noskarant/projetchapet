@@ -129,3 +129,28 @@ test("facture, avoir et version chantier utilisent le même générateur robuste
     assert.ok(blob.size > 5_000);
   }
 });
+
+
+test('le PDF conserve HT, TVA, TTC et affiche la franchise séparément après TTC', async () => {
+  const lines: LineItem[] = [
+    {id:'1',label:'Peinture plafond',description:'',quantity:12,unit:'m²',unitPrice:22.4,taxRate:10},
+    {id:'2',label:'Papier peint murs',description:'',quantity:12,unit:'m²',unitPrice:12,taxRate:10},
+    {id:'3',label:'Rouleaux de papier peint',description:'',quantity:5,unit:'rouleaux',unitPrice:10,taxRate:10},
+    {id:'4',label:'RSE (1 %)',description:'',quantity:1,unit:'forfait',unitPrice:4.63,taxRate:10},
+  ];
+  const blob = await buildBusinessDocumentPdf({document:{...quote,items:lines,notes:'Franchise à déduire du montant TTC : 150,00 €.'},customer,company});
+  const {getDocument} = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = getDocument({data:new Uint8Array(await blob.arrayBuffer())});
+  const pdf = await task.promise;
+  const chunks:string[]=[];
+  for(let number=1;number<=pdf.numPages;number++) {
+    const content=await (await pdf.getPage(number)).getTextContent();
+    for(const item of content.items) if('str' in item) chunks.push(item.str);
+  }
+  const text=chunks.join(' ');
+  assert.match(text,/Sous-total HT.*467,43/);
+  assert.match(text,/TVA \(10 %\).*46,74/);
+  assert.match(text,/TOTAL TTC.*514,17/);
+  assert.match(text,/Franchise TTC.*150,00.*Montant après franchise.*364,17/);
+  await task.destroy();
+});

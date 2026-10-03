@@ -90,3 +90,12 @@ test('le client nommé absent est créé avant devis et chantier, puis réutilis
   assert.equal(existing[0].payload.customer_id, 'customer-1');
   assert.equal(existing[1].payload.customer_id, 'customer-1');
 });
+
+
+test('un chantier indépendant ne récupère pas un devis dont le client diffère', () => {
+  const actions = orderVoicePlan(normalizeModelPlan({actions:[
+    {intent_type:'create_project',payload:{name:'Atelier'}},
+    {intent_type:'prepare_quote',payload:{customer_id:'autre-client',items:[{label:'Peinture',quantity:1,unit_price:10}]}},
+  ]}, 'Crée le chantier Atelier. Fais aussi le devis pour un autre client.'));
+  assert.equal(actions[0].quoteFromPosition, undefined);
+});

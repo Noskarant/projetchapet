@@ -11,10 +11,11 @@ import Assistant from './app/action-voice-assistant';
 import Shell from './app/mobile-workspace-live-shell';
 import Preview from './app/mobile-auto-pdf-preview';
 import Unified from './app/mobile-unified-quote-sheet';
+import QuoteActions from './app/mobile-philippe-quote-actions-menu';
 import LegacyGuard from './app/mobile-legacy-quote-detail-guard';
 import './app/rappidos-mobile-shell.css';
 import './app/mobile-quote-preview.css';
-createRoot(document.getElementById('root')).render(<><Shell/><Assistant/><Preview/><Unified/><LegacyGuard/></>);
+createRoot(document.getElementById('root')).render(<><Shell/><Assistant/><Preview/><Unified/><QuoteActions/><LegacyGuard/></>);
 ` }, bundle: true, write: false, outdir: '/tmp/voice-quality-bundle', jsx: 'automatic', minify: true,
   define: { 'process.env.NODE_ENV': '"production"', 'process.env': JSON.stringify({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://backend.manufeo.test', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-key' }) },
   tsconfig: path.join(root, 'tsconfig.json') });

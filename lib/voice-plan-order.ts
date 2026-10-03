@@ -19,7 +19,9 @@ export function orderVoicePlan(input: PlannedAction[]): PlannedAction[] {
     action.collaboratorFromPositions = (action.collaboratorFromPositions ?? []).map(position => typedPosition(position, 'create_collaborator')!);
     if (action.intentType === 'create_project' && action.quoteFromPosition === undefined) {
       const quotes = actions.flatMap((quote, index) => quote.intentType === 'prepare_quote'
-        && quote.payload.customer_hint === action.payload.customer_hint ? [index] : []);
+        && (Boolean(action.payload.customer_hint) && quote.payload.customer_hint === action.payload.customer_hint
+          || Boolean(action.payload.customer_id) && quote.payload.customer_id === action.payload.customer_id
+          || action.customerFromPosition !== undefined && quote.customerFromPosition === action.customerFromPosition) ? [index] : []);
       if (quotes.length === 1) action.quoteFromPosition = quotes[0];
     }
     if (action.customerFromPosition === undefined && !action.payload.customer_id) {
