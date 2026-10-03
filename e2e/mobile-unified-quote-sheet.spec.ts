@@ -100,12 +100,19 @@ test("corrige le nom du client depuis le devis puis retrouve la correction aprè
   await expect(sheet.getByRole("button", { name: /Modifier le client .*Orthographe corrigée Test/ })).toBeVisible();
 });
 
-test("le PDF répond au pincement, aux boutons de zoom et garde toutes ses pages", async ({ page }, testInfo) => {
+for (const kind of ["devis", "facture"] as const) {
+test(`le PDF du ${kind} répond au pincement, aux boutons de zoom et garde toutes ses pages`, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
-  await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
-  await page.getByRole("dialog", { name: "Fiche du devis" }).getByRole("button", { name: "PDF", exact: true }).click();
-  const viewer = page.locator(".rm-document-fullscreen .manufeo-pdf-viewer");
+  if (kind === "devis") {
+    await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
+    await page.getByRole("dialog", { name: "Fiche du devis" }).getByRole("button", { name: "PDF", exact: true }).click();
+  } else {
+    await page.getByRole("button", { name: "Factures", exact: true }).click();
+    await page.locator(".rm-document-card").first().click();
+    await page.locator(".rm-detail-sheet").getByRole("button", { name: "Aperçu PDF", exact: true }).click();
+  }
+  const viewer = page.locator(kind === "devis" ? ".rm-document-fullscreen .manufeo-pdf-viewer" : ".rm-v2-pdf .manufeo-pdf-viewer");
   await expect(viewer.locator("canvas").first()).toBeVisible();
   const originalWidth = await viewer.locator("canvas").first().evaluate(node => node.getBoundingClientRect().width);
   const pageCount = await viewer.locator("canvas").count();
@@ -131,3 +138,4 @@ test("le PDF répond au pincement, aux boutons de zoom et garde toutes ses pages
   await viewer.getByRole("button", { name: "Agrandir le PDF" }).click();
   await expect(viewer).toHaveAttribute("data-pdf-scale", "1.25");
 });
+}
