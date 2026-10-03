@@ -8,9 +8,12 @@ const root = path.resolve(__dirname, '..');
 const build = buildSync({ stdin: { resolveDir: root, loader: 'tsx', contents: `
 import React from 'react'; import {createRoot} from 'react-dom/client';
 import Assistant from './app/action-voice-assistant';
-import Shell from './app/rappidos-mobile-shell-v2';
+import Shell from './app/mobile-workspace-live-shell';
+import Preview from './app/mobile-auto-pdf-preview';
+import Unified from './app/mobile-unified-quote-sheet';
+import LegacyGuard from './app/mobile-legacy-quote-detail-guard';
 import './app/rappidos-mobile-shell.css';
-createRoot(document.getElementById('root')).render(<><Shell/><Assistant/></>);
+createRoot(document.getElementById('root')).render(<><Shell/><Assistant/><Preview/><Unified/><LegacyGuard/></>);
 ` }, bundle: true, write: false, outdir: '/tmp/voice-quality-bundle', jsx: 'automatic', minify: true,
   define: { 'process.env.NODE_ENV': '"production"', 'process.env': JSON.stringify({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://backend.manufeo.test', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-key' }) },
   tsconfig: path.join(root, 'tsconfig.json') });
@@ -86,7 +89,16 @@ for (const kind of ['quote', 'invoice', 'customer'] as const) {
     await expect(page.locator('.ava-overlay')).toHaveCount(0);
     expect(planningCalls).toBe(1); expect(executionCalls).toBe(1);
     await expect(page.getByRole('button', { name: 'Valider et exécuter' })).toHaveCount(0);
-    if (kind === 'customer') await expect(page.locator('.rm-detail-sheet')).toBeVisible();
+    if (kind === 'quote') {
+      const sheet = page.getByRole('dialog', {name:'Fiche du devis'});
+      await expect(sheet).toBeVisible();
+      await expect(sheet).toContainText('Papier peint');
+      await expect(sheet).toContainText('À préciser');
+      await sheet.getByRole('button', {name:'Actions du devis'}).click();
+      await page.getByRole('dialog', {name:'Actions du devis'}).getByRole('button', {name:'Modifier le devis'}).click();
+      await expect(page.locator('.rm-v2-editor')).toBeVisible();
+      await expect(page.locator('.rm-v2-editor input[value="Papier peint"]')).toHaveCount(1);
+    } else if (kind === 'customer') await expect(page.locator('.rm-detail-sheet')).toBeVisible();
     else {
       await expect(page.locator('.rm-detail-sheet')).toBeVisible();
       await expect(page.locator('.rm-detail-sheet h2')).toHaveText(document.number);

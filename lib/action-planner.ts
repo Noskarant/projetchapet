@@ -104,7 +104,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const linePosition = evidencePosition >= 0 ? evidencePosition : segmentPosition;
   const priorTax = linePosition >= 0
     ? persistentTaxes.filter((match) => match.position <= linePosition).at(-1)?.rate ?? null : null;
-  const confirmedTax = taxesInTranscript.length === 1 && taxesInTranscript[0].rate === suppliedTax ? suppliedTax : null;
+  const confirmedTax = taxesInTranscript.length === 1 && (taxesInTranscript[0].rate === suppliedTax || /(?:pour|sur)\s+(?:tout|tous|toutes|l’ensemble|l’ensemble)|toujours\s+TVA/iu.test(transcript)) ? taxesInTranscript[0].rate : null;
   const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
   const priceTranscript = withoutPaymentAdjustments(transcript);
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(roomSegment)) : null;
@@ -435,7 +435,7 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
       : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)
         .filter((field) => !(hasValidEmail && ["destinataire", "email_client", "email", "adresse_email"].includes(field)))];
     const customerFromPosition = numberOrNull(rawPayload.customer_from_position);
-    const quoteFromPosition = numberOrNull(rawPayload.quote_from_position);
+    const quoteFromPosition = intentType === "create_project" ? numberOrNull(rawPayload.quote_from_position) : null;
     const collaboratorFromPositions = intentType === "create_project"
       ? ((payload as RecordLike).collaborator_from_positions as number[]) : [];
     actions.push(finalizeAction({

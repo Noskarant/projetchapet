@@ -360,6 +360,15 @@ export default function MobileAutoPdfPreview() {
   );
 
   useEffect(() => {
+    const openCreated = (event: Event) => {
+      const detail = (event as CustomEvent<{ quote: MobileQuote; customer: MobileCustomer | null }>).detail;
+      if (detail?.quote) void openQuotePreview(detail.quote, detail.customer).catch(error => console.error("[MANUFEO] Aperçu du devis créé indisponible", error));
+    };
+    window.addEventListener("manufeo:open-created-quote", openCreated);
+    return () => window.removeEventListener("manufeo:open-created-quote", openCreated);
+  }, [openQuotePreview]);
+
+  useEffect(() => {
     if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
 
     const observer = new MutationObserver(() => {

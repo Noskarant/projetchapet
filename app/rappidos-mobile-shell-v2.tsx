@@ -145,7 +145,12 @@ export default function RappidosMobileShellV2() {
             }
             return merged;
           });
-          if (result.entityType === "quote") { setTab("quotes"); setSelectedQuoteId(result.entityId); }
+          if (result.entityType === "quote") {
+            setTab("quotes"); setSelectedQuoteId(result.entityId);
+            const quote = server.quotes.find(item => item.id === result.entityId)!;
+            const customer = server.customers.find(item => item.id === quote.customer_id);
+            window.setTimeout(() => window.dispatchEvent(new CustomEvent("manufeo:open-created-quote", { detail: { quote: quoteToMobile(quote), customer: customer ? customerToMobile(customer) : null } })), 80);
+          }
           if (result.entityType === "invoice") { setTab("invoices"); setSelectedInvoiceId(result.entityId); }
           if (result.entityType === "customer") { setTab("clients"); setSelectedCustomerId(result.entityId); }
         } else if (result.entityType === "project" || result.entityType === "collaborator") {
