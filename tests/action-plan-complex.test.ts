@@ -200,7 +200,7 @@ test("le TTC explicite est converti une fois et un TTC sans TVA reste inconnu en
       { label: "Pose cuisine", quantity: 1, unit_price: 120, tax_rate: 20, price_type: "ttc", price_evidence: "120 euros TTC", tax_evidence: "TVA 20 %" },
       { label: "Pose salle de bain", quantity: 1, unit_price: 55, tax_rate: null, price_type: "ttc", price_evidence: "55 euros TTC" },
     ],
-  } }] }, "Pose cuisine, 120 euros TTC TVA 20 %. Pose salle de bain, 55 euros TTC."));
+  } }] }, "Pose cuisine, 120 euros TTC TVA 20 % pour cette prestation. Pose salle de bain, 55 euros TTC."));
   const lines = action.payload.items as Array<{ unit_price: number | null; spoken_price_ttc: number | null; tax_rate: number | null }>;
   assert.equal(lines[0].unit_price, 100);
   assert.equal(lines[0].tax_rate, 20);

@@ -1,6 +1,9 @@
-.manufeo-pdf-viewer { flex: 1; min-height: 0; width: 100%; overflow-y: auto; overflow-x: hidden; background: #e9edf2; color: #18334c; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.manufeo-pdf-viewer { flex: 1; min-height: 0; width: 100%; overflow: auto; background: #e9edf2; color: #18334c; overscroll-behavior: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; }
+.manufeo-pdf-tools { position: sticky; top: 0; left: 0; z-index: 1; display: flex; justify-content: center; gap: 8px; padding: 8px; background: #e9edf2; }
+.manufeo-pdf-tools button { min-width: 44px; min-height: 36px; border: 1px solid #c3cedb; border-radius: 8px; background: white; color: #18334c; font-size: 16px; cursor: pointer; }
+.manufeo-pdf-tools button:disabled { opacity: .45; cursor: default; }
 .manufeo-pdf-viewer > p { margin: 0; padding: 10px 16px; font-size: 13px; text-align: center; }
-.manufeo-pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 0 12px 24px; }
-.manufeo-pdf-pages canvas { display: block; width: 100%; max-width: 900px; height: auto; background: white; box-shadow: 0 2px 8px #18334c22; }
+.manufeo-pdf-pages { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 0 12px 24px; }
+.manufeo-pdf-pages canvas { display: block; width: 100%; height: auto; background: white; box-shadow: 0 2px 8px #18334c22; }
 .rm-philippe-pdf-page > .manufeo-pdf-viewer { height: 100%; }
 .rm-document-fullscreen > header { color: #18334c; background: #eef2f6; }

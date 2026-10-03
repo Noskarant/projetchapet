@@ -46,6 +46,10 @@ test("change le statut et expose toutes les possibilités depuis les trois point
     return workspace.quotes?.find((quote) => quote.id === "Q-378")?.status;
   }, STORAGE_KEY)).toBe("Validé");
   await expect(sheet.getByRole("button", { name: "Transformer en facture" })).toBeVisible();
+  await expect(sheet.locator("[data-unified-status]")).toContainText("Validé");
+  await page.reload();
+  await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
+  await expect(sheet.locator("[data-unified-status]")).toContainText("Validé");
 
   await sheet.getByRole("button", { name: "Actions du devis" }).click();
   const actions = page.getByRole("dialog", { name: "Actions du devis" });
@@ -61,4 +65,62 @@ test("change le statut et expose toutes les possibilités depuis les trois point
   await expect(actions.getByRole("button", { name: "Télécharger le PDF" })).toBeVisible();
   await expect(actions.getByRole("button", { name: "Imprimer le devis" })).toBeVisible();
   await expect(actions.getByRole("button", { name: "Transformer en facture" })).toBeVisible();
+});
+
+test("valide le devis sans ancien bouton de statut et permet l’annulation depuis le menu", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone-webkit");
+  await page.goto("/");
+  await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
+  const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
+  await expect(sheet.getByRole("button", { name: "Indiquer comme validé" })).toBeVisible();
+  // Production can open the unified preview without legacy status controls.
+  await page.locator(".rm-detail-sheet .rm-status-editor").evaluateAll(nodes => nodes.forEach(node => node.remove()));
+  await sheet.getByRole("button", { name: "Indiquer comme validé" }).click();
+  await expect(sheet.locator("[data-unified-status]")).toContainText("Validé");
+  await sheet.getByRole("button", { name: "Actions du devis" }).click();
+  await page.getByRole("dialog", { name: "Actions du devis" }).getByRole("button", { name: "Annuler le devis" }).click();
+  await expect(sheet.locator("[data-unified-status]")).toContainText("Refusé");
+});
+
+test("corrige le nom du client depuis le devis puis retrouve la correction après rechargement", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone-webkit");
+  await page.goto("/");
+  await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
+  const sheet = page.getByRole("dialog", { name: "Fiche du devis" });
+  await sheet.getByRole("button", { name: /^Modifier le client / }).click();
+  const editor = page.locator(".rm-v2-editor");
+  await expect(editor).toBeVisible();
+  const company = editor.getByLabel("Raison sociale", { exact: true });
+  if (await company.count()) await company.fill("Orthographe corrigée Test");
+  else await editor.getByLabel("Nom", { exact: true }).fill("Orthographe corrigée Test");
+  await editor.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await expect(sheet.getByRole("button", { name: /Modifier le client .*Orthographe corrigée Test/ })).toBeVisible();
+  await page.reload();
+  await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
+  await expect(sheet.getByRole("button", { name: /Modifier le client .*Orthographe corrigée Test/ })).toBeVisible();
+});
+
+test("le PDF répond au pincement, aux boutons de zoom et garde toutes ses pages", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone-webkit");
+  await page.goto("/");
+  await page.locator(".rm-document-card", { hasText: "D-2026-378" }).click();
+  await page.getByRole("dialog", { name: "Fiche du devis" }).getByRole("button", { name: "PDF", exact: true }).click();
+  const viewer = page.locator(".rm-document-fullscreen .manufeo-pdf-viewer");
+  await expect(viewer.locator("canvas").first()).toBeVisible();
+  const originalWidth = await viewer.locator("canvas").first().evaluate(node => node.getBoundingClientRect().width);
+  const pageCount = await viewer.locator("canvas").count();
+  await viewer.evaluate(node => {
+    const touches = (offset: number) => [new Touch({ identifier: 1, target: node, clientX: 100 - offset, clientY: 200 }), new Touch({ identifier: 2, target: node, clientX: 200 + offset, clientY: 200 })];
+    node.dispatchEvent(new TouchEvent("touchstart", { touches: touches(0), bubbles: true, cancelable: true }));
+    node.dispatchEvent(new TouchEvent("touchmove", { touches: touches(50), bubbles: true, cancelable: true }));
+    node.dispatchEvent(new TouchEvent("touchend", { touches: [], bubbles: true }));
+  });
+  await expect(viewer).toHaveAttribute("data-pdf-scale", "2.00");
+  await expect.poll(() => viewer.locator("canvas").first().evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThan(originalWidth * 1.8);
+  await expect(viewer.locator("canvas")).toHaveCount(pageCount);
+  await expect.poll(() => viewer.evaluate(node => node.scrollWidth - node.clientWidth)).toBeGreaterThan(0);
+  await viewer.getByRole("button", { name: "Adapter le PDF à l’écran" }).click();
+  await expect(viewer).toHaveAttribute("data-pdf-scale", "1.00");
+  await viewer.getByRole("button", { name: "Agrandir le PDF" }).click();
+  await expect(viewer).toHaveAttribute("data-pdf-scale", "1.25");
 });

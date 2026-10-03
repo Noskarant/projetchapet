@@ -198,6 +198,17 @@ export default function RappidosMobileShellV2() {
   const selectedInvoice = workspace.invoices.find((item) => item.id === selectedInvoiceId) ?? null;
   const selectedCustomer = workspace.customers.find((item) => item.id === selectedCustomerId) ?? null;
 
+  useEffect(() => {
+    const editCustomer = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      const customer = workspace.customers.find(item => item.id === id);
+      if (!customer) { notify("Le client est indisponible. Rechargez la fiche."); return; }
+      setEditor({ kind: "customer", value: { ...customer, emails: [...customer.emails], phones: [...customer.phones] }, isNew: false });
+    };
+    window.addEventListener("manufeo:edit-document-customer", editCustomer);
+    return () => window.removeEventListener("manufeo:edit-document-customer", editCustomer);
+  }, [workspace.customers, notify]);
+
   const filteredQuotes = useMemo(() => {
     const term = query.trim().toLowerCase();
     return workspace.quotes.filter((quote) => (!term || `${quote.customerName} ${quote.number} ${quote.title} ${quote.total}`.toLowerCase().includes(term)) && (quoteFilter === "Tous" || quote.status === quoteFilter));
@@ -389,12 +400,21 @@ export default function RappidosMobileShellV2() {
     if (!editor) return;
     if (editor.kind === "customer") {
       const name = customerDisplayName(editor.value); if (!name || name.includes("sans nom")) { notify("Renseignez le nom du client."); return; }
-      setWorkspace((current) => upsertCustomer(current, editor.value));
+      const updated = upsertCustomer(workspace, editor.value);
+      setWorkspace(updated);
       const parent = customerReturnEditor.current;
       customerReturnEditor.current = null;
       if (parent) {
         setEditor({ ...parent, value: { ...parent.value, customerId: editor.value.id, customerName: name } } as Editor);
         notify("Client créé et ajouté au devis.");
+      } else if (!editor.isNew && (selectedQuote || selectedInvoice)) {
+        setEditor(null);
+        setSelectedCustomerId(null);
+        if (selectedQuote) {
+          const quote = updated.quotes.find(item => item.id === selectedQuote.id)!;
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent("manufeo:open-created-quote", { detail: { quote, customer: editor.value } })), 80);
+        }
+        notify("Client modifié et document mis à jour.");
       } else {
         setSelectedCustomerId(editor.value.id); setTab("clients"); setEditor(null);
         notify(editor.isNew ? "Client créé et affiché." : "Client modifié.");

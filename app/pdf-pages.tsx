@@ -1,18 +1,73 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./pdf-pages.css";
 
 // Render every page ourselves: Safari's embedded PDF viewer can show only page one.
 export default function PdfPages({ url, title }: { url: string; title: string }) {
+  const viewer = useRef<HTMLElement>(null);
   const container = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
+  const [scale, setScale] = useState(1);
+  const [fitWidth, setFitWidth] = useState(0);
   const [error, setError] = useState(false);
   const [count, setCount] = useState(0);
+  const zoom = useCallback((value: number, center?: { x: number; y: number }) => {
+    const root = viewer.current;
+    if (!root) return;
+    const next = Math.min(3, Math.max(1, value));
+    const previous = scaleRef.current;
+    const rect = root.getBoundingClientRect();
+    const x = center ? center.x - rect.left : root.clientWidth / 2;
+    const y = center ? center.y - rect.top : root.clientHeight / 2;
+    const left = (root.scrollLeft + x) * next / previous - x;
+    const top = (root.scrollTop + y) * next / previous - y;
+    scaleRef.current = next;
+    setScale(next);
+    requestAnimationFrame(() => { root.scrollLeft = left; root.scrollTop = top; });
+  }, []);
+  useEffect(() => {
+    const root = viewer.current;
+    if (!root) return;
+    const resize = () => setFitWidth(Math.min(900, Math.max(1, root.clientWidth - 24)));
+    const observer = new ResizeObserver(resize);
+    observer.observe(root);
+    resize();
+    let pinch: { distance: number; scale: number } | null = null;
+    const distance = (touches: TouchList) => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    const start = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      event.preventDefault();
+      pinch = { distance: distance(event.touches), scale: scaleRef.current };
+    };
+    const move = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || !pinch || pinch.distance === 0) return;
+      event.preventDefault();
+      zoom(pinch.scale * distance(event.touches) / pinch.distance, {
+        x: (event.touches[0].clientX + event.touches[1].clientX) / 2,
+        y: (event.touches[0].clientY + event.touches[1].clientY) / 2,
+      });
+    };
+    const end = () => { pinch = null; };
+    root.addEventListener("touchstart", start, { passive: false });
+    root.addEventListener("touchmove", move, { passive: false });
+    root.addEventListener("touchend", end);
+    root.addEventListener("touchcancel", end);
+    return () => {
+      observer.disconnect();
+      root.removeEventListener("touchstart", start);
+      root.removeEventListener("touchmove", move);
+      root.removeEventListener("touchend", end);
+      root.removeEventListener("touchcancel", end);
+    };
+  }, [zoom]);
   useEffect(() => {
     let cancelled = false;
     let destroy: (() => void) | undefined;
     setError(false);
     setCount(0);
+    scaleRef.current = 1;
+    setScale(1);
     const root = container.current;
     root?.replaceChildren();
     void (async () => {
@@ -41,10 +96,15 @@ export default function PdfPages({ url, title }: { url: string; title: string })
     })().catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; destroy?.(); root?.replaceChildren(); };
   }, [url, title]);
-  return <section className="manufeo-pdf-viewer" aria-label={title}>
+  return <section ref={viewer} className="manufeo-pdf-viewer" aria-label={title} data-pdf-scale={scale.toFixed(2)}>
+    <div className="manufeo-pdf-tools" role="group" aria-label="Zoom du PDF">
+      <button type="button" aria-label="Réduire le PDF" disabled={scale <= 1} onClick={() => zoom(scaleRef.current - .25)}>−</button>
+      <button type="button" aria-label="Adapter le PDF à l’écran" onClick={() => zoom(1)}>{Math.round(scale * 100)} %</button>
+      <button type="button" aria-label="Agrandir le PDF" disabled={scale >= 3} onClick={() => zoom(scaleRef.current + .25)}>+</button>
+    </div>
     <p role="status">{error ? "L’aperçu n’a pas pu être affiché." : count ? `${count} page${count > 1 ? "s" : ""} — faites défiler pour tout consulter` : "Chargement du PDF…"}
       {error && <> <a href={url} target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a></>}
     </p>
-    <div ref={container} className="manufeo-pdf-pages" />
+    <div ref={container} className="manufeo-pdf-pages" style={{ width: scale === 1 ? "100%" : fitWidth * scale + 24 }} />
   </section>;
 }

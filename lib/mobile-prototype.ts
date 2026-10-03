@@ -130,7 +130,12 @@ export function normalizeInvoice(invoice: MobileInvoice): MobileInvoice {
 
 export function upsertCustomer(workspace: MobileWorkspace, customer: MobileCustomer): MobileWorkspace {
   const exists = workspace.customers.some((item) => item.id === customer.id);
-  return { ...workspace, customers: exists ? workspace.customers.map((item) => item.id === customer.id ? customer : item) : [customer, ...workspace.customers] };
+  const customerName = customerDisplayName(customer);
+  return { ...workspace,
+    customers: exists ? workspace.customers.map((item) => item.id === customer.id ? customer : item) : [customer, ...workspace.customers],
+    quotes: workspace.quotes.map(item => item.customerId === customer.id ? { ...item, customerName } : item),
+    invoices: workspace.invoices.map(item => item.customerId === customer.id ? { ...item, customerName } : item),
+  };
 }
 
 export function upsertQuote(workspace: MobileWorkspace, quote: MobileQuote): MobileWorkspace {
