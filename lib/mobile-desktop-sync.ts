@@ -222,6 +222,44 @@ export function quoteInputFromMobile(quote: MobileQuote, customerId: string, pre
   };
 }
 
+/** Keep server corrections to fields the user did not edit on this device. */
+export function mergeDocumentChanges<T extends MobileQuote | MobileInvoice>(baseline: T, local: T, server: T): T {
+  const merged = { ...server };
+  for (const field of ['customerId', 'title', 'status', 'issueDate', 'expiryDate', 'dueDate', 'items', 'notes', 'sourceQuoteId', 'paidTotal'] as (keyof T)[]) {
+    if (stableSignature(local[field]) !== stableSignature(baseline[field])) merged[field] = local[field];
+  }
+  if (stableSignature(local.items) !== stableSignature(baseline.items)) {
+    const serverForBaseline = (item: LineItem) => {
+      const idMatch = server.items.find(candidate => candidate.id === item.id);
+      if (idMatch) return idMatch;
+      // Document RPCs may recreate line UUIDs. A unique unchanged label still
+      // identifies the same line; never guess among duplicated designations.
+      const labels = server.items.filter(candidate => candidate.label === item.label);
+      return labels.length === 1 ? labels[0] : undefined;
+    };
+    const baselineServerIds = new Set(baseline.items.flatMap(item => {
+      const canonical = serverForBaseline(item);
+      return canonical ? [canonical.id] : [];
+    }));
+    merged.items = local.items.flatMap(item => {
+      const before = baseline.items.find(candidate => candidate.id === item.id);
+      if (!before) return [item];
+      const canonical = serverForBaseline(before);
+      if (!canonical) {
+        if (stableSignature(item) === stableSignature(before)) return [];
+        throw new Error('Cette prestation a changé sur un autre appareil. Rechargez le document avant de la modifier.');
+      }
+      const line = { ...canonical };
+      for (const field of ['label', 'description', 'quantity', 'unit', 'unitPrice', 'taxRate'] as (keyof LineItem)[]) {
+        if (stableSignature(item[field]) !== stableSignature(before[field])) Object.assign(line, { [field]: item[field] });
+      }
+      return [line];
+    });
+    merged.items.push(...server.items.filter(item => !baselineServerIds.has(item.id)));
+  }
+  return merged;
+}
+
 export function invoiceToMobile(invoice: Invoice, previous?: MobileInvoice, quoteTitle?: string): MobileInvoice {
   const items = invoice.items.map((item, index) => mobileLineFromDesktop(item, previous?.items[index]));
   const totals = calculateMobileTotals(items);

@@ -241,7 +241,10 @@ export async function archiveInvoice(id: string) {
 
 export async function markInvoicePaid(invoice: Invoice) {
   const remaining = Math.max(0, Number(invoice.total) - Number(invoice.paid_total || 0));
-  if (remaining <= 0) return;
+  if (remaining <= 0) {
+    if (invoice.status !== 'paid') await updateInvoiceStatus(invoice.id, 'paid');
+    return;
+  }
   const { error } = await supabase.rpc("record_invoice_payment", {
     p_invoice_id: invoice.id,
     p_amount: remaining,
@@ -254,8 +257,9 @@ export async function markInvoicePaid(invoice: Invoice) {
 
 export async function updateInvoiceStatus(id: string, status: InvoiceStatus) {
   const organizationId = await getActiveOrganizationId();
-  const { error } = await supabase.from("invoices").update({ status, sent_at: status === "sent" || status === "issued" ? new Date().toISOString() : null }).eq("id", id).eq("organization_id", organizationId);
+  const { data, error } = await supabase.from("invoices").update({ status, sent_at: status === "sent" || status === "issued" ? new Date().toISOString() : null }).eq("id", id).eq("organization_id", organizationId).select('id').maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Le statut de la facture n’a pas été enregistré.');
 }
 
 export async function saveEInvoicePreparation(id: string, payload: Record<string, unknown>, provider = "À choisir") {

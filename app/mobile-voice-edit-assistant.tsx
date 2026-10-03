@@ -18,6 +18,10 @@ import {
   type MobileWorkspace,
 } from "@/lib/mobile-prototype";
 import { MOBILE_WORKSPACE_STORAGE_KEY } from "@/lib/mobile-workspace-storage";
+import { readQuoteInternalMeta, writeQuoteInternalMeta } from '@/lib/mobile-quote-preview';
+import { loadPrivateQuoteMeta, savePrivateQuoteMeta } from '@/lib/quote-private-cloud';
+import { flushMobileWorkspace } from '@/lib/mobile-workspace-flush';
+import { isDatabaseId } from '@/lib/mobile-desktop-sync';
 
 type TargetData = MobileQuote | MobileInvoice | MobileAgendaEntry | MobileCustomer;
 type VoiceTarget = {
@@ -184,6 +188,7 @@ function changeSummary(command: MobileVoiceCommand) {
     expiry_date: "Expiration",
     due_date: "Échéance",
     paid_total: "Montant payé",
+    discount_percent: "Remise globale (%)",
     date: "Date",
     time: "Heure",
     type: "Type",
@@ -460,14 +465,31 @@ export default function MobileVoiceEditAssistant() {
     await transcribe(encodeMonoWav(samples, session.sampleRate));
   }
 
-  function apply() {
+  async function apply() {
     if (!target || !command) return;
-    const current = readWorkspace();
-    const updated = applyMobileVoiceCommand(current, { ...command, entity: target.entity, id: target.id });
-    window.localStorage.setItem(MOBILE_WORKSPACE_STORAGE_KEY, JSON.stringify(updated));
-    setStage("applied");
-    setMessage("Modification enregistrée. Actualisation de l’écran…");
-    window.setTimeout(() => window.location.reload(), 650);
+    setStage('analysing');
+    setMessage('Enregistrement de la modification…');
+    try {
+      const current = readWorkspace();
+      const updated = applyMobileVoiceCommand(current, { ...command, entity: target.entity, id: target.id });
+      const cloud = isDatabaseId(target.id);
+      if (target.entity === 'quote' && command.changes?.discount_percent !== undefined) {
+        const quote = current.quotes.find(item => item.id === target.id);
+        if (!quote) throw new Error('Ce devis est introuvable.');
+        if (cloud) await loadPrivateQuoteMeta(window.localStorage);
+        const meta = { ...readQuoteInternalMeta(window.localStorage, quote.number), discountPercent: command.changes.discount_percent };
+        if (cloud) await savePrivateQuoteMeta(quote.number, meta);
+        writeQuoteInternalMeta(window.localStorage, quote.number, meta);
+      }
+      window.localStorage.setItem(MOBILE_WORKSPACE_STORAGE_KEY, JSON.stringify(updated));
+      if (cloud) await flushMobileWorkspace();
+      setStage("applied");
+      setMessage("Modification enregistrée. Actualisation de l’écran…");
+      window.setTimeout(() => window.location.reload(), 650);
+    } catch (error) {
+      setStage('review');
+      setMessage(error instanceof Error ? error.message : 'La modification reste en attente de sauvegarde.');
+    }
   }
 
   if (!target) return null;
@@ -521,7 +543,7 @@ export default function MobileVoiceEditAssistant() {
             <ul className={styles.changeList}>{changes.map((item) => <li key={item}>{item}</li>)}</ul>
             <div className={styles.actions}>
               <button onClick={() => { setCommand(null); setStage("ready"); }}>Corriger la demande</button>
-              <button className={styles.primary} onClick={apply}>Appliquer</button>
+              <button className={styles.primary} onClick={() => void apply()}>Appliquer</button>
             </div>
           </div>
         )}

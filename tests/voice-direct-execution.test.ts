@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { executeProposalBatch, type ProposalRow } from '../lib/action-execution-server';
 import type { AuthenticatedRequestContext } from '../lib/server-auth';
+import { normalizeModelPlan } from '../lib/action-planner';
+import { hardenPlannedActions } from '../lib/action-plan-safety';
+import { voiceAgendaEntry } from '../lib/voice-action-history';
 
 function fixture(intents = ['create_customer', 'prepare_quote', 'create_project', 'create_collaborator', 'create_supplier', 'schedule_task', 'prepare_invoice', 'prepare_email']) {
   const rows = intents.map((intent_type, i) => ({ id: `p${i}`, organization_id: 'org', created_by: 'user', source_type: 'voice', source_reference: 'batch', raw_text: 'Crée les fiches et brouillons', intent_type,
@@ -73,4 +76,26 @@ test('le mode direct ne contourne ni les droits ni les validations d’un paieme
   await assert.rejects(executeProposalBatch({ context,organizationId:'org',proposalIds:rows.map(row=>row.id),explicitConfirmation:false,directCreation:true }),/confirmation explicite/);
   context.memberships[0].role='collaborator';
   await assert.rejects(executeProposalBatch({ context,organizationId:'org',proposalIds:rows.map(row=>row.id),explicitConfirmation:true,directCreation:true }),/rôle/);
+});
+
+test('PERBET et Bazin : les données normalisées arrivent réellement dans la sauvegarde et sont réutilisées au second appel', async () => {
+  const { rows, saved, rpcCalls, context } = fixture(['create_customer', 'prepare_invoice', 'schedule_task']);
+  rows[0].payload = { kind: 'individual', first_name: 'Henri', last_name: 'Perbet', addresses: [{ line1: '24 rue Montesquieu', postal_code: '42000', city: 'Saint-Étienne' }] };
+  const [invoice] = hardenPlannedActions(normalizeModelPlan({ actions: [{ intent_type: 'prepare_invoice', payload: { customer_hint: 'Henri Perbet', items: ['Portail extérieur', 'Préparation peinture', 'Antirouille finition'].map(label => ({ label, quantity: 1, unit: 'unité', unit_price: 700 })) } }] }, 'Portail extérieur, préparation peinture et antirouille de finition, une unité, 1 700 euros HT, TVA10%.'));
+  rows[1].payload = { ...invoice.payload, customer_from_proposal_id: 'p0' };
+  rows[2].payload = { title: 'Chantier Monsieur Bazin', date: '2026-10-05', time: '' };
+  const input = { context, organizationId: 'org', proposalIds: rows.map(row => row.id), explicitConfirmation: false, directCreation: true };
+  const result = await executeProposalBatch(input);
+  const stored = rpcCalls.find(call => call.name === 'save_invoice_document')!;
+  assert.equal(stored.args.p_customer_id, 'customer-id');
+  assert.equal(stored.args.p_status, 'draft');
+  const items = stored.args.p_items as Array<Record<string, unknown>>;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].unit_price, 1700);
+  assert.equal(items[0].tax_rate, 10);
+  assert.deepEqual(saved.find(row => row.table === 'customers')!.addresses, rows[0].payload.addresses);
+  assert.ok(voiceAgendaEntry({ id: rows[2].id, payload: rows[2].payload, created_at: '2026-10-03' }, []));
+  assert.equal(result.results?.[2]?.entityType, 'agenda_event');
+  assert.deepEqual((await executeProposalBatch(input)).results, result.results);
+  assert.equal(rpcCalls.filter(call => call.name === 'save_invoice_document').length, 1);
 });

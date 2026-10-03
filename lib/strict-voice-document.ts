@@ -1,3 +1,4 @@
+import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 export type StrictVoiceUnit = "m2" | "m" | "l" | "h" | "forfait" | "unite";
 
 export type StrictVoiceService = {
@@ -275,9 +276,10 @@ function quantityFrom(segment: string) {
 }
 
 function priceFrom(segment: string) {
-  const matches = [...segment.matchAll(/(?:à|a|pour|prix(?:\s+unitaire)?(?:\s+de)?|de)\s*(\d+(?:[,.]\d+)?)\s*(?:€|euros?)\s*(?:ht)?/giu)];
+  const matches = [...segment.matchAll(new RegExp(`(?:à|a|pour|prix(?:\\s+unitaire)?(?:\\s+de)?|de)\\s*(${spokenAmountPattern})\\s*(?:€|euros?)\\s*(?:ht)?`, 'giu'))];
   const match = matches.at(-1);
-  return match ? { value: number(match[1]), raw: match[0] } : null;
+  const value = match ? spokenFinancialNumber(match[1]) : null;
+  return match && value !== null ? { value, raw: match[0] } : null;
 }
 
 function taxFrom(segment: string, fallback: number) {
