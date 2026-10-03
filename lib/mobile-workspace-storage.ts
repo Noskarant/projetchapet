@@ -151,7 +151,7 @@ function normalizeAgenda(value: unknown, index: number): MobileAgendaEntry | nul
   return {
     id: stringValue(value.id, `agenda-recovered-${index}`),
     date: stringValue(value.date),
-    time: stringValue(value.time, "09:00"),
+    time: value.time === "" ? "" : stringValue(value.time, "09:00"),
     type,
     title: stringValue(value.title),
     customerId: stringValue(value.customerId),

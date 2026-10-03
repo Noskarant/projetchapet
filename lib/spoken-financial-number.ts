@@ -1,7 +1,7 @@
 // Restricted to explicit financial expressions; never rewrite names/addresses.
 const values: Record<string, number> = { zero:0, un:1, une:1, deux:2, trois:3, quatre:4, cinq:5, six:6, sept:7, huit:8, neuf:9, dix:10, onze:11, douze:12, treize:13, quatorze:14, quinze:15, seize:16, vingt:20, trente:30, quarante:40, cinquante:50, soixante:60 };
 const words = [...Object.keys(values), 'zéro', 'vingts', 'cent', 'cents', 'mille', 'et', 'virgule'].join('|');
-export const spokenAmountPattern = `(?:\\d+(?:[,.]\\d+)?|(?:${words})(?:[ -]+(?:${words})){0,12})`;
+export const spokenAmountPattern = `(?:\\d{1,3}(?:[ \\u00a0\\u202f]\\d{3})+(?:[,.]\\d+)?|\\d+(?:[,.]\\d+)?|(?:${words})(?:[ -]+(?:${words})){0,12})`;
 
 export function spokenFinancialNumber(input: string): number | null {
   const numeric = Number(input.replace(/\s/g,'').replace(',','.'));

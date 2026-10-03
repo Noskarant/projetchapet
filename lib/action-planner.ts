@@ -74,7 +74,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const quantityFromEvidence = quantityEvidence ? explicitQuantity(quantityEvidence) : null;
   const quantity = quantityFromEvidence !== null ? quantityFromEvidence
     : roomQuantity !== undefined ? roomQuantity : numberOrNull(source.quantity);
-  const pricesInRoom = roomSegment ? [...roomSegment.matchAll(/\d+(?:[,.]\d+)?\s*(?:€|euros?)/giu)] : [];
+  const pricesInRoom = roomSegment ? [...roomSegment.matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
   const priceInRoom = pricesInRoom.length === 1 ? explicitPrice(pricesInRoom[0][0]) : null;
   const sourcePrice = numberOrNull(source.unit_price);
   const explicitSingleForfait = text(source.unit, 40).toLocaleLowerCase("fr-FR") === "forfait"
@@ -181,11 +181,35 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
   const labels = original.map((item) => text(record(item).label, 240));
   const roomSegments = roomEvidenceSegments(transcript, labels);
   const roomQuantities = roomQuantityEvidence(transcript, labels);
-  const normalizedItems = original.map((item, index) => normalizeLine(item, transcript, roomSegments[index], roomQuantities[index], alreadyConverted)).filter((line) =>
+  let normalizedItems = original.map((item, index) => normalizeLine(item, transcript, roomSegments[index], roomQuantities[index], alreadyConverted)).filter((line) =>
     // A trailing empty placeholder from the model is not a requested service.
     Boolean(line.label && !/^prestation(?:\s+à\s+compléter)?$/i.test(line.label))
       || (line.quantity !== null && line.quantity > 0) || line.unit_price !== null,
   );
+  // Preparation and finishing steps covered by one explicitly priced unit are
+  // one service. The model must not multiply that single spoken charge.
+  const serviceTranscript = withoutPaymentAdjustments(transcript);
+  const prices = [...serviceTranscript.matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))];
+  const units = [...serviceTranscript.matchAll(/\b(?:une?|1)\s+(?:unit[ée]|forfait)(?![\p{L}])/giu)];
+  const otherQuantities = [...serviceTranscript.matchAll(/\b\d+(?:[,.]\d+)?\s*(?:m²|m2|mètres?|rouleaux?|heures?|pièces?|unités?|forfaits?)(?![\p{L}])/giu)];
+  if (normalizedItems.length >= 1 && prices.length === 1 && units.length === 1
+    && otherQuantities.every(match => /^(?:1)\s+(?:unit[ée]|forfait)(?![\p{L}])/iu.test(match[0]))
+    && !/\b(?:chacun|chacune|chaque|par\s+poste|prix\s+identiques?)\b/iu.test(serviceTranscript)
+    && !roomSegments.some(Boolean)
+    && normalizedItems.every(item => item.quantity === 1 && (item.unit_price !== null || item.spoken_price_ttc !== null || item.spoken_price_ambiguous !== null))) {
+    const first = normalizedItems[0];
+    const price = explicitPrice(prices[0][0]);
+    const type = spokenPriceType(serviceTranscript);
+    const unitPrice = type === 'ttc' ? first.tax_rate === null || price === null ? null
+      : Math.round(price / (1 + first.tax_rate / 100) * 100) / 100 : price;
+    normalizedItems = [{ ...first,
+      label: normalizedItems.map(item => item.label).join(' · ').slice(0, 240),
+      description: normalizedItems.length === 1 ? first.description : normalizedItems.map(item => [item.label, item.description].filter(Boolean).join(' : ')).join('\n').slice(0, 800),
+      quantity: 1, unit: 'unité', unit_price: unitPrice,
+      price_type: type || first.price_type,
+      spoken_price_ttc: type === 'ttc' && first.tax_rate === null ? price : null,
+    }];
+  }
   const items = applySpokenPercentageLines(normalizedItems.map((item, index) => ({ id: String(index), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unit_price, taxRate: item.tax_rate })), transcript).map(item => ({
     ...(normalizedItems.find(line => line.label === item.label) || {}), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: item.taxRate,
   }));
@@ -307,7 +331,6 @@ function missingForIntent(intentType: ActionIntent, payload: RecordLike) {
     const task = normalizeSchedulePayload(payload);
     if (!task.title) missing.push("objet");
     if (!task.date) missing.push("date");
-    if (!task.time) missing.push("heure");
   }
   if (intentType === "mark_payment") {
     if (!text(payload.invoice_id, 80) && !text(payload.invoice_number, 100)) missing.push("facture");
@@ -433,7 +456,7 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
       && !((intentType === "prepare_quote" || intentType === "prepare_invoice") && /(?:prix|quantit|TVA|HT|TTC|ligne|prestation)/iu.test(warning)));
     // The model can report stale, duplicate or invented field paths. Documents are
     // drafts: derive their blocking requirements from the normalized payload.
-    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier" || intentType === "create_customer"
+    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier" || intentType === "create_customer" || intentType === "schedule_task"
       ? missingForIntent(intentType, payload as RecordLike)
       : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)
         .filter((field) => !(hasValidEmail && ["destinataire", "email_client", "email", "adresse_email"].includes(field)))];

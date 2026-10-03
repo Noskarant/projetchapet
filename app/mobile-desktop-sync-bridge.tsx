@@ -21,6 +21,7 @@ import {
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import { readQuoteInternalMeta, writeQuoteInternalMeta } from "@/lib/mobile-quote-preview";
 import { savePrivateQuoteMeta } from "@/lib/quote-private-cloud";
+import { MOBILE_WORKSPACE_FLUSH_EVENT, type WorkspaceFlushRequest } from '@/lib/mobile-workspace-flush';
 import {
   applyWorkspaceAliases,
   coreWorkspaceSignature,
@@ -32,6 +33,9 @@ import {
   mobileInvoiceStatusToDesktop,
   normalizedWorkspaceToMobile,
   quoteInputFromMobile,
+  quoteToMobile,
+  invoiceToMobile,
+  mergeDocumentChanges,
   stableSignature,
   type WorkspaceAliases,
 } from "@/lib/mobile-desktop-sync";
@@ -109,9 +113,15 @@ async function synchronizeLocalChanges(
   server.quotes.forEach((quote) => quoteIds.set(quote.id, quote.id));
   for (const quote of [...quoteDiff.created, ...quoteDiff.updated]) {
     const previous = server.quotes.find((item) => item.id === quote.id);
-    const customerId = customerIds.get(quote.customerId) ?? aliases.customers.get(quote.customerId) ?? quote.customerId;
+    const baselineQuote = baseline.quotes.find(item => item.id === quote.id);
+    // A client rename changes only its displayed name. Do not overwrite the
+    // server's document lines with a potentially stale local copy in that case.
+    if (previous && baselineQuote && stableSignature(quoteInputFromMobile(quote, quote.customerId))
+      === stableSignature(quoteInputFromMobile(baselineQuote, baselineQuote.customerId))) continue;
+    const candidate = previous && baselineQuote ? mergeDocumentChanges(baselineQuote, quote, quoteToMobile(previous, quote)) : quote;
+    const customerId = customerIds.get(candidate.customerId) ?? aliases.customers.get(candidate.customerId) ?? candidate.customerId;
     const savedId = await saveQuote(
-      quoteInputFromMobile(quote, customerId, previous?.status),
+      quoteInputFromMobile(candidate, customerId, previous?.status),
       server.quotes.map((item) => item.number),
       previous?.id,
     );
@@ -126,14 +136,19 @@ async function synchronizeLocalChanges(
 
   for (const invoice of [...invoiceDiff.created, ...invoiceDiff.updated]) {
     const previous = server.invoices.find((item) => item.id === invoice.id);
-    const customerId = customerIds.get(invoice.customerId) ?? aliases.customers.get(invoice.customerId) ?? invoice.customerId;
-    const quoteId = invoice.sourceQuoteId
-      ? quoteIds.get(invoice.sourceQuoteId) ?? aliases.quotes.get(invoice.sourceQuoteId) ?? invoice.sourceQuoteId
+    const baselineInvoice = baseline.invoices.find((item) => item.id === invoice.id);
+    if (previous && baselineInvoice && invoice.status === baselineInvoice.status
+      && invoice.paidTotal === baselineInvoice.paidTotal
+      && stableSignature(invoiceEditableContent(invoice)) === stableSignature(invoiceEditableContent(baselineInvoice))) continue;
+    const candidate = previous && baselineInvoice ? mergeDocumentChanges(baselineInvoice, invoice, invoiceToMobile(previous, invoice)) : invoice;
+    const customerId = customerIds.get(candidate.customerId) ?? aliases.customers.get(candidate.customerId) ?? candidate.customerId;
+    const quoteId = candidate.sourceQuoteId
+      ? quoteIds.get(candidate.sourceQuoteId) ?? aliases.quotes.get(candidate.sourceQuoteId) ?? candidate.sourceQuoteId
       : null;
 
     if (!previous || previous.status === "draft") {
       const savedId = await saveInvoice(
-        invoiceInputFromMobile(invoice, customerId, quoteId, previous?.status),
+        invoiceInputFromMobile(candidate, customerId, quoteId, previous?.status),
         server.invoices.map((item) => item.number),
         previous?.id,
       );
@@ -141,7 +156,6 @@ async function synchronizeLocalChanges(
       continue;
     }
 
-    const baselineInvoice = baseline.invoices.find((item) => item.id === invoice.id);
     const contentChanged = baselineInvoice
       ? stableSignature(invoiceEditableContent(invoice)) !== stableSignature(invoiceEditableContent(baselineInvoice))
       : false;
@@ -206,6 +220,11 @@ export default function MobileDesktopSyncBridge() {
 
   useEffect(() => {
     let disposed = false;
+    const flushRequests = new Set<WorkspaceFlushRequest>();
+    const finishFlush = (error?: Error) => {
+      for (const request of flushRequests) error ? request.reject(error) : request.resolve();
+      flushRequests.clear();
+    };
 
     const initialize = () => {
       try {
@@ -234,11 +253,11 @@ export default function MobileDesktopSyncBridge() {
       const localChanged = localSignature !== baselineSignature;
       const pullDue = Date.now() - lastPull.current >= PULL_INTERVAL_MS;
 
-      if (!localChanged && !pullDue) return;
+      if (!localChanged && !pullDue) { finishFlush(); return; }
       if (
         localChanged &&
         localSignature === failedSignature.current &&
-        Date.now() - failedAt.current < FAILED_PUSH_RETRY_MS
+        Date.now() - failedAt.current < FAILED_PUSH_RETRY_MS && !flushRequests.size
       ) return;
 
       syncing.current = true;
@@ -256,13 +275,16 @@ export default function MobileDesktopSyncBridge() {
           failedSignature.current = "";
           failedAt.current = 0;
           lastPull.current = Date.now();
+          finishFlush();
           return;
         }
 
         await pullServer(local);
         failedSignature.current = "";
         failedAt.current = 0;
+        finishFlush();
       } catch (error) {
+        finishFlush(error instanceof Error ? error : new Error('Sauvegarde impossible.'));
         console.error("[FORGEO] Synchronisation mobile ↔ desktop impossible", error);
         if (localChanged) {
           failedSignature.current = localSignature;
@@ -276,9 +298,18 @@ export default function MobileDesktopSyncBridge() {
     };
 
     initialize();
+    const flush = (event: Event) => {
+      const request = (event as CustomEvent<WorkspaceFlushRequest>).detail;
+      if (!request) return;
+      flushRequests.add(request);
+      void synchronize();
+    };
+    window.addEventListener(MOBILE_WORKSPACE_FLUSH_EVENT, flush);
     const interval = window.setInterval(() => void synchronize(), LOCAL_CHECK_MS);
     return () => {
       disposed = true;
+      window.removeEventListener(MOBILE_WORKSPACE_FLUSH_EVENT, flush);
+      finishFlush(new Error('La sauvegarde a été interrompue.'));
       window.clearInterval(interval);
     };
   }, []);

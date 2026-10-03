@@ -54,6 +54,7 @@ RÈGLES ABSOLUES
 - Pour un client, utilise exclusivement un customer_id présent dans workspace.customers et seulement en cas de correspondance unique.
 - Pour une ligne de devis/facture, utilise line_operations avec un match assez précis pour retrouver la ligne existante.
 - Une suppression de ligne exige une demande explicite.
+- La remise globale d'un devis est changes.discount_percent (0 à 100). Enlever la remise signifie discount_percent: 0, jamais supprimer une prestation.
 - N'invente jamais un prix, une quantité, une TVA, une date, un statut ou un client.
 - Les dates sont au format YYYY-MM-DD et les heures au format HH:MM.
 - L'entité doit rester « ${entity} » et l'id doit rester celui reçu.
@@ -73,6 +74,7 @@ FORMAT JSON STRICT, SANS MARKDOWN :
     "expiry_date": "optionnel",
     "due_date": "optionnel",
     "paid_total": 0,
+    "discount_percent": 0,
     "date": "optionnel",
     "time": "optionnel",
     "type": "optionnel",

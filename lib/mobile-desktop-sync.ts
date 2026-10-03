@@ -222,6 +222,15 @@ export function quoteInputFromMobile(quote: MobileQuote, customerId: string, pre
   };
 }
 
+/** Keep server corrections to fields the user did not edit on this device. */
+export function mergeDocumentChanges<T extends MobileQuote | MobileInvoice>(baseline: T, local: T, server: T): T {
+  const merged = { ...server };
+  for (const field of ['customerId', 'title', 'status', 'issueDate', 'expiryDate', 'dueDate', 'items', 'notes', 'sourceQuoteId', 'paidTotal'] as (keyof T)[]) {
+    if (stableSignature(local[field]) !== stableSignature(baseline[field])) merged[field] = local[field];
+  }
+  return merged;
+}
+
 export function invoiceToMobile(invoice: Invoice, previous?: MobileInvoice, quoteTitle?: string): MobileInvoice {
   const items = invoice.items.map((item, index) => mobileLineFromDesktop(item, previous?.items[index]));
   const totals = calculateMobileTotals(items);

@@ -97,13 +97,14 @@ const unitPattern = /(?:m(?:²|2)|mètres?\s+carrés?|mètres?\s+linéaires?|mè
 
 export function explicitQuantity(phrase: string) {
   const text = normalizeVoiceTranscript(phrase);
+  if (/\bune?\s+(?:unit[ée]|pièce|forfait)(?![\p{L}])/iu.test(text)) return 1;
   const match = text.match(/(\d+(?:[,.]\d+)?)\s*(m(?:²|2)|mètres?\s+carrés?|mètres?\s+linéaires?|mètres?|ml|rouleaux?|unités?|pièces?|heures?|h|forfaits?)/iu);
   return match && unitPattern.test(match[2]) ? decimal(match[1]) : null;
 }
 
 export function explicitPrice(phrase: string) {
-  const match = normalizeVoiceTranscript(phrase).match(/(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/iu);
-  return match ? decimal(match[1]) : null;
+  const match = normalizeVoiceTranscript(phrase).match(new RegExp(`(${spokenAmountPattern})\\s*(?:€|euros?)`, 'iu'));
+  return match ? spokenFinancialNumber(match[1]) : null;
 }
 
 export function explicitTax(phrase: string) {

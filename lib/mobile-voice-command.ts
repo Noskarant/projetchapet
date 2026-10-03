@@ -19,6 +19,7 @@ import {
   type QuoteStatus,
 } from "./mobile-prototype";
 import { parseAgendaVoiceRequest } from "./mobile-agenda-voice";
+import { spokenDiscount } from "./percentage-adjustments";
 
 export type VoiceEntityKind = "quote" | "invoice" | "agenda" | "customer";
 
@@ -47,6 +48,7 @@ export type MobileVoiceCommand = {
     expiry_date?: string;
     due_date?: string;
     paid_total?: number;
+    discount_percent?: number;
     date?: string;
     time?: string;
     type?: string;
@@ -197,7 +199,9 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
       customerId: customer?.id || current.customerId,
       customerName: customer ? customerDisplayName(customer) : current.customerName,
       title: changes.title === undefined ? current.title : String(changes.title),
-      notes: changes.notes === undefined ? current.notes : String(changes.notes),
+      notes: changes.discount_percent === 0
+        ? String(changes.notes ?? current.notes).replace(/\bRemise\s+(?:globale\s+)?(?:de\s+)?\d+(?:[,.]\d+)?\s*%[^.\n]*(?:\.|\n|$)/giu, '').trim()
+        : changes.notes === undefined ? current.notes : String(changes.notes),
       status: quoteStatus(changes.status) || current.status,
       issueDate: validDate(changes.issue_date) || current.issueDate,
       expiryDate: validDate(changes.expiry_date) || current.expiryDate,
@@ -297,6 +301,10 @@ export function fallbackMobileVoiceCommand(
   if (target.entity === "quote") {
     const status = quoteStatus(normalizedText);
     if (status) changes.status = status;
+    const removed = /\b(?:supprime|supprimer|retire|retirer|enleve|enlever|annule|annuler)\s+(?:(?:la|une|toute)\s+)?remise\b/u.test(normalizedText)
+      || /\bsans\s+remise\b/u.test(normalizedText);
+    const discount = removed ? 0 : spokenDiscount(text);
+    if (discount !== null) changes.discount_percent = discount;
   }
 
   if (target.entity === "invoice") {
@@ -320,7 +328,7 @@ export function fallbackMobileVoiceCommand(
   }
 
   const deleteMatch = text.match(/(?:supprime|retire|enl[eè]ve|oublie)\s+(?:la ligne|le poste|la prestation)?\s*([^.;]+)/i)?.[1]?.trim();
-  if (deleteMatch && (target.entity === "quote" || target.entity === "invoice")) {
+  if (deleteMatch && !/\bremise\b/i.test(deleteMatch) && (target.entity === "quote" || target.entity === "invoice")) {
     operations.push({ action: "delete", match: deleteMatch });
   }
 
@@ -364,9 +372,13 @@ export function sanitizeMobileVoiceCommand(value: unknown, fallback: MobileVoice
     : fallback.entity;
   const id = typeof raw.id === "string" && raw.id ? raw.id : fallback.id;
   const summary = typeof raw.summary === "string" && raw.summary.trim() ? raw.summary.trim().slice(0, 500) : fallback.summary;
-  const changes = raw.changes && typeof raw.changes === "object" ? raw.changes as MobileVoiceCommand["changes"] : fallback.changes;
+  const changes = { ...(raw.changes && typeof raw.changes === "object" ? raw.changes as MobileVoiceCommand["changes"] : fallback.changes) };
+  // A clearly dictated discount takes precedence over an omitted model change.
+  delete changes.discount_percent;
+  if (fallback.changes?.discount_percent !== undefined) changes.discount_percent = fallback.changes.discount_percent;
   const lineOperations = Array.isArray(raw.line_operations)
     ? raw.line_operations.slice(0, 100).filter((operation): operation is VoiceLineOperation => Boolean(operation && typeof operation === "object" && ["add", "update", "delete"].includes(String((operation as Record<string, unknown>).action))))
     : fallback.line_operations;
-  return { entity, id, summary, changes, line_operations: lineOperations };
+  return { entity, id, summary, changes, line_operations: lineOperations?.filter(operation =>
+    !(operation.action === 'delete' && /\bremise\b/iu.test(operation.match || operation.designation || ''))) };
 }
