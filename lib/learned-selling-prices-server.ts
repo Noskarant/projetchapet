@@ -1,3 +1,4 @@
+import { recalculatePercentageLines } from "./percentage-adjustments";
 import type { PlannedAction } from './action-planner';
 import { learnedSellingPrice, type PriceHistoryQuote } from './quote-suggestions';
 import type { authenticateRequest } from './server-auth';
@@ -21,7 +22,10 @@ export async function proposeLearnedSellingPrices(actions: PlannedAction[], orga
       item.price_type = 'ht';
       item.price_source = 'company_history';
       action.warnings = action.warnings.filter(warning => warning !== `Ligne ${index + 1} : prix unitaire absent.`);
-      action.warnings.push(`Prix proposé pour « ${item.label} » : ${price.unitPrice} € HT/${item.unit}, issu de ${price.samples} devis validé(s) de votre entreprise. À confirmer avant validation.`);
+      action.warnings.push(`Prix proposé pour « ${item.label} » : ${price.unitPrice} € HT/${item.unit}, issu de ${price.samples} devis validé(s) de votre entreprise. Modifiable dans le devis.`);
     }
+    const items = action.payload.items as Array<Record<string, unknown>>;
+    action.payload.items = recalculatePercentageLines(items.map((item, index) => ({ id: String(index), label: String(item.label || ''), description: String(item.description || ''), quantity: item.quantity as number | null, unit: item.unit as string | null, unitPrice: item.unit_price as number | null, taxRate: item.tax_rate as number | null })))
+      .map((item, index) => ({ ...items[index], quantity: item.quantity, unit_price: item.unitPrice }));
   }
 }

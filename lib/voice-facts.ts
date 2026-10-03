@@ -1,3 +1,4 @@
+import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 const spokenAt = /\b(?:ar{1,2}obase|a\s+robase|arobas)\b/giu;
 const emailAtom = "[a-z0-9_%+-]+";
 const emailSeparator = "(?:\\s*\\.\\s*|\\s+(?:point|tiret(?:\\s+du\\s+bas)?|underscore)\\s+)";
@@ -106,8 +107,9 @@ export function explicitPrice(phrase: string) {
 }
 
 export function explicitTax(phrase: string) {
-  const match = phrase.match(/(?:tva|taxe\s+sur\s+la\s+valeur\s+ajoutée)\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/iu);
-  return match ? decimal(match[1]) : null;
+  const match = phrase.match(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'iu'));
+  const rate = match ? spokenFinancialNumber(match[1]) : null;
+  return rate !== null && [0,5.5,10,20].includes(rate) ? rate : null;
 }
 
 export function spokenPriceType(phrase: string): "ht" | "ttc" | null {

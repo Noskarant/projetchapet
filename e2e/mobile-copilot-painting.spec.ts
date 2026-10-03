@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 async function openCopilot(page: import("@playwright/test").Page) {
+  // A programmatic click on this hidden bridge bypasses the splash overlay.
+  // Wait until the application accepts input, as an actual user must.
+  await expect(page.getByRole('status', {name:'Ouverture de MANUFEO'})).toBeHidden({timeout:15000});
   // The unified assistant now delegates to this component; the old menu entry
   // was removed. Exercise its dictation/price controls through the existing bridge.
   await page.locator(".mcp-launcher").evaluate((button: HTMLButtonElement) => button.click());
@@ -14,8 +17,8 @@ test("prépare un devis de peinture avec hypothèses, origine des prix et marge"
   await openCopilot(page);
   const dialog = page.getByRole("dialog", { name: "Copilote chantier" });
 
-  await dialog.getByLabel("Description du chantier").fill(
-    "Chez SCI BELLEVUE, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.",
+  await dialog.getByLabel("Description du chantier").pressSequentially(
+    "Chez SCI BELLEVUE, je dois repeindre un appartement de 65 m² avec les plafonds, quelques fissures et quatre portes.", { delay: 5 }
   );
   await dialog.getByRole("button", { name: "Analyser le chantier" }).click();
 
@@ -44,9 +47,10 @@ test("bloque le brouillon tant que les quantités métier sont absentes", async 
 
   await openCopilot(page);
   const dialog = page.getByRole("dialog", { name: "Copilote chantier" });
-  await dialog.getByLabel("Description du chantier").fill(
-    "Chez SCI BELLEVUE, je dois refaire la peinture intérieure.",
+  await dialog.getByLabel("Description du chantier").pressSequentially(
+    "Chez SCI BELLEVUE, je dois refaire la peinture intérieure.", { delay: 5 }
   );
+  await expect(dialog.getByLabel('Description du chantier')).toHaveValue('Chez SCI BELLEVUE, je dois refaire la peinture intérieure.');
   await dialog.getByRole("button", { name: "Analyser le chantier" }).click();
 
   await expect(dialog.getByText("Informations à compléter")).toBeVisible();

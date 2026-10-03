@@ -1,3 +1,5 @@
+import { spokenAmountPattern } from "./spoken-financial-number";
+import { deductibleNotes, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
 import {
   ACTION_INTENTS,
@@ -81,7 +83,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
       .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null
     ? sourcePrice : (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
-  const taxesInTranscript = [...transcript.matchAll(/(?:tva|taxe\s+sur\s+la\s+valeur\s+ajoutée)\s*(?:à|a|de)?\s*(5[,.]5|10|20|0)\s*(?:%|pour\s+cent)?/giu)]
+  const taxesInTranscript = [...transcript.matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
       const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
       const after = transcript.slice(match.index + match[0].length, match.index + match[0].length + 65).split(/[.!?]/u)[0];
@@ -103,13 +105,14 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const linePosition = evidencePosition >= 0 ? evidencePosition : segmentPosition;
   const priorTax = linePosition >= 0
     ? persistentTaxes.filter((match) => match.position <= linePosition).at(-1)?.rate ?? null : null;
-  const confirmedTax = taxesInTranscript.length === 1 && taxesInTranscript[0].rate === suppliedTax ? suppliedTax : null;
+  const confirmedTax = taxesInTranscript.length === 1 && (taxesInTranscript[0].rate === suppliedTax || /(?:pour|sur)\s+(?:tout|tous|toutes|l['’]ensemble)|toujours\s+TVA/iu.test(transcript)) ? taxesInTranscript[0].rate : null;
   const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
-  const roomPriceType = roomSegment ? spokenPriceType(roomSegment) : null;
-  const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(transcript)
-    && /(?:\bht\b|hors taxes?)/iu.test(transcript);
+  const priceTranscript = withoutPaymentAdjustments(transcript);
+  const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(roomSegment)) : null;
+  const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)
+    && /(?:\bht\b|hors taxes?)/iu.test(priceTranscript);
   const priceType = spokenPriceType(priceEvidence) ?? roomPriceType
-    ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(transcript) ?? "unknown");
+    ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(priceTranscript) ?? "unknown");
   const normalizedTax = tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax : null;
   const needsTtcConversion = priceType === "ttc" && (!alreadyConverted || sourcePrice === null);
   const ttcWithoutTax = priceType === "ttc" && normalizedTax === null;
@@ -120,7 +123,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     label: polishFrenchTradeDesignation(text(source.label, 240)),
     description: text(source.description, 800),
     quantity: quantity ?? (explicitSingleForfait ? 1 : null),
-    unit: text(source.unit, 40) || null,
+    unit: text(source.unit, 40) || (/^rouleaux?\b/iu.test(text(source.label, 240)) && /\brouleaux?\b/iu.test(transcript) ? 'rouleaux' : null),
     unit_price: unitPrice,
     tax_rate: normalizedTax,
     price_type: priceType,
@@ -193,7 +196,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_id: text(source.quote_id, 80) || null,
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
-    notes: text(source.notes, 2400) || null,
+    notes: deductibleNotes(text(source.notes, 2400), transcript) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,
@@ -424,15 +427,16 @@ export function normalizeModelPlan(rawValue: unknown, transcript: string): Plann
       : intentType === "prepare_email" ? [(payload as RecordLike).to as string] : [];
     const hasValidEmail = emails.length > 0 && emails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email));
     const warnings = stringArray(source.warnings, 20).filter((warning) =>
-      !(hasValidEmail && isEmailSeparatorWarning(warning)));
+      !(hasValidEmail && isEmailSeparatorWarning(warning))
+      && !((intentType === "prepare_quote" || intentType === "prepare_invoice") && /(?:prix|quantit|TVA|HT|TTC|ligne|prestation)/iu.test(warning)));
     // The model can report stale, duplicate or invented field paths. Documents are
     // drafts: derive their blocking requirements from the normalized payload.
-    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier"
+    const missingFields = intentType === "prepare_quote" || intentType === "prepare_invoice" || intentType === "create_project" || intentType === "create_collaborator" || intentType === "create_supplier" || intentType === "create_customer"
       ? missingForIntent(intentType, payload as RecordLike)
       : [...missingForIntent(intentType, payload as RecordLike), ...stringArray(source.missing_fields, 20)
         .filter((field) => !(hasValidEmail && ["destinataire", "email_client", "email", "adresse_email"].includes(field)))];
     const customerFromPosition = numberOrNull(rawPayload.customer_from_position);
-    const quoteFromPosition = numberOrNull(rawPayload.quote_from_position);
+    const quoteFromPosition = intentType === "create_project" ? numberOrNull(rawPayload.quote_from_position) : null;
     const collaboratorFromPositions = intentType === "create_project"
       ? ((payload as RecordLike).collaborator_from_positions as number[]) : [];
     actions.push(finalizeAction({

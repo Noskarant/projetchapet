@@ -16,9 +16,9 @@ test("le mobile conserve l’ancien assistant uniquement pour le patrimoine E2E"
   assert.equal(mobile.includes("{AUTH_BYPASS && <MobileAiAssistantV6 />}"), true);
 });
 
-test("l’assistant explique et impose le contrôle humain", () => {
+test("l’assistant crée les brouillons directement et réserve le contrôle aux opérations sensibles", () => {
   const source = fs.readFileSync(path.join(process.cwd(), "app/action-voice-assistant.tsx"), "utf8");
-  assert.equal(source.includes("Rien n’est exécuté avant votre validation."), true);
+  assert.equal(source.includes("MANUFEO crée vos fiches et brouillons. Vous pouvez ensuite les modifier."), true);
   assert.equal(source.includes("Je confirme les actions sensibles"), true);
   assert.equal(source.includes("Valider et exécuter"), true);
   assert.equal(source.includes("Plusieurs actions"), true);

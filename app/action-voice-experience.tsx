@@ -137,7 +137,7 @@ export function CommandPrecisionGuide() {
         <span><b>Agenda</b> Objet, date, heure et lieu de l’intervention ou du rendez-vous.</span>
         <span><b>Autres actions</b> Fournisseur, référence, montant, destinataire ou chantier concerné selon la demande.</span>
       </div>
-      <small>Une information vous manque ? Ne l’inventez pas : MANUFEO vous indiquera ce qu’il faut compléter avant validation.</small>
+      <small>Une information vous manque ? Ne l’inventez pas : MANUFEO vous indiquera ce qui reste à compléter dans le résultat créé.</small>
     </aside>
   );
 }

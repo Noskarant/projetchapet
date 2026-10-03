@@ -571,7 +571,7 @@
   .rm-client-fields strong { margin-top: 5px; font-size: 11px; }
   .rm-client-fields small { margin-top: 4px; color: #96a1b0; font-size: 10px; }
 
-  .rm-toast { position: fixed; z-index: 140; left: 50%; bottom: calc(98px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 34px), 470px); min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 14px; color: #fff; background: #173b2f; box-shadow: 0 14px 36px rgba(0,0,0,.3); font-size: 11px; font-weight: 800; }
+  .rm-toast { pointer-events: none; position: fixed; z-index: 140; left: 50%; bottom: calc(98px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 34px), 470px); min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 14px; color: #fff; background: #173b2f; box-shadow: 0 14px 36px rgba(0,0,0,.3); font-size: 11px; font-weight: 800; }
 
   @media (max-width: 390px) {
     .rm-content { padding-right: 10px; padding-left: 10px; }
