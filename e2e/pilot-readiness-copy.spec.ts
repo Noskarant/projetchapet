@@ -16,8 +16,10 @@ test("le pilote mobile n’affiche plus l’ancienne identité ni le tutoiement"
   await expect.poll(async () => page.locator("body").innerText()).not.toMatch(tutoiement);
 
   await page.locator(".rm-drawer-list button", { hasText: "Comptable & facturation" }).click();
-  await expect(page.locator(".rm-side-drawer")).toContainText("Comptabilité");
+  const settings = page.getByRole("dialog", { name: "Paramètres de l’entreprise" });
+  await expect(settings).toBeVisible();
+  await expect(settings.getByLabel("E-mail du comptable")).toBeVisible();
 
   await expect.poll(async () => page.locator("body").innerText()).not.toMatch(forbiddenVisibleCopy);
-  await expect(page.locator(".rm-side-drawer")).toContainText(/À renseigner|@/);
+  await expect(settings.getByRole("button", { name: "Ouvrir le centre de facturation électronique" })).toBeVisible();
 });

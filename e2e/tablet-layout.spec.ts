@@ -26,7 +26,8 @@ for (const screen of screens) {
     // Keep the local fixture intact; this suite checks layout without a live backend.
     await page.route("**/rest/v1/**", route => route.fulfill({ status: 503, contentType: "application/json", body: '{"message":"Offline layout fixture"}' }));
     await page.goto("http://127.0.0.1:3000/");
-    const field = screen.touch;
+    // The field interface is now shared by phones, tablets and computers.
+    const field = true;
     await expect(page.locator(field ? ".rm-shell" : ".pc-shell")).toBeVisible();
     await expect(page.locator(field ? ".pc-shell" : ".rm-shell")).toHaveCount(0);
     if (field) {

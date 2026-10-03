@@ -47,31 +47,18 @@ test("le mobile retrouve son chrome sombre compact sans commandes superposées",
   await expect(page.locator(".fbs-launchers")).toBeHidden();
   await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeHidden();
 
-  const headerCopilot = page.getByRole("button", { name: "Assistant IA chantier" });
-  await expect(headerCopilot).toBeVisible();
-  const accessPlacement = await headerCopilot.evaluate((button) => {
-    const header = button.closest<HTMLElement>(".rm-header");
-    const buttonRect = button.getBoundingClientRect();
-    const headerRect = header?.getBoundingClientRect();
-    return {
-      width: buttonRect.width,
-      insideHeader: Boolean(headerRect && buttonRect.left >= headerRect.left && buttonRect.right <= headerRect.right && buttonRect.top >= headerRect.top && buttonRect.bottom <= headerRect.bottom),
-    };
-  });
-  expect(accessPlacement.width).toBeLessThanOrEqual(46);
-  expect(accessPlacement.insideHeader).toBe(true);
-
-  await headerCopilot.click();
-  const copilot = page.getByRole("dialog", { name: "Copilote chantier" });
-  await expect(copilot).toBeVisible();
-  await copilot.getByRole("button", { name: "Fermer le copilote" }).click();
-  await expect(copilot).toBeHidden();
+  const voice = page.getByLabel("Créer avec l’IA", { exact: true });
+  await expect(voice).toHaveCount(1);
+  await expect(voice).toBeVisible();
+  await voice.click();
+  const voiceDialog = page.getByRole("dialog", { name: "Créer avec l’IA" });
+  await expect(voiceDialog).toBeVisible();
+  await voiceDialog.getByRole("button", { name: "Fermer l’assistant" }).click();
+  await expect(voiceDialog).toBeHidden();
 
   await page.getByRole("button", { name: "Menu" }).click();
-  await expect(page.getByRole("button", { name: /Copilote chantier/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Métier & tarifs/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Rentabilité chantier/ })).toBeVisible();
-
   await page.locator(".rm-side-drawer header > button:first-child").click();
   await expect(page.getByRole("button", { name: "Ouvrir le copilote chantier" })).toBeHidden();
 

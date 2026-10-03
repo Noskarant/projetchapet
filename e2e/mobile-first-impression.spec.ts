@@ -126,6 +126,7 @@ test(unknownCustomer
     await route.fulfill({ json: { text: `Client ${unknownCustomer ? "Entreprise Zorbalux" : "SCI Bellevue"}, peinture 18 m² à 32 euros, TVA 10 %.` } });
   });
   await page.goto("/");
+  await page.locator(".rm-bottom-nav").getByRole("button", { name: "Devis", exact: true }).click();
   await page.getByLabel("Créer avec l’IA").click();
   const assistant = page.getByRole("dialog", { name: "Créer avec l’IA" });
   await assistant.getByLabel("Commencer la dictée").click();
