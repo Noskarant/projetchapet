@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'app/manufeo-mascot*'
+      - 'app/manufeo-help*'
+      - 'app/use-help-voice.ts'
+      - 'lib/help-voice-recorder.ts'
       - 'app/quote-suggestions*'
       - 'app/mobile-auto-pdf-preview.tsx'
       - 'lib/quote-suggestions.ts'
