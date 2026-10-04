@@ -2,6 +2,7 @@ import { insuranceDocumentNotes } from "./document-insurance";
 import { spokenAmountPattern } from "./spoken-financial-number";
 import { applyDeductibleLine, deductibleLineNotes, isDeductibleLine, spokenDeductibleAdjustment, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
+import { applySupplierMarkup, isSupplierMarkupLine, spokenSupplierMarkup, supplierMarkupNotes, withoutSupplierMarkup } from './supplier-markup';
 import {
   ACTION_INTENTS,
   riskLevelForIntent,
@@ -75,7 +76,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const quantityFromEvidence = quantityEvidence ? explicitQuantity(quantityEvidence) : null;
   const quantity = quantityFromEvidence !== null ? quantityFromEvidence
     : roomQuantity !== undefined ? roomQuantity : numberOrNull(source.quantity);
-  const pricesInRoom = roomSegment ? [...withoutPaymentAdjustments(roomSegment).matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
+  const pricesInRoom = roomSegment ? [...withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment)).matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
   const priceInRoom = pricesInRoom.length === 1 ? explicitPrice(pricesInRoom[0][0]) : null;
   const sourcePrice = numberOrNull(source.unit_price);
   const explicitSingleForfait = text(source.unit, 40).toLocaleLowerCase("fr-FR") === "forfait"
@@ -84,7 +85,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
       .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null
     ? sourcePrice : (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
-  const taxesInTranscript = [...withoutPaymentAdjustments(transcript).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
+  const taxesInTranscript = [...withoutPaymentAdjustments(withoutSupplierMarkup(transcript)).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
       const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
       const after = transcript.slice(match.index + match[0].length, match.index + match[0].length + 65).split(/[.!?]/u)[0];
@@ -110,8 +111,8 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const unscopedRates = [...new Set(taxesInTranscript.filter(match => !match.scoped).map(match => match.rate))];
   const confirmedTax = unscopedRates.length === 1 ? unscopedRates[0] : null;
   const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
-  const priceTranscript = withoutPaymentAdjustments(transcript);
-  const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(roomSegment)) : null;
+  const priceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
+  const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)
     && /(?:\bht\b|hors taxes?)/iu.test(priceTranscript);
   const priceType = spokenPriceType(priceEvidence) ?? roomPriceType
@@ -178,7 +179,8 @@ function normalizeCustomerPayload(source: RecordLike, transcript = "") {
 }
 
 function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyConverted = false) {
-  const original = Array.isArray(source.items) ? source.items.slice(0, 100).filter(item => !isDeductibleLine({ label: text(record(item).label, 240) })) : [];
+  const markupPercent = spokenSupplierMarkup(transcript);
+  const original = Array.isArray(source.items) ? source.items.slice(0, 100).filter(item => !isDeductibleLine({ label: text(record(item).label, 240) }) && !(markupPercent !== null && isSupplierMarkupLine(text(record(item).label,240)))) : [];
   const labels = original.map((item) => text(record(item).label, 240));
   const roomSegments = roomEvidenceSegments(transcript, labels);
   const roomQuantities = roomQuantityEvidence(transcript, labels);
@@ -187,9 +189,10 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     Boolean(line.label && !/^prestation(?:\s+à\s+compléter)?$/i.test(line.label))
       || (line.quantity !== null && line.quantity > 0) || line.unit_price !== null,
   );
+  if (markupPercent !== null) normalizedItems = normalizedItems.map(item=>({...item,description:supplierMarkupNotes(item.description)}));
   // Preparation and finishing steps covered by one explicitly priced unit are
   // one service. The model must not multiply that single spoken charge.
-  const serviceTranscript = withoutPaymentAdjustments(transcript);
+  const serviceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
   const prices = [...serviceTranscript.matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))];
   const units = [...serviceTranscript.matchAll(/\b(?:une?|1)\s+(?:unit[ée]|forfait)(?![\p{L}])/giu)];
   const otherQuantities = [...serviceTranscript.matchAll(/\b\d+(?:[,.]\d+)?\s*(?:m²|m2|mètres?|rouleaux?|heures?|pièces?|unités?|forfaits?)(?![\p{L}])/giu)];
@@ -200,9 +203,11 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     && normalizedItems.every(item => item.quantity === 1 && (item.unit_price !== null || item.spoken_price_ttc !== null || item.spoken_price_ambiguous !== null))) {
     const first = normalizedItems[0];
     const price = explicitPrice(prices[0][0]);
-    const type = spokenPriceType(serviceTranscript);
+    // The grounded line evidence wins over HT/TTC labels in source instructions
+    // or document totals. Do not reinterpret an HT supplier price as TTC here.
+    const type = first.price_type;
     const unitPrice = type === 'ttc' ? first.tax_rate === null || price === null ? null
-      : Math.round(price / (1 + first.tax_rate / 100) * 100) / 100 : price;
+      : Math.round(price / (1 + first.tax_rate / 100) * 100) / 100 : type === 'ambiguous' ? null : price;
     normalizedItems = [{ ...first,
       label: normalizedItems.map(item => item.label).join(' · ').slice(0, 240),
       description: normalizedItems.length === 1 ? first.description : normalizedItems.map(item => [item.label, item.description].filter(Boolean).join(' : ')).join('\n').slice(0, 800),
@@ -211,7 +216,8 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
       spoken_price_ttc: type === 'ttc' && first.tax_rate === null ? price : null,
     }];
   }
-  const items = applyDeductibleLine(applySpokenPercentageLines(normalizedItems.map((item, index) => ({ id: String(index), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unit_price, taxRate: item.tax_rate })), transcript), transcript).map(item => ({
+  const baseItems = normalizedItems.map((item, index) => ({ id: String(index), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unit_price, taxRate: item.tax_rate }));
+  const items = applyDeductibleLine(applySpokenPercentageLines(applySupplierMarkup(baseItems, markupPercent), withoutSupplierMarkup(transcript)), transcript).map(item => ({
     ...(normalizedItems.find(line => line.label === item.label) || {}), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: item.taxRate,
   }));
   const customerFromPosition = numberOrNull(source.customer_from_position);
@@ -224,13 +230,14 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
     notes: (spokenDeductibleAdjustment(transcript)
-      ? deductibleLineNotes(insuranceDocumentNotes(text(source.notes, 2400), source.insurance, transcript))
-      : insuranceDocumentNotes(text(source.notes, 2400), source.insurance, transcript)) || null,
+      ? deductibleLineNotes(insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript))
+      : insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript)) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,
     due_date: text(source.due_date, 20) || null,
     items,
+    ...(markupPercent !== null ? { supplier_markup_percent: markupPercent } : {}),
     discount_percent: spokenDiscount(transcript) ?? numberOrNull(source.discount_percent) ?? 0,
   };
 }

@@ -45,6 +45,7 @@ import "./action-voice-assistant.css";
 import "./action-voice-replay.css";
 import { readQuoteSourceFiles } from '@/lib/quote-source-files';
 import { quoteSourceRequest, customerSourceRequest, type QuoteSource } from '@/lib/quote-sources';
+import { supplierMarkupInput } from '@/lib/supplier-markup';
 
 type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "drafts" | "send" | "error";
 
@@ -270,6 +271,10 @@ export default function ActionVoiceAssistant() {
   const [customerImport, setCustomerImport] = useState(false);
   const customerImportRef = useRef(false);
   const [sources, setSources] = useState<QuoteSource[]>([]);
+  const [copiedSource, setCopiedSource] = useState('');
+  const copiedSourceRef = useRef('');
+  const [markupInput, setMarkupInput] = useState('');
+  const markupInputRef = useRef('');
   const sourcesRef = useRef<QuoteSource[]>([]);
   const sourceObservationsRef = useRef<string>('');
   const [sourcesBusy, setSourcesBusy] = useState(false);
@@ -334,6 +339,8 @@ export default function ActionVoiceAssistant() {
     sourcesRef.current = [];
     sourceObservationsRef.current = '';
     setSources([]);
+    setCopiedSource(''); copiedSourceRef.current = '';
+    setMarkupInput(''); markupInputRef.current = '';
     setSourcesBusy(false);
     customerImportRef.current = false; setCustomerImport(false);
     setPlannedTranscript("");
@@ -418,6 +425,10 @@ export default function ActionVoiceAssistant() {
   function choose(next: VoiceActionTarget) {
     if (next !== targetRef.current) { sourceObservationsRef.current = ''; }
     customerImportRef.current = false; setCustomerImport(false);
+    if (next !== 'quote' && next !== 'command') {
+      setCopiedSource(''); copiedSourceRef.current = '';
+      setMarkupInput(''); markupInputRef.current = '';
+    }
     if (next !== 'quote' && next !== 'command' && next !== 'customer') {
       sourceGeneration.current++;
       sourcesRef.current = []; sourceObservationsRef.current = '';
@@ -538,9 +549,10 @@ export default function ActionVoiceAssistant() {
   async function prepare(text: string) {
     const selected = targetRef.current;
     const withFiles = sourcesRef.current.length > 0;
+    const copied = selected === 'quote' || selected === 'command' ? copiedSourceRef.current.trim() : '';
     const clientSources = selected === "customer" && (withFiles || customerImportRef.current);
-    const withSources = withFiles || clientSources;
-    if (!selected || (!text.trim() && !withFiles)) {
+    const withSources = withFiles || clientSources || Boolean(copied);
+    if (!selected || (!text.trim() && !withFiles && !copied)) {
       setMessage("Dictez ou écrivez d’abord votre demande.");
       setStage("ready");
       return;
@@ -561,13 +573,18 @@ export default function ActionVoiceAssistant() {
     const timeout = window.setTimeout(() => controller.abort(), withSources ? 110_000 : 35_000);
     try {
       const organizationId = await getActiveOrganizationId();
+      const markup = selected === 'quote' || selected === 'command' ? supplierMarkupInput(markupInputRef.current) : null;
       if (withSources) {
         if (withFiles && !sourceObservationsRef.current) {
           const extraction = await extractQuoteSources(organizationId, sourcesRef.current, controller.signal);
           if (controller.signal.aborted) return;
           sourceObservationsRef.current = extraction.observations;
         }
-        normalized = clientSources ? customerSourceRequest(text, sourceObservationsRef.current) : quoteSourceRequest(text, sourceObservationsRef.current);
+        const observations = [copied ? `Texte copié du document :\n${copied}` : '', sourceObservationsRef.current].filter(Boolean).join('\n\n');
+        if (observations.length > 10_000) throw new Error('Sources trop longues. Collez ou joignez uniquement les passages utiles.');
+        normalized = clientSources ? customerSourceRequest(text, observations) : quoteSourceRequest(text, observations, markup);
+      } else if (markup !== null) {
+        normalized += `\nMajoration commerciale : ${markup} %.`;
       }
       const parsed = withSources || selected === "command" || selected === "supplier" ? undefined : await parseSingleTarget(selected, normalized, controller.signal);
       const planned = await planVoiceActions({
@@ -595,7 +612,7 @@ export default function ActionVoiceAssistant() {
         const remaining = planned.proposals.filter(proposal => !ready.has(proposal.id));
         await createPlanned(creatable, organizationId, true, remaining.length ? `À compléter : ${remaining.flatMap(proposal => proposal.missing_fields.map(missingLabel)).join(" ")}` : "");
       } else {
-        if (withSources) setMessage(clientSources ? 'Vérifiez les coordonnées lues avant de créer le client.' : 'Brouillon issu de vos sources : vérifiez les prestations, mesures et tarifs avant de créer le devis.');
+        if (withSources) setMessage(clientSources ? 'Vérifiez les coordonnées lues avant de créer le client.' : 'Brouillon issu de vos sources : vérifiez le client, les prestations, mesures et prix de vente avant de créer le devis.');
         setStage("review");
       }
     } catch (error) {
@@ -889,6 +906,17 @@ export default function ActionVoiceAssistant() {
                     <span>{source.name}</span>
                     <button type="button" disabled={busy} aria-label={`Retirer ${source.name}`} onClick={() => { const next = sourcesRef.current.filter((_, position) => position !== index); sourcesRef.current = next; sourceObservationsRef.current = ''; setSources(next); }}><X size={16} /></button>
                   </div>)}
+                  {target !== 'customer' && <>
+                    <details className="ava-supplier-source">
+                      <summary>Copier-coller un devis fournisseur</summary>
+                      <label>Texte du devis fournisseur<textarea value={copiedSource} aria-label="Texte du devis fournisseur" placeholder="Collez les prestations, quantités, prix et TVA du document…" maxLength={10_000} disabled={busy} onChange={event => { copiedSourceRef.current = event.target.value; setCopiedSource(event.target.value); }} /></label>
+                      <small>Le client et vos consignes se précisent dans votre demande ci-dessous.</small>
+                    </details>
+                    <label className="ava-supplier-markup">Majoration sur les prix HT (%)
+                      <input type="text" inputMode="decimal" aria-label="Majoration sur les prix HT (%)" placeholder="Ex. 30" value={markupInput} disabled={busy} onChange={event => { markupInputRef.current = event.target.value; setMarkupInput(event.target.value); }} />
+                      <small>+30 % : 100 € HT devient 130 € HT. Vous pouvez aussi le dicter.</small>
+                    </label>
+                  </>}
                 </div>}
                 <button type="button" className="ava-secondary" onClick={() => void showDrafts()}>Brouillons d’e-mails IA</button>
                 <p>MANUFEO crée vos fiches et brouillons. Vous pouvez ensuite les modifier.</p>
@@ -902,8 +930,8 @@ export default function ActionVoiceAssistant() {
                 />
                 {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
-                {(stage === "ready" || stage === "error") && (transcript.trim() || sources.length > 0) && (
-                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{target === 'customer' && (sources.length > 0 || customerImport) ? 'Lire et préparer le client' : sources.length ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
+                {(stage === "ready" || stage === "error") && (transcript.trim() || sources.length > 0 || copiedSource.trim()) && (
+                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{target === 'customer' && (sources.length > 0 || customerImport) ? 'Lire et préparer le client' : sources.length || copiedSource.trim() ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
                 )}
                 {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>
@@ -967,7 +995,7 @@ export default function ActionVoiceAssistant() {
                 <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length ? `${proposals.length} action${proposals.length > 1 ? "s" : ""} préparée${proposals.length > 1 ? "s" : ""}` : "Dictée à vérifier"}</strong><small>{proposals.length ? "Vérifiez tout avant de valider." : "Réécoutez puis corrigez les passages incertains."}</small></div></div>
                 {blocking && <div className="ava-blocking" role="alert"><strong>Une ou plusieurs actions ont besoin d’une correction.</strong><span>Les champs concernés sont indiqués en rouge ci-dessous. Corrigez la demande ici, puis relancez l’analyse.</span></div>}
                 <details className="ava-transcript" open={!proposals.length}><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>
-                {sources.length > 0 && <details className="ava-transcript"><summary>Informations lues dans les sources</summary><p>{sourceObservationsRef.current}</p></details>}
+                {(sources.length > 0 || copiedSource.trim()) && <details className="ava-transcript"><summary>Informations lues dans les sources</summary><p>{[copiedSource,sourceObservationsRef.current].filter(Boolean).join('\n\n')}</p></details>}
                 <div className="ava-action-list">
                   {proposals.map((proposal, index) => (
                     <article key={proposal.id} className={proposal.status === "needs_input" ? "blocked" : ""}>

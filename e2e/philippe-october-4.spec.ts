@@ -3,6 +3,7 @@ import { buildSync } from 'esbuild';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { jsPDF } from 'jspdf';
+import { normalizeModelPlan } from '../lib/action-planner';
 
 const root = path.resolve(__dirname, '..');
 const build = buildSync({ stdin: { resolveDir: root, loader: 'tsx', contents: `
@@ -153,6 +154,35 @@ test('import : retirer un fichier, rejeter un format invalide et réessayer apr�
   await page.getByRole('button', { name: 'Préparer le devis avec mes sources' }).click();
   await expect(page.getByRole('button', { name: 'Valider et exécuter' })).toBeVisible();
   expect(state.extractions).toBe(2); expect(state.plans.length).toBe(1); expect(state.executions).toBe(0);
+});
+
+for (const mode of ['champ','dictée','photo','sans majoration'] as const) test(`devis fournisseur importé, majoration ${mode} : vrais prix calculés, validation avant sauvegarde`,async({page},testInfo)=>{
+  const {state,errors}=await fixture(page);
+  await page.route('https://sources.manufeo.test/api/actions/plan',async route=>{
+    const request=route.request().postDataJSON();state.plans.push(request);
+    const action=normalizeModelPlan({actions:[{intent_type:'prepare_quote',payload:{customer_hint:'Client Test',items:[{label:'Réalisation et pose de cloison inox',quantity:1,unit:'forfait',unit_price:4259.3,price_evidence:'4 259,30 euros HT',tax_evidence:'TVA 20 %'}]}}]},request.transcript)[0];
+    await route.fulfill({json:{proposals:[{id:'quote-source-proposal',organization_id:org,intent_type:action.intentType,payload:action.payload,status:action.status,missing_fields:action.missingFields,warnings:action.warnings,risk_level:'review'}]}});
+  });
+  const pasted='Réalisation et pose d’une cloison inox. 1 forfait à 4 259,30 euros HT. TVA 20 %. Total TTC 5 111,16 euros. Délai environ 1 mois.';
+  if(mode==='photo'){
+    await page.route('https://sources.manufeo.test/api/ai/quote-sources',route=>{state.extractions++;state.sources=route.request().postDataJSON().sources;return route.fulfill({json:{observations:pasted}})});
+    await page.getByLabel('Documents du devis').setInputFiles({name:'devis-fournisseur.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGP8//8/AymAiSTVoxpGNQwpDQBVbQMdPVIhQwAAAABJRU5ErkJggg==','base64')});
+  }else{
+    await page.getByText('Copier-coller un devis fournisseur',{exact:true}).click();
+    await page.getByRole('textbox',{name:'Texte du devis fournisseur',exact:true}).fill(pasted);
+  }
+  await page.getByRole('textbox',{name:'Demande à MANUFEO',exact:true}).fill(`Client Test. Reprendre les prestations.${mode==='dictée'?' Ajoute trente pour cent de marge.':''}`);
+  if(mode==='champ'||mode==='photo')await page.getByRole('textbox',{name:'Majoration sur les prix HT (%)',exact:true}).fill('30');
+  await page.screenshot({path:testInfo.outputPath('supplier-import.png'),fullPage:true});
+  await page.getByRole('button',{name:'Préparer le devis avec mes sources',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Valider et exécuter',exact:true})).toBeVisible();
+  await expect(page.locator('.ava-action-main').first()).toContainText(mode==='sans majoration'?'4 259,30':'5 537,09');
+  expect(state.extractions).toBe(mode==='photo'?1:0);expect(state.executions).toBe(0);
+  if(mode==='photo')expect(state.sources[0].image).toMatch(/^data:image\/jpeg;base64,/);
+  expect(state.plans[0]).toMatchObject({quoteSources:true,sourceTarget:'quote'});
+  expect(state.plans[0].transcript).toContain(pasted);
+  await page.getByRole('button',{name:'Valider et exécuter',exact:true}).click();
+  await expect(page.getByText('Devis enregistré.',{exact:true})).toBeVisible();expect(state.executions).toBe(1);expect(errors).toEqual([]);
 });
 
 
