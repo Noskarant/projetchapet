@@ -7,6 +7,7 @@ import {
   type VatCategory,
 } from "@attestwire/en16931";
 import { ApiInputError } from "@/lib/api-guard";
+import { isDeductibleLine } from "@/lib/document-deductible";
 import { normalizeCompanyProfile, type CompanyProfile } from "@/lib/company-profile";
 import {
   customerDisplayName,
@@ -68,7 +69,7 @@ function normalizeLine(line: LineItem, index: number, creditNote: boolean): Invo
   if (line.quantity === null || !Number.isFinite(line.quantity) || line.quantity === 0) {
     throw new ApiInputError(`La quantité de la ligne ${index + 1} est invalide.`);
   }
-  if (line.unitPrice === null || !Number.isFinite(line.unitPrice) || line.unitPrice < 0) {
+  if (line.unitPrice === null || !Number.isFinite(line.unitPrice) || line.unitPrice < 0 && !isDeductibleLine(line)) {
     throw new ApiInputError(`Le prix unitaire de la ligne ${index + 1} est invalide.`);
   }
   if (line.taxRate === null) throw new ApiInputError(`Le taux de TVA de la ligne ${index + 1} est requis.`);
@@ -77,9 +78,10 @@ function normalizeLine(line: LineItem, index: number, creditNote: boolean): Invo
     id: String(index + 1),
     description: line.label.trim(),
     longDescription: line.description.trim() || undefined,
-    quantity: creditNote ? Math.abs(line.quantity) : line.quantity,
+    // EN16931 forbids a negative unit price; a negative quantity preserves the deduction.
+    quantity: (creditNote ? Math.abs(line.quantity) : line.quantity) * (line.unitPrice < 0 ? -1 : 1),
     unitCode: unitCode(line.unit),
-    unitPrice: line.unitPrice,
+    unitPrice: Math.abs(line.unitPrice),
     vatCategory: vat.category,
     vatRate: vat.rate,
   };

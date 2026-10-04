@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { documentLinePrice } from "./document-deductible";
 
 const E2E_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const AUTH_BYPASS = process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1";
@@ -66,7 +67,7 @@ function optionalNumber(value: number | null | undefined) {
 function normalizeItems(items: DocumentItem[]) {
   return items.map((item, index) => {
     const quantity = optionalNumber(item.quantity);
-    const unitPrice = optionalNumber(item.unit_price);
+    const unitPrice = documentLinePrice(item.unit_price, item.label);
     const taxRate = optionalNumber(item.tax_rate);
     return {
       position: index, label: item.label.trim(), description: item.description?.trim() || null,

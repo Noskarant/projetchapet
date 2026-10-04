@@ -12,22 +12,23 @@ import { POST as sendReport } from '../app/api/projects/photo-report/route';
 import { applyCommercialSyncResult, commercialCloudSignature } from '../lib/commercial-cloud';
 
 const org = '11111111-1111-4111-8111-111111111111';
-const evidence = 'Assureur MAIF. Numéro de dossier M260861258N. Numéro de mission R2600094226. Adresse 8 RUE DE LA REPUBLIQUE 42000 SAINT ETIENNE. Franchise à récupérer\n125 €.';
+const evidence = 'Assureur MAIF. Numéro de dossier M260861258N. Numéro de mission R2600094226. Adresse 8 RUE DE LA REPUBLIQUE 42000 SAINT ETIENNE. Franchise à récupérer\n125 € TTC.';
 const insurance = { insurer: 'MAIF', case_reference: 'M260861258N', mission_reference: 'R2600094226', claim_address: '8 RUE DE LA REPUBLIQUE 42000 SAINT ETIENNE' };
 
-test('assurance : références et franchise récupérable conservées dans le devis, sa facture et le PDF sans remise fiscale', async () => {
+test('assurance : références conservées et franchise négative dans le devis, sa facture et le PDF', async () => {
   const workspace = seedMobileWorkspace();
-  const plan = normalizeModelPlan({ actions: [{ intent_type: 'prepare_quote', payload: { customer_hint: 'Bonnand Cécile', notes: '', insurance, items: [{ label: 'Peinture murs', quantity: 100, unit: 'm²', unit_price: 23, price_type: 'ht', tax_rate: 10 }] } }] }, evidence);
+  const plan = normalizeModelPlan({ actions: [{ intent_type: 'prepare_quote', payload: { customer_hint: 'Bonnand Cécile', notes: '', insurance, items: [{ label: 'Peinture murs', quantity: 100, unit: 'm²', unit_price: 23, price_type: 'ht', tax_rate: 10 }] } }] }, `${evidence} Peinture murs 100 m² à 23 euros HT, TVA 10 %.`);
   const notes = String(plan[0].payload.notes);
   assert.match(notes, /Référence mission : R2600094226/);
   assert.match(notes, /Numéro de dossier : M260861258N/);
-  assert.match(notes, /Franchise à récupérer auprès du client : 125,00 €/);
+  assert.doesNotMatch(notes, /Franchise à récupérer auprès du client/);
   assert.equal(documentDeductible(notes, 2530).amount, 0);
-  assert.deepEqual(documentInsurance(notes, 2530), { references: ['Assureur : MAIF', 'Référence mission : R2600094226', 'Numéro de dossier : M260861258N', 'Adresse du sinistre : 8 RUE DE LA REPUBLIQUE 42000 SAINT ETIENNE'], recovery: 125, insurerShare: 2405 });
-  const items = [{ ...workspace.quotes[0].items[0], label: 'Peinture murs', quantity: 100, unitPrice: 23, taxRate: 10 }];
+  assert.deepEqual(documentInsurance(notes, 2530), { references: ['Assureur : MAIF', 'Référence mission : R2600094226', 'Numéro de dossier : M260861258N', 'Adresse du sinistre : 8 RUE DE LA REPUBLIQUE 42000 SAINT ETIENNE'], recovery: null, insurerShare: null });
+  const items = (plan[0].payload.items as Array<Record<string, unknown>>).map((item, index) => ({ id:String(index), label:String(item.label), description:String(item.description || ''), quantity:item.quantity as number|null, unit:item.unit as string|null, unitPrice:item.unit_price as number|null, taxRate:item.tax_rate as number|null }));
+  assert.equal(items[1].unitPrice,-113.64);
   const quote = { ...workspace.quotes[0], notes, items, ...calculateTotals(items) };
   const invoice = convertQuoteToInvoice(workspace, quote, 0).invoice;
-  assert.equal(invoice.notes, notes); assert.equal(invoice.total, 2530);
+  assert.equal(invoice.notes, notes); assert.equal(invoice.total, 2405);
   const blob = await buildBusinessDocumentPdf({ document: quote, company: { displayName: 'CHAPET' }, customer: workspace.customers[0], profile: null });
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
@@ -36,8 +37,8 @@ test('assurance : références et franchise récupérable conservées dans le de
     const first = await (await pdf.getPage(1)).getTextContent();
     const text = first.items.flatMap(item => 'str' in item ? [item.str] : []).join(' ');
     assert.match(text, /Référence mission : R2600094226/); assert.match(text, /M260861258N/);
-    assert.match(text, /TOTAL TTC.*2 530,00 €/); assert.match(text, /Part client \(franchise\).*125,00 €/);
-    assert.match(text, /Solde hors franchise.*2 405,00 €/);
+    assert.match(text, /Franchise à déduire/); assert.match(text, /-113,64 €/); assert.match(text, /TOTAL TTC.*2 405,00 €/);
+    assert.doesNotMatch(text, /Part client \(franchise\)|Solde hors franchise|Montant après franchise/);
     const reference = first.items.find(item => 'str' in item && item.str.includes('R2600094226'));
     assert.ok(reference && 'transform' in reference && reference.transform[5] > 500, 'Mission reference must be in the header');
   } finally { await task.destroy(); }

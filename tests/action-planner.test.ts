@@ -93,7 +93,7 @@ test("la TVA dictée après le premier prix se propage aux postes sans taux, dev
       { label: "Murs remplacement papier peint", quantity: 105, unit: "m²", unit_price: 47, tax_rate: null },
       { label: "Fourniture papier peint", quantity: 20, unit: "rouleaux", unit_price: 50, tax_rate: null },
     ] } }] }, "Salon plafond peinture 50 mètres carrés à 30 euros HT, TVA 10 %. Murs remplacement papier peint, 105 mètres carrés à 47 euros. Fourniture papier peint 20 rouleaux à 50 euros. Remise de 2 % et franchise de 150 euros TTC.");
-    assert.deepEqual((action.payload.items as Array<{ tax_rate: number }>).map(item => item.tax_rate), [10, 10, 10]);
+    assert.deepEqual((action.payload.items as Array<{ tax_rate: number }>).map(item => item.tax_rate), [10, 10, 10, 10]);
     assert.equal(action.payload.discount_percent, 2);
   }
 });

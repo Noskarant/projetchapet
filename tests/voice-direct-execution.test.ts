@@ -78,6 +78,20 @@ test('le mode direct ne contourne ni les droits ni les validations d’un paieme
   await assert.rejects(executeProposalBatch({ context,organizationId:'org',proposalIds:rows.map(row=>row.id),explicitConfirmation:true,directCreation:true }),/rôle/);
 });
 
+test('la franchise négative traverse réellement le moteur jusqu’aux RPC devis/facture, même avec 100 postes', async () => {
+  const {rows,rpcCalls,context}=fixture(['create_customer','prepare_quote','prepare_invoice']);
+  const items=Array.from({length:100},(_,index)=>({label:`Travaux ${index+1}`,quantity:1,unit:'forfait',unit_price:23,tax_rate:10}));
+  const [quote]=normalizeModelPlan({actions:[{intent_type:'prepare_quote',payload:{customer_hint:'CROUS',items}}]},'TVA 10 %. Travaux à 23 euros HT par poste. Franchise à récupérer 125 euros TTC.');
+  rows[1].payload={...quote.payload,customer_from_proposal_id:'p0'};
+  rows[2].payload={...quote.payload,customer_from_proposal_id:'p0'};
+  await executeProposalBatch({context,organizationId:'org',proposalIds:rows.map(row=>row.id),explicitConfirmation:false,directCreation:true});
+  for (const rpc of rpcCalls.filter(call=>['save_quote_document','save_invoice_document'].includes(call.name))) {
+    const saved=rpc.args.p_items as Array<Record<string,unknown>>;
+    assert.equal(saved.length,101); assert.equal(saved[100].unit_price,-113.64); assert.equal(saved[100].total,-113.64);
+    assert.equal(saved[0].unit_price,23);
+  }
+});
+
 test('PERBET et Bazin : les données normalisées arrivent réellement dans la sauvegarde et sont réutilisées au second appel', async () => {
   const { rows, saved, rpcCalls, context } = fixture(['create_customer', 'prepare_invoice', 'schedule_task']);
   rows[0].payload = { kind: 'individual', first_name: 'Henri', last_name: 'Perbet', addresses: [{ line1: '24 rue Montesquieu', postal_code: '42000', city: 'Saint-Étienne' }] };
