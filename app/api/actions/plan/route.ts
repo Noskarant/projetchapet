@@ -355,6 +355,7 @@ export async function POST(request: Request) {
       transcript?: unknown;
       target?: unknown;
       parsed?: unknown;
+      quoteSources?: unknown;
     }>(request, 40_000);
     const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
     const transcript = typeof body.transcript === "string" ? normalizeVoiceTranscript(body.transcript) : "";
@@ -366,9 +367,13 @@ export async function POST(request: Request) {
     requireOrganization(context, organizationId, ["owner", "admin", "office", "manager"]);
     const target = cleanTarget(body.target);
 
-    const planned = target === "command" || target === "supplier"
+    let planned = target === "command" || target === "supplier"
       ? await planWithDeepSeek(transcript, target === "supplier")
       : [plannedActionFromParsed(target, body.parsed, transcript)];
+    if (body.quoteSources === true) {
+      planned = planned.filter(action => ['create_customer', 'prepare_quote'].includes(action.intentType));
+      if (!planned.some(action => action.intentType === 'prepare_quote')) throw new ApiInputError('Décrivez les travaux à chiffrer pour préparer un devis.', 422);
+    }
     await resolveVoicePlanCustomers(planned, organizationId, context.client);
     await proposeLearnedSellingPrices(planned, organizationId, context.client);
     const actions = hardenPlannedActions(orderVoicePlan(planned));

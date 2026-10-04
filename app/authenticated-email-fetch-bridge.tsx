@@ -49,7 +49,7 @@ export default function AuthenticatedEmailFetchBridge() {
 
       const recipient = typeof payload.to === "string" ? payload.to.trim() : "";
       if (!isClientEmailAddress(recipient)) {
-        throw new Error("L’adresse e-mail du destinataire est invalide. Corrigez-la dans la fiche client avant l’envoi.");
+        throw new Error("L’adresse e-mail du destinataire est invalide. Corrigez-la avant l’envoi.");
       }
 
       const documentNumber = documentNumberFromPayload(payload);

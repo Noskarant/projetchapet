@@ -7,6 +7,7 @@ import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import {
   CalendarDays,
+  Camera,
   Check,
   FileText,
   Loader2,
@@ -15,6 +16,7 @@ import {
   ReceiptText,
   ShoppingCart,
   Sparkles,
+  Paperclip,
   UserRound,
   X,
 } from "lucide-react";
@@ -25,6 +27,7 @@ import {
   listVoiceEmailDeliveries,
   listVoiceEmailQuoteChoices,
   planVoiceActions,
+  extractQuoteSources,
   sendVoiceEmailDraft,
   type ActionExecutionResult,
   type ActionProposalView,
@@ -40,6 +43,8 @@ import { CommandPrecisionGuide, VoiceListeningVisualizer, VoicePreviewButton, Vo
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 import "./action-voice-replay.css";
+import { readQuoteSourceFiles } from '@/lib/quote-source-files';
+import { quoteSourceRequest, type QuoteSource } from '@/lib/quote-sources';
 
 type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "drafts" | "send" | "error";
 
@@ -261,6 +266,13 @@ export default function ActionVoiceAssistant() {
   const [target, setTarget] = useState<VoiceActionTarget | null>(null);
   const [stage, setStage] = useState<Stage>("choose");
   const [transcript, setTranscript] = useState("");
+  const [sources, setSources] = useState<QuoteSource[]>([]);
+  const sourcesRef = useRef<QuoteSource[]>([]);
+  const sourceObservationsRef = useRef<string>('');
+  const [sourcesBusy, setSourcesBusy] = useState(false);
+  const cameraInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const sourceGeneration = useRef(0);
   const [plannedTranscript, setPlannedTranscript] = useState("");
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
@@ -315,6 +327,11 @@ export default function ActionVoiceAssistant() {
     setTarget(preset ?? null);
     setStage(preset ? "ready" : "choose");
     updateTranscript("");
+    sourceGeneration.current++;
+    sourcesRef.current = [];
+    sourceObservationsRef.current = '';
+    setSources([]);
+    setSourcesBusy(false);
     setPlannedTranscript("");
     setEditing(false);
     setMessage("");
@@ -329,6 +346,7 @@ export default function ActionVoiceAssistant() {
   }, [stopCapture, updateTranscript]);
 
   const close = useCallback(() => {
+    sourceGeneration.current++;
     const shouldRefresh = results.some((result) => result.entityId || result.entityType === "payment");
     stopCapture();
     if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
@@ -349,13 +367,17 @@ export default function ActionVoiceAssistant() {
     const mobileClick = (event: Event) => {
       if (!window.matchMedia(FIELD_INTERFACE_QUERY).matches) return;
       const element = event.target as Element | null;
+      if (element?.closest('.rm-quote-sources')) {
+        event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
+        reset('quote'); setOpen(true); return;
+      }
       if (!element?.closest(".rm-create-ai, .rm-voice-button, .rm-ai-create-text")) return;
       event.preventDefault();
       event.stopPropagation();
       (event as Event & { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
       reset("command");
       setOpen(true);
-      void startRecording();
+      if (!element.closest('.rm-ai-create-text')) void startRecording();
     };
     const custom = (event: Event) => {
       const detail = (event as CustomEvent<{ target?: VoiceActionTarget; startListening?: boolean }>).detail;
@@ -385,6 +407,11 @@ export default function ActionVoiceAssistant() {
   }, [stopCapture]);
 
   function choose(next: VoiceActionTarget) {
+    if (next !== 'quote' && next !== 'command') {
+      sourceGeneration.current++;
+      sourcesRef.current = []; sourceObservationsRef.current = '';
+      setSources([]); setSourcesBusy(false);
+    }
     targetRef.current = next;
     setTarget(next);
     setStage("ready");
@@ -499,14 +526,15 @@ export default function ActionVoiceAssistant() {
 
   async function prepare(text: string) {
     const selected = targetRef.current;
-    if (!selected || !text.trim()) {
+    const withSources = sourcesRef.current.length > 0;
+    if (!selected || (!text.trim() && !withSources)) {
       setMessage("Dictez ou écrivez d’abord votre demande.");
       setStage("ready");
       return;
     }
-    const normalized = normalizeVoiceTranscript(text);
+    let normalized = normalizeVoiceTranscript(text);
     updateTranscript(normalized);
-    if (isStandaloneTradeAnalysis(normalized)) {
+    if (!withSources && isStandaloneTradeAnalysis(normalized)) {
       close();
       window.dispatchEvent(new CustomEvent("manufeo:analyse-chantier", { detail: { description: normalized } }));
       return;
@@ -517,23 +545,32 @@ export default function ActionVoiceAssistant() {
     setExplicitConfirmed(false);
     const controller = new AbortController();
     analysisControllerRef.current = controller;
-    const timeout = window.setTimeout(() => controller.abort(), 35_000);
+    const timeout = window.setTimeout(() => controller.abort(), withSources ? 110_000 : 35_000);
     try {
       const organizationId = await getActiveOrganizationId();
-      const parsed = selected === "command" || selected === "supplier" ? undefined : await parseSingleTarget(selected, normalized, controller.signal);
+      if (withSources) {
+        if (!sourceObservationsRef.current) {
+          const extraction = await extractQuoteSources(organizationId, sourcesRef.current, controller.signal);
+          if (controller.signal.aborted) return;
+          sourceObservationsRef.current = extraction.observations;
+        }
+        normalized = quoteSourceRequest(text, sourceObservationsRef.current);
+      }
+      const parsed = withSources || selected === "command" || selected === "supplier" ? undefined : await parseSingleTarget(selected, normalized, controller.signal);
       const planned = await planVoiceActions({
         organizationId,
         transcript: normalized,
-        target: selected,
+        target: withSources ? 'command' : selected,
         parsed,
         signal: controller.signal,
+        quoteSources: withSources,
       });
       if (controller.signal.aborted) return;
       if (!planned.proposals.length) throw new Error("Aucune action exploitable n’a été reconnue.");
       setProposals(planned.proposals);
-      setPlannedTranscript(normalized);
+      setPlannedTranscript(withSources ? normalizeVoiceTranscript(text) : normalized);
       setEditing(false);
-      if (planned.proposals.every(canCreateDirectly)) {
+      if (!withSources && planned.proposals.every(canCreateDirectly)) {
         const ready = new Set(planned.proposals.filter(proposal => proposal.status === "ready" && !proposal.missing_fields.length).map(proposal => proposal.id));
         for (const proposal of planned.proposals) {
           const dependencies = [proposal.payload.customer_from_proposal_id, proposal.payload.quote_from_proposal_id, ...(Array.isArray(proposal.payload.collaborator_from_proposal_ids) ? proposal.payload.collaborator_from_proposal_ids : [])].filter(Boolean);
@@ -544,6 +581,7 @@ export default function ActionVoiceAssistant() {
         const remaining = planned.proposals.filter(proposal => !ready.has(proposal.id));
         await createPlanned(creatable, organizationId, true, remaining.length ? `À compléter : ${remaining.flatMap(proposal => proposal.missing_fields.map(missingLabel)).join(" ")}` : "");
       } else {
+        if (withSources) setMessage('Brouillon issu de vos sources : vérifiez les prestations, mesures et tarifs avant de créer le devis.');
         setStage("review");
       }
     } catch (error) {
@@ -558,6 +596,22 @@ export default function ActionVoiceAssistant() {
       window.clearTimeout(timeout);
       if (analysisControllerRef.current === controller) analysisControllerRef.current = null;
     }
+  }
+
+  async function addSources(files: File[]) {
+    if (!files.length) return;
+    const generation = ++sourceGeneration.current;
+    setSourcesBusy(true); setMessage('');
+    try {
+      const added = await readQuoteSourceFiles(files);
+      if (sourceGeneration.current !== generation) return;
+      const next = [...sourcesRef.current, ...added];
+      if (next.length > 6) throw new Error('Maximum 6 photos ou pages au total. Retirez une source avant d’en ajouter.');
+      if (next.reduce((sum, source) => sum + (source.text?.length || 0), 0) > 10_000) throw new Error('Documents trop longs. Joignez uniquement les pages utiles.');
+      sourcesRef.current = next; sourceObservationsRef.current = '';
+      setSources(next);
+    } catch (error) { if (sourceGeneration.current === generation) setMessage(error instanceof Error ? error.message : 'Import impossible.'); }
+    finally { if (sourceGeneration.current === generation) setSourcesBusy(false); }
   }
 
   function browserDictation() {
@@ -749,7 +803,7 @@ export default function ActionVoiceAssistant() {
     }
   }
 
-  const busy = ["requesting", "transcribing", "analysing", "executing"].includes(stage);
+  const busy = sourcesBusy || ["requesting", "transcribing", "analysing", "executing"].includes(stage);
   const sensitive = proposals.some((proposal) => proposal.risk_level === "explicit_confirmation");
   const learnedPrices = proposals.filter(proposal => proposal.intent_type === 'prepare_quote').flatMap(proposal =>
     Array.isArray(proposal.payload?.items) ? (proposal.payload.items as Array<Record<string, unknown>>).filter(item => item.price_source === 'company_history') : []);
@@ -786,7 +840,7 @@ export default function ActionVoiceAssistant() {
           ) : (
           <section className="ava-panel">
             <header className="ava-header">
-              <div><small>MANUFEO IA</small><h2>Parlez, MANUFEO prépare.</h2></div>
+              <div><small>MANUFEO IA</small><h2>Dictez ou joignez vos sources.</h2></div>
               <button type="button" aria-label="Fermer" onClick={close}><X size={20} /></button>
             </header>
 
@@ -804,7 +858,23 @@ export default function ActionVoiceAssistant() {
             {(stage === "ready" || stage === "error") && (
               <div className="ava-capture">
                 <span className="ava-target">{choices.find((choice) => choice.id === target)?.label ?? "Demande"}</span>
-                <VoicePreviewButton onStart={() => void startRecording()} />
+                {!sourcesBusy && <VoicePreviewButton onStart={() => void startRecording()} />}
+                {(target === 'quote' || target === 'command') && <div className="ava-sources">
+                  <strong>Photos et documents pour votre devis</strong>
+                  <div className="ava-source-buttons">
+                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => cameraInput.current?.click()}><Camera size={18} /> Prendre une photo</button>
+                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => fileInput.current?.click()}><Paperclip size={18} /> Joindre des fichiers</button>
+                  </div>
+                  <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden aria-label="Photo du chantier" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
+                  <input ref={fileInput} type="file" accept="image/*,application/pdf,text/plain,.pdf,.txt" multiple hidden aria-label="Documents du devis" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
+                  <small>Photos, PDF ou TXT · 6 photos/pages maximum. Dictée facultative.</small>
+                  {sourcesBusy && <span role="status">Lecture des fichiers…</span>}
+                  {sources.map((source, index) => <div className="ava-source" key={`${source.name}-${index}`}>
+                    {source.image && <img src={source.image} alt="" />}
+                    <span>{source.name}</span>
+                    <button type="button" disabled={busy} aria-label={`Retirer ${source.name}`} onClick={() => { const next = sourcesRef.current.filter((_, position) => position !== index); sourcesRef.current = next; sourceObservationsRef.current = ''; setSources(next); }}><X size={16} /></button>
+                  </div>)}
+                </div>}
                 <button type="button" className="ava-secondary" onClick={() => void showDrafts()}>Brouillons d’e-mails IA</button>
                 <p>MANUFEO crée vos fiches et brouillons. Vous pouvez ensuite les modifier.</p>
                 {target === "command" && <CommandPrecisionGuide />}
@@ -817,8 +887,8 @@ export default function ActionVoiceAssistant() {
                 />
                 {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
-                {(stage === "ready" || stage === "error") && transcript.trim() && (
-                  <button type="button" className="ava-primary" onClick={() => void prepare(transcriptRef.current)}>Créer avec MANUFEO</button>
+                {(stage === "ready" || stage === "error") && (transcript.trim() || sources.length > 0) && (
+                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{sources.length ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
                 )}
                 {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>
@@ -882,6 +952,7 @@ export default function ActionVoiceAssistant() {
                 <div className="ava-review-head"><Check size={20} /><div><strong>{proposals.length ? `${proposals.length} action${proposals.length > 1 ? "s" : ""} préparée${proposals.length > 1 ? "s" : ""}` : "Dictée à vérifier"}</strong><small>{proposals.length ? "Vérifiez tout avant de valider." : "Réécoutez puis corrigez les passages incertains."}</small></div></div>
                 {blocking && <div className="ava-blocking" role="alert"><strong>Une ou plusieurs actions ont besoin d’une correction.</strong><span>Les champs concernés sont indiqués en rouge ci-dessous. Corrigez la demande ici, puis relancez l’analyse.</span></div>}
                 <details className="ava-transcript" open={!proposals.length}><summary>Transcription utilisée</summary><p>{transcript}</p>{recordingUrl && <audio controls src={recordingUrl} aria-label="Réécouter la dictée" />}</details>
+                {sources.length > 0 && <details className="ava-transcript"><summary>Informations lues dans les sources</summary><p>{sourceObservationsRef.current}</p></details>}
                 <div className="ava-action-list">
                   {proposals.map((proposal, index) => (
                     <article key={proposal.id} className={proposal.status === "needs_input" ? "blocked" : ""}>

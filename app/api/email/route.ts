@@ -33,6 +33,7 @@ type EmailBody = {
   subject?: unknown;
   html?: unknown;
   attachments?: unknown;
+  customRecipient?: unknown;
 };
 
 function cleanEmails(value: unknown) {
@@ -111,6 +112,7 @@ async function authorizeRecipients(
   documentNumber: string,
   documentKind: EmailDocumentKind,
   requestedRecipients: string[],
+  customRecipient: boolean,
 ) {
   const token = bearerToken(request);
   const client = authenticatedSupabase(token);
@@ -181,7 +183,7 @@ async function authorizeRecipients(
   }
 
   if (!documentFound) throw new ApiInputError("Document introuvable dans votre entreprise.", 404);
-  if (!recipientsAreAuthorized(requestedRecipients, [...allowed])) {
+  if (!recipientsAreAuthorized(requestedRecipients, [...allowed], customRecipient)) {
     throw new ApiInputError("Ce destinataire n’est pas rattaché à ce document ou à votre comptabilité.", 403);
   }
 }
@@ -207,7 +209,7 @@ export async function POST(request: Request) {
     const cc = cleanEmails(body.cc);
     const bcc = cleanEmails(body.bcc);
 
-    await authorizeRecipients(request, documentNumber, documentKind, [to, ...cc, ...bcc]);
+    await authorizeRecipients(request, documentNumber, documentKind, [to, ...cc, ...bcc], body.customRecipient === true);
 
     const subject = optionalString(body.subject, 998) || "Votre document";
     const incomingHtml = optionalString(body.html, 10_000_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";

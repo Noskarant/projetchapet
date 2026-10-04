@@ -588,3 +588,5 @@
     .rm-create-dock { right: 10px; left: 10px; }
   }
 }
+
+.rm-quote-sources{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;width:100%;margin:12px 0;font-size:14px;}

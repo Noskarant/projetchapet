@@ -149,6 +149,7 @@ export default function DocumentWorkflow() {
         documentNumber: selected.number,
         documentKind: selected.number.startsWith("DEV-") ? "quote" : "invoice",
         to: recipient.trim(),
+        customRecipient: true,
         cc: cc.split(/[;,]/).map((value) => value.trim()).filter(Boolean),
         subject: `${selected.number.startsWith("DEV-") ? "Votre devis" : "Votre facture"} ${selected.number}`,
         html: htmlMessage(profile, selected),

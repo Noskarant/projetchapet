@@ -658,6 +658,7 @@ export default function MobileCommercialDemo() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: email.recipient.trim(),
+          customRecipient: true,
           subject: email.subject,
           html: `<div style="font-family:Arial,sans-serif;white-space:pre-line">${email.message.replaceAll("\n", "<br>")}</div>`,
           attachments: [
@@ -866,6 +867,7 @@ export default function MobileCommercialDemo() {
               <EmailPanel
                 draft={email}
                 busy={emailBusy}
+                message={toast}
                 onChange={setEmail}
                 onSend={() => void sendEmail()}
                 onCancel={() => {
@@ -878,7 +880,7 @@ export default function MobileCommercialDemo() {
         </div>
       )}
 
-      {toast && (
+      {toast && overlay !== 'email' && (
         <div className="rm-commercial-toast" role="status">
           <CheckCircle2 size={18} /> {toast}
         </div>

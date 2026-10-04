@@ -5,6 +5,7 @@ export type AuthenticatedEmailPayload = {
   documentNumber: string;
   documentKind: EmailDocumentKind;
   to: string;
+  customRecipient?: boolean;
   cc?: string[];
   bcc?: string[];
   subject?: string;
@@ -29,7 +30,7 @@ export async function documentEmailErrorMessage(response: Response) {
 
 export async function sendAuthenticatedDocumentEmail(payload: AuthenticatedEmailPayload) {
   if (!isClientEmailAddress(payload.to)) {
-    throw new Error("L’adresse e-mail du destinataire est invalide. Corrigez-la dans la fiche client avant l’envoi.");
+    throw new Error("L’adresse e-mail du destinataire est invalide. Corrigez-la avant l’envoi.");
   }
 
   const { data, error } = await supabase.auth.getSession();

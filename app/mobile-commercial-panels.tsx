@@ -414,12 +414,14 @@ export function SettingsPanel({
 export function EmailPanel({
   draft,
   busy,
+  message,
   onChange,
   onSend,
   onCancel,
 }: {
   draft: EmailDraft;
   busy: boolean;
+  message?: string;
   onChange: (draft: EmailDraft) => void;
   onSend: () => void;
   onCancel: () => void;
@@ -444,6 +446,7 @@ export function EmailPanel({
             value={draft.recipient}
             onChange={(event) => onChange({ ...draft, recipient: event.target.value })}
           />
+          <small>Adresse modifiable pour cet envoi, sans changer la fiche client.</small>
         </label>
         <label>
           Objet
@@ -471,6 +474,8 @@ export function EmailPanel({
         <ShieldCheck size={18} />
         <span>Pièce jointe générée au moment de l’envoi avec les dernières informations enregistrées.</span>
       </div>
+
+      {message && <div className="rm-email-feedback" role="status">{message}</div>}
 
       <footer className="rm-commercial-footer">
         <button className="secondary" type="button" onClick={onCancel}>Annuler</button>

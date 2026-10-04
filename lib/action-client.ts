@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { VoiceActionTarget } from "@/lib/action-planner";
 import type { ExecutedVoiceAction } from "@/lib/voice-action-history";
 import type { VoiceEmailDelivery } from "@/lib/voice-email-delivery";
+import type { QuoteSource } from './quote-sources';
 
 export type ActionProposalView = {
   id: string;
@@ -73,21 +74,29 @@ export async function planVoiceActions({
   target,
   parsed,
   signal,
+  quoteSources = false,
 }: {
   organizationId: string;
   transcript: string;
   target: VoiceActionTarget;
   parsed?: unknown;
   signal?: AbortSignal;
+  quoteSources?: boolean;
 }) {
   return authenticatedJson<{ batchReference: string | null; proposals: ActionProposalView[] }>(
     "/api/actions/plan",
     {
       method: "POST",
       signal,
-      body: JSON.stringify({ organizationId, transcript, target, parsed }),
+      body: JSON.stringify({ organizationId, transcript, target, parsed, quoteSources }),
     },
   );
+}
+
+export function extractQuoteSources(organizationId: string, sources: QuoteSource[], signal?: AbortSignal) {
+  return authenticatedJson<{ observations: string }>('/api/ai/quote-sources', {
+    method: 'POST', signal, body: JSON.stringify({ organizationId, sources }),
+  });
 }
 
 export async function executeVoiceActions({
