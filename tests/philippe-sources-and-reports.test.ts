@@ -47,6 +47,9 @@ test('assurance : références et franchise récupérable conservées dans le de
   assert.doesNotMatch(insuranceDocumentNotes('', { insurer: 'Inventé', mission_reference: 'FAUX' }, evidence), /Inventé|FAUX/);
   const longNotes = insuranceDocumentNotes('Informations chantier. '.repeat(150), insurance, evidence);
   assert.ok(longNotes.length <= 2400); assert.match(longNotes, /R2600094226/); assert.match(longNotes, /Franchise à récupérer auprès du client : 125,00 €/);
+  const priced = normalizeModelPlan({ actions: [{ intent_type: 'prepare_quote', payload: { customer_hint: 'Bonnand', items: [{ label: 'Peinture murs', quantity: 100, unit: 'm²', unit_price: 23, tax_rate: 10 }] } }] }, 'Peinture des murs 100 m² à 23 euros HT. TVA 10 %. Franchise à récupérer 125 euros TTC.');
+  assert.equal((priced[0].payload.items as Array<Record<string, unknown>>)[0].unit_price, 23);
+  assert.equal((priced[0].payload.items as Array<Record<string, unknown>>)[0].price_type, 'ht');
 });
 
 test('sources : filtrer les actions interdites conserve les liaisons entre les bons clients et leurs devis', () => {

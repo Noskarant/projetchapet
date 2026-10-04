@@ -75,7 +75,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const quantityFromEvidence = quantityEvidence ? explicitQuantity(quantityEvidence) : null;
   const quantity = quantityFromEvidence !== null ? quantityFromEvidence
     : roomQuantity !== undefined ? roomQuantity : numberOrNull(source.quantity);
-  const pricesInRoom = roomSegment ? [...roomSegment.matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
+  const pricesInRoom = roomSegment ? [...withoutPaymentAdjustments(roomSegment).matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
   const priceInRoom = pricesInRoom.length === 1 ? explicitPrice(pricesInRoom[0][0]) : null;
   const sourcePrice = numberOrNull(source.unit_price);
   const explicitSingleForfait = text(source.unit, 40).toLocaleLowerCase("fr-FR") === "forfait"
