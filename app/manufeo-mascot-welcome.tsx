@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { mascotGreetingKey, mascotName } from '@/lib/mascot';
 import { useStartupVisible } from './manufeo-splash';
 import ManufeoMascot from './manufeo-mascot';
+import ManufeoHelpDialog from './manufeo-help-dialog';
 
 export default function ManufeoMascotWelcome({ user, canUseVoice = true }: { user: Pick<User, 'id' | 'email' | 'user_metadata'>; canUseVoice?: boolean }) {
   const startup = useStartupVisible();
@@ -13,6 +14,7 @@ export default function ManufeoMascotWelcome({ user, canUseVoice = true }: { use
   const [dismissed, setDismissed] = useState(false);
   const [message, setMessage] = useState<'hello' | 'help' | null>(null);
   const [wave, setWave] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [bottom, setBottom] = useState(160);
   const greeted = useRef(false);
   const name = mascotName(user);
@@ -50,22 +52,26 @@ export default function ManufeoMascotWelcome({ user, canUseVoice = true }: { use
     return () => window.clearTimeout(timer);
   }, [message]);
 
-  if (startup || !ready || obscured || dismissed) return null;
   const openVoice = () => {
+    setHelpOpen(false);
     setMessage(null);
     window.dispatchEvent(new CustomEvent('projetchapet:open-ai', { detail: { target: 'command' } }));
   };
-  return <aside className="manufeo-mascot-welcome" style={{ bottom }} aria-label="Assistant MANUFEO">
+  return <>
+    {helpOpen && <ManufeoHelpDialog key={user.id} canCreate={canUseVoice} onClose={()=>setHelpOpen(false)} onCreate={openVoice}/>}
+    {!startup && ready && !obscured && !dismissed && !helpOpen && <aside className="manufeo-mascot-welcome" style={{ bottom }} aria-label="Assistant MANUFEO">
     {message && <div className="manufeo-mascot-message" role="status">
       <strong>{message === 'hello' ? `Bonjour${name ? ` ${name}` : ''} !` : 'Un coup de main ?'}</strong>
-      <span>{message === 'hello' ? 'Prêt pour votre journée ?' : canUseVoice ? 'Dictez votre demande. Je prépare les actions, vous gardez la validation.' : 'Vos tâches et vos chantiers sont accessibles dans votre espace terrain.'}</span>
+      <span>{message === 'hello' ? 'Prêt pour votre journée ?' : 'Cliquez sur moi pour poser votre question.'}</span>
+      {message === 'help' && <button type="button" onClick={()=>{setMessage(null);setHelpOpen(true);}}>Poser une question</button>}
       {message === 'help' && canUseVoice && <button type="button" onClick={openVoice}>Créer avec IA</button>}
       {message === 'help' && <button type="button" onClick={() => setMessage(null)}>Fermer</button>}
     </div>}
-    <button type="button" className="manufeo-mascot-toggle" aria-label="Animer la mascotte et afficher son aide" onClick={() => { setWave(value => value + 1); setMessage(current => current === 'help' ? null : 'help'); }}>
+    <button type="button" className="manufeo-mascot-toggle" aria-label="Poser une question à l’agent MANUFEO" onClick={() => { setWave(value => value + 1); setMessage(null); setHelpOpen(true); }}>
       <ManufeoMascot key={wave} mood={wave ? 'hello' : 'idle'} />
     </button>
     <button type="button" className="manufeo-mascot-info" aria-label="Aide de la mascotte" onClick={() => setMessage(current => current === 'help' ? null : 'help')}>i</button>
     <button type="button" className="manufeo-mascot-hide" aria-label="Masquer la mascotte pour cette ouverture" onClick={() => setDismissed(true)}>×</button>
-  </aside>;
+  </aside>}
+  </>;
 }

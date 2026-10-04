@@ -3,6 +3,7 @@ import type { VoiceActionTarget } from "@/lib/action-planner";
 import type { ExecutedVoiceAction } from "@/lib/voice-action-history";
 import type { VoiceEmailDelivery } from "@/lib/voice-email-delivery";
 import type { QuoteSource } from './quote-sources';
+import type { HelpMessage } from './assistant-help';
 
 export type ActionProposalView = {
   id: string;
@@ -98,6 +99,12 @@ export async function planVoiceActions({
 export function extractQuoteSources(organizationId: string, sources: QuoteSource[], signal?: AbortSignal) {
   return authenticatedJson<{ observations: string }>('/api/ai/quote-sources', {
     method: 'POST', signal, body: JSON.stringify({ organizationId, sources }),
+  });
+}
+
+export function askManufeoQuestion(organizationId: string, question: string, history: HelpMessage[], signal?: AbortSignal) {
+  return authenticatedJson<{answer:string}>('/api/ai/help', {
+    method:'POST',signal,body:JSON.stringify({organizationId,question,history}),
   });
 }
 
