@@ -1,4 +1,5 @@
 import type { LineItem } from './mobile-prototype';
+import { isDeductibleLine } from './document-deductible';
 import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 const marker = /^Calcul automatique : (\d+(?:[,.]\d+)?) % du montant HT des autres postes\./u;
 export function linePercentage(line: LineItem) {
@@ -6,7 +7,7 @@ export function linePercentage(line: LineItem) {
   return match ? Number(match[1].replace(',', '.')) : null;
 }
 export function recalculatePercentageLines(items: LineItem[]) {
-  const base = items.filter(item => linePercentage(item) === null);
+  const base = items.filter(item => linePercentage(item) === null && !isDeductibleLine(item));
   return items.map(item => {
     const percent = linePercentage(item);
     if (percent === null) return item;

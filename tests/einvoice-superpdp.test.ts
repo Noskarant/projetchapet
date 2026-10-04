@@ -7,6 +7,7 @@ import {
   verifyEInvoiceOAuthState,
 } from "../lib/einvoice/crypto";
 import { generateManufeoCii } from "../lib/einvoice/manufeo-en16931";
+import { calculateTotals } from "../lib/mobile-prototype";
 import {
   buildSuperPdpAuthorizationUrl,
   extractFrenchSiren,
@@ -82,6 +83,16 @@ function sampleElectronicInvoice() {
     },
   };
 }
+
+test('la franchise négative reste une ligne distincte dans la facture électronique sans prix unitaire négatif', () => {
+  const sample=sampleElectronicInvoice();
+  sample.invoice.items.push({id:'franchise',label:'Franchise à déduire',description:'Franchise 125 € TTC.',quantity:1,unit:'forfait',unitPrice:-104.17,taxRate:20});
+  Object.assign(sample.invoice,calculateTotals(sample.invoice.items));
+  const generated=generateManufeoCii(sample);
+  assert.equal(generated.validation.valid,true);
+  assert.equal(generated.input.lines[1].quantity,-1); assert.equal(generated.input.lines[1].unitPrice,104.17);
+  assert.equal(sample.invoice.total,475); assert.match(generated.xml,/Franchise à déduire/);
+});
 
 test("extrait le SIREN à partir d’un SIRET français", () => {
   assert.equal(extractFrenchSiren("123 456 789 00012"), "123456789");

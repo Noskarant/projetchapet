@@ -1,6 +1,6 @@
 import { insuranceDocumentNotes } from "./document-insurance";
 import { spokenAmountPattern } from "./spoken-financial-number";
-import { deductibleNotes, withoutPaymentAdjustments } from "./document-deductible";
+import { applyDeductibleLine, deductibleLineNotes, isDeductibleLine, spokenDeductibleAdjustment, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
 import {
   ACTION_INTENTS,
@@ -84,7 +84,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
       .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null
     ? sourcePrice : (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
-  const taxesInTranscript = [...transcript.matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
+  const taxesInTranscript = [...withoutPaymentAdjustments(transcript).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
       const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
       const after = transcript.slice(match.index + match[0].length, match.index + match[0].length + 65).split(/[.!?]/u)[0];
@@ -178,7 +178,7 @@ function normalizeCustomerPayload(source: RecordLike, transcript = "") {
 }
 
 function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyConverted = false) {
-  const original = Array.isArray(source.items) ? source.items.slice(0, 100) : [];
+  const original = Array.isArray(source.items) ? source.items.slice(0, 100).filter(item => !isDeductibleLine({ label: text(record(item).label, 240) })) : [];
   const labels = original.map((item) => text(record(item).label, 240));
   const roomSegments = roomEvidenceSegments(transcript, labels);
   const roomQuantities = roomQuantityEvidence(transcript, labels);
@@ -211,7 +211,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
       spoken_price_ttc: type === 'ttc' && first.tax_rate === null ? price : null,
     }];
   }
-  const items = applySpokenPercentageLines(normalizedItems.map((item, index) => ({ id: String(index), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unit_price, taxRate: item.tax_rate })), transcript).map(item => ({
+  const items = applyDeductibleLine(applySpokenPercentageLines(normalizedItems.map((item, index) => ({ id: String(index), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unit_price, taxRate: item.tax_rate })), transcript), transcript).map(item => ({
     ...(normalizedItems.find(line => line.label === item.label) || {}), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: item.taxRate,
   }));
   const customerFromPosition = numberOrNull(source.customer_from_position);
@@ -223,7 +223,9 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_id: text(source.quote_id, 80) || null,
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
-    notes: insuranceDocumentNotes(deductibleNotes(text(source.notes, 2400), transcript), source.insurance, transcript) || null,
+    notes: (spokenDeductibleAdjustment(transcript)
+      ? deductibleLineNotes(insuranceDocumentNotes(text(source.notes, 2400), source.insurance, transcript))
+      : insuranceDocumentNotes(text(source.notes, 2400), source.insurance, transcript)) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,
@@ -312,11 +314,11 @@ function missingForIntent(intentType: ActionIntent, payload: RecordLike) {
   if (intentType === "create_project" && !text(payload.name, 300)) missing.push("nom_chantier");
   if (intentType === "create_collaborator" && !text(payload.name, 240)) missing.push("nom_collaborateur");
   if (intentType === "prepare_quote" || intentType === "prepare_invoice") {
-    const document = normalizeDocumentPayload(payload);
-    if (!document.customer_id && !document.customer_hint && document.customer_from_position === null && !document.customer_from_proposal_id) {
+    const document = payload;
+    if (!document.customer_id && !document.customer_hint && document.customer_from_position == null && !document.customer_from_proposal_id) {
       missing.push("client");
     }
-    if (!document.items.length && !document.quote_id && !document.quote_number) missing.push("prestations");
+    if ((!Array.isArray(document.items) || !document.items.length) && !document.quote_id && !document.quote_number) missing.push("prestations");
   }
   if (intentType === "update_project_note") {
     if (!text(payload.project_id, 180)) missing.push("chantier");

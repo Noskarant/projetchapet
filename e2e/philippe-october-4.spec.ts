@@ -15,6 +15,10 @@ import {seedMobileWorkspace} from './lib/mobile-prototype';
 import {sendAuthenticatedDocumentEmail} from './lib/authenticated-email';
 import './app/mobile-commercial-demo.css';
 import Projects from './app/mobile-commercial-projects';
+import AutoPreview from './app/mobile-auto-pdf-preview';
+import './app/mobile-quote-preview.css';
+import {normalizeModelPlan} from './lib/action-planner';
+import {calculateTotals} from './lib/mobile-prototype';
 import {seedCommercialDemoState,readCommercialDemoState,writeCommercialDemoState} from './lib/mobile-commercial-demo';
 import {buildProjectPhotoReport} from './lib/project-photo-report';
 import {sendProjectPhotoEmail} from './lib/project-photo-email';
@@ -29,12 +33,37 @@ function ProjectsHarness(){
  const [selected,setSelected]=React.useState('P-1');
  return <div className="rm-commercial-backdrop"><section className="rm-commercial-panel"><Projects state={state} selectedProjectId={selected} onSelectProject={setSelected} customerEmail={selected==='P-1'?'client@example.fr':'autre-client@example.fr'} onChange={next=>{writeCommercialDemoState(localStorage,next);setState(next)}} onNotify={()=>{}} onDownloadDocument={()=>{}} onCreateQuote={()=>{}} onSendPhotoReport={async(project,ids,to)=>{const blob=await buildProjectPhotoReport(project,ids,'CHAPET','Cécile Bonnand','0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');await sendProjectPhotoEmail(project.id,ids,to,await blobToBase64(blob),'test-report-request')}}/></section></div>;
 }
-createRoot(document.getElementById('root')).render(window.location.pathname==='/email'?<EmailHarness/>:window.location.pathname==='/projects'?<ProjectsHarness/>:<><Shell/><Assistant/></>);
+function FranchiseHarness(){
+ const workspace=React.useMemo(()=>{const state=seedMobileWorkspace();const phrase=location.search.includes('ht')?'Franchise 125 euros HT.':'Franchise à récupérer 125 euros TTC.';const action=normalizeModelPlan({actions:[{intent_type:'prepare_quote',payload:{customer_hint:'Client Test',items:[{label:'Peinture murs',quantity:100,unit:'m²',unit_price:23,tax_rate:10}]}}]},'Peinture murs 100 m² à 23 euros HT. TVA 10 %. '+phrase)[0];const items=action.payload.items.map((item,index)=>({id:String(index),label:item.label,description:item.description||'',quantity:item.quantity,unit:item.unit,unitPrice:item.unit_price,taxRate:item.tax_rate}));state.quotes=[{...state.quotes[0],items,notes:action.payload.notes||'',...calculateTotals(items)}];localStorage.setItem('projetchapet-mobile-workspace-v3',JSON.stringify(state));localStorage.setItem('projetchapet-mobile-quote-meta-v1',JSON.stringify({[state.quotes[0].number]:{discountPercent:0,internalNotes:''}}));return state},[]);
+ return <><button onClick={()=>window.dispatchEvent(new CustomEvent('manufeo:open-created-quote',{detail:{quote:workspace.quotes[0],customer:workspace.customers[0]}}))}>Afficher le devis</button><AutoPreview/></>;
+}
+createRoot(document.getElementById('root')).render(window.location.pathname==='/email'?<EmailHarness/>:window.location.pathname==='/projects'?<ProjectsHarness/>:window.location.pathname==='/franchise'?<FranchiseHarness/>:<><Shell/><Assistant/></>);
 ` }, bundle: true, write: false, outdir: '/tmp/philippe-oct4-bundle', jsx: 'automatic', minify: true,
   define: { 'process.env.NODE_ENV': '"production"', 'process.env': JSON.stringify({ NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://backend.manufeo.test', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-key' }) },
   tsconfig: path.join(root, 'tsconfig.json') });
 const html = `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${build.outputFiles.filter(file => file.path.endsWith('.css')).map(file => file.text).join('\n')}</style></head><body><div id="root"></div><script>${build.outputFiles.find(file => file.path.endsWith('.js'))!.text.replace(/<\/script/giu, '<\\/script')}</script></body></html>`;
 const org = '11111111-1111-4111-8111-111111111111';
+
+for (const kind of ['ht','ttc'] as const) test(`franchise ${kind} : poste négatif distinct, totaux corrigés et PDF mobile lisible`,async({page},testInfo)=>{
+  await page.setViewportSize({width:390,height:844});
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.route('https://backend.manufeo.test/**',route=>route.fulfill({json:[]}));
+  await page.route('https://sources.manufeo.test/**',route=>route.request().url().endsWith('/pdf.worker.min.mjs')?route.fulfill({contentType:'text/javascript',body:readFileSync(path.join(root,'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'))}):route.fulfill({contentType:'text/html',body:html}));
+  await page.goto(`https://sources.manufeo.test/franchise?${kind}`);
+  await page.getByRole('button',{name:'Afficher le devis'}).click();
+  const preview=page.locator('.rm-philippe-preview-backdrop');
+  await expect(preview).toBeVisible();
+  const franchise=preview.locator('.rm-philippe-line-card').filter({hasText:'Franchise à déduire'});
+  await expect(franchise).toContainText(kind==='ttc'?'-113,64':'-125,00');
+  const totals=preview.locator('.rm-philippe-totals');
+  await expect(totals).toContainText(kind==='ttc'?'2 405,00':'2 392,50');
+  await expect(totals).not.toContainText('Montant après franchise');
+  await expect(totals).not.toContainText('Part client');
+  await page.screenshot({path:testInfo.outputPath('franchise.png')});
+  await preview.getByRole('button',{name:'Page complète',exact:true}).click();
+  await expect(preview.locator('canvas').first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
 
 async function fixture(page: Page, failExtraction = false, customer = false) {
   await page.setViewportSize({ width: 390, height: 844 });

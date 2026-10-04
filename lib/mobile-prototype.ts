@@ -1,4 +1,5 @@
 import { recalculatePercentageLines } from "./percentage-adjustments";
+import { isDeductibleLine } from "./document-deductible";
 export type CustomerKind = "Professionnel" | "Particulier";
 export type QuoteStatus = "En attente" | "Validé" | "Terminé" | "Refusé";
 export type InvoiceStatus = "Brouillon" | "En cours" | "Payée" | "En retard" | "Avoir";
@@ -176,7 +177,7 @@ export function convertQuoteToInvoice(workspace: MobileWorkspace, quote: MobileQ
   const invoice = normalizeInvoice({
     id: makeId("invoice"), number: nextNumber(workspace.invoices, "F"), customerId: quote.customerId,
     customerName: quote.customerName, title: quote.title, issueDate, dueDate: due.toISOString().slice(0, 10),
-    status: "En cours", items: recalculatePercentageLines(quote.items).map((item) => ({ ...item, id: makeId("line"), unitPrice: item.unitPrice === null ? null : Math.round(item.unitPrice * (1 - Math.min(100, Math.max(0, discountPercent)) / 100) * 100) / 100 })), notes: quote.notes,
+    status: "En cours", items: recalculatePercentageLines(quote.items).map((item) => ({ ...item, id: makeId("line"), unitPrice: item.unitPrice === null ? null : isDeductibleLine(item) ? item.unitPrice : Math.round(item.unitPrice * (1 - Math.min(100, Math.max(0, discountPercent)) / 100) * 100) / 100 })), notes: quote.notes,
     subtotal: 0, taxTotal: 0, total: 0, paidTotal: 0, accountantSent: false, sourceQuoteId: quote.id,
   });
   return { workspace: upsertInvoice(workspace, invoice), invoice };

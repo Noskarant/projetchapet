@@ -1,5 +1,5 @@
 import { documentInsurance } from "./document-insurance";
-import { documentDeductible } from "./document-deductible";
+import { documentDeductible, isDeductibleLine } from "./document-deductible";
 import { recalculatePercentageLines } from "./percentage-adjustments";
 import type { MobileCustomer, MobileInvoice, MobileQuote } from "./mobile-prototype";
 import { calculateQuotePreviewTotals, quoteTaxBreakdown, type QuoteInternalMeta } from "./mobile-quote-preview";
@@ -327,8 +327,9 @@ export async function buildBusinessDocumentPdf({
 
   if (!withoutPrices) {
     const taxLines = quoteTaxBreakdown(document.items, quoteMeta.discountPercent);
-    const deductible = documentDeductible(document.notes, total);
-    const insurance = documentInsurance(document.notes, total);
+    const hasFranchiseLine = document.items.some(isDeductibleLine);
+    const deductible = documentDeductible(hasFranchiseLine ? '' : document.notes, total);
+    const insurance = documentInsurance(hasFranchiseLine ? '' : document.notes, total);
     const totalsHeight = (insurance.recovery !== null || deductible.amount > 0 ? 18 : 0) + (quoteTotals && quoteTotals.discountPercent > 0 ? 51 : 39) + Math.max(0, taxLines.length - 1) * 6;
     ensureSpace(totalsHeight);
     y += 4;

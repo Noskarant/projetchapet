@@ -1,4 +1,5 @@
 import { recalculatePercentageLines } from "./percentage-adjustments";
+import { isDeductibleLine } from "./document-deductible";
 import type { LineItem, MobileQuote, MobileWorkspace } from "./mobile-prototype";
 
 export const QUOTE_META_STORAGE_KEY = "projetchapet-mobile-quote-meta-v1";
@@ -39,6 +40,16 @@ export function calculateQuotePreviewTotals(
     (item): item is PricedLineItem =>
       item.quantity !== null && item.unitPrice !== null,
   );
+  if (pricedItems.some(isDeductibleLine)) {
+    // Use the same rounded work prices and recalculated RSE as invoice conversion.
+    // The fixed franchise is excluded from both adjustments.
+    const discounted = recalculatePercentageLines(pricedItems.map(item => ({...item,
+      unitPrice: isDeductibleLine(item) ? item.unitPrice : round(item.unitPrice * multiplier)})));
+    const grossSubtotal = round(pricedItems.reduce((sum,item)=>sum+item.quantity*item.unitPrice,0));
+    const subtotal = round(discounted.reduce((sum,item)=>sum+(item.quantity || 0)*(item.unitPrice || 0),0));
+    const taxTotal = round(discounted.reduce((sum,item)=>sum+(item.quantity || 0)*(item.unitPrice || 0)*Number(item.taxRate || 0)/100,0));
+    return {grossSubtotal,discountPercent:normalizedDiscount,discountAmount:round(grossSubtotal-subtotal),subtotal,taxTotal,total:round(subtotal+taxTotal)};
+  }
   const grossSubtotal = round(
     pricedItems.reduce(
       (sum, item) => sum + item.quantity * item.unitPrice,
@@ -71,11 +82,14 @@ export function calculateQuotePreviewTotals(
 
 export function quoteTaxBreakdown(items: LineItem[], discountPercent = 0) {
   const multiplier = 1 - normalizeDiscountPercent(discountPercent) / 100;
+  const hasFranchise = items.some(isDeductibleLine);
+  const taxable = recalculatePercentageLines(hasFranchise ? recalculatePercentageLines(items).map(item => ({...item,
+    unitPrice:item.unitPrice === null ? null : isDeductibleLine(item) ? item.unitPrice : round(item.unitPrice*multiplier)})) : items);
   const groups = new Map<number, number>();
-  for (const item of recalculatePercentageLines(items)) {
+  for (const item of taxable) {
     if (item.quantity === null || item.unitPrice === null || item.taxRate === null) continue;
     const rate = Number(item.taxRate);
-    groups.set(rate, (groups.get(rate) || 0) + item.quantity * item.unitPrice * rate / 100 * multiplier);
+    groups.set(rate, (groups.get(rate) || 0) + item.quantity * item.unitPrice * rate / 100 * (hasFranchise ? 1 : multiplier));
   }
   const breakdown = [...groups].sort(([a], [b]) => a - b).map(([rate, tax]) => ({ rate, amount: round(tax) }));
   if (breakdown.length) {

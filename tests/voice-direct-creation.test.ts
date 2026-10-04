@@ -29,11 +29,11 @@ test('CROUS : prix HT conservés malgré la franchise TTC, RSE sur les trois pos
   assert.equal(quote.status, 'ready');
   assert.deepEqual(quote.warnings, []);
   const lines = mobileLines(quote.payload.items as Array<Record<string, unknown>>);
-  assert.deepEqual(lines.map(line => line.unitPrice), [22.4, 12, 10, 4.63]);
-  assert.deepEqual(lines.map(line => line.taxRate), [10, 10, 10, 10]);
+  assert.deepEqual(lines.map(line => line.unitPrice), [22.4, 12, 10, 4.63, -136.36]);
+  assert.deepEqual(lines.map(line => line.taxRate), [10, 10, 10, 10, 10]);
   const totals = calculateTotals(lines);
-  assert.deepEqual(totals, { subtotal: 467.43, taxTotal: 46.74, total: 514.17 });
-  assert.deepEqual(documentDeductible(String(quote.payload.notes), totals.total), { amount: 150, afterDeductible: 364.17 });
+  assert.deepEqual(totals, { subtotal: 331.07, taxTotal: 33.11, total: 364.18 });
+  assert.deepEqual(documentDeductible(String(quote.payload.notes), totals.total), { amount: 0, afterDeductible: 364.18 });
   const changed = recalculatePercentageLines(lines.map((line, i) => i === 1 ? { ...line, quantity: 20 } : line));
   assert.equal(changed[3].unitPrice, 5.59);
 });
@@ -109,10 +109,11 @@ test('la sortie réelle du modèle avec nombres en lettres conserve prix, RSE, T
     {label:'Rouleaux',quantity:5,unit:null,unit_price:10,tax_rate:10,price_type:'ht'},
   ]},transcript);
   const lines=mobileLines(action.payload.items as Array<Record<string,unknown>>);
-  assert.deepEqual(lines.map(line=>line.unitPrice),[22.4,12,10,4.63]);
-  assert.deepEqual(lines.map(line=>line.taxRate),[10,10,10,10]);
+  assert.deepEqual(lines.map(line=>line.unitPrice),[22.4,12,10,4.63,-136.36]);
+  assert.deepEqual(lines.map(line=>line.taxRate),[10,10,10,10,10]);
   assert.equal(lines[2].unit,'rouleaux');
-  assert.deepEqual(documentDeductible(String(action.payload.notes),calculateTotals(lines).total),{amount:150,afterDeductible:364.17});
+  assert.deepEqual(calculateTotals(lines), {subtotal:331.07,taxTotal:33.11,total:364.18});
+  assert.equal(documentDeductible(String(action.payload.notes),calculateTotals(lines).total).amount,0);
 });
 
 
@@ -122,8 +123,9 @@ test('RSE en lettres remplace le poste forfaitaire du modèle sans compter deux 
     {label:'Majoration RSE 1 %',quantity:1,unit_price:2.69,tax_rate:10},
   ]}}]}, 'TVA 10 %, peinture un forfait à 1000 euros HT. RSE un pour cent, remise de quatre pour cent. Franchise de trois cent vingt euros TTC.');
   const lines=mobileLines(action.payload.items as Array<Record<string,unknown>>);
-  assert.equal(lines.length,2);
+  assert.equal(lines.length,3);
   assert.equal(lines[1].unitPrice,10);
   assert.equal(action.payload.discount_percent,4);
-  assert.equal(documentDeductible(String(action.payload.notes),1111).amount,320);
+  assert.equal(lines[2].unitPrice,-290.91);
+  assert.equal(documentDeductible(String(action.payload.notes),1111).amount,0);
 });

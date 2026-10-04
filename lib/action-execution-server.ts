@@ -1,4 +1,5 @@
 import { canCreateDirectly } from "./voice-direct-creation";
+import { documentLinePrice } from "./document-deductible";
 import { createSupplierFromVoice } from "./voice-supplier";
 import { sendSupplierPriceRequest } from "./supplier-price-request";
 import { createServiceSupabase } from "./server-organization";
@@ -71,10 +72,10 @@ function addDaysIso(value: string, days: number) {
 
 function normalizedItems(value: unknown) {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 100).map((entry, index) => {
+  return value.slice(0, 200).map((entry, index) => {
     const line = object(entry);
     const quantity = numberOrNull(line.quantity);
-    const unitPrice = numberOrNull(line.unit_price);
+    const unitPrice = documentLinePrice(line.unit_price, string(line.label, 240));
     const tax = numberOrNull(line.tax_rate);
     return {
       position: index,

@@ -3,7 +3,7 @@ export const MAX_QUOTE_SOURCES = 6;
 export const MAX_SOURCE_TEXT = 10_000;
 
 export function quoteSourceRequest(instructions: string, observations: string) {
-  const request = `Prépare un brouillon de devis à partir des éléments suivants. Les mesures, prix et TVA absents doivent rester à compléter. Les instructions de l’artisan priment en cas de différence. Recopie les références d’assurance dans insurance (insurer, mission_reference, case_reference, claim_address), et les coordonnées exactes de l’assuré dans la fiche client. Conserve la mention exacte de franchise dans les notes : une franchise à récupérer est une part à charge du client, jamais une remise.\nInstructions de l’artisan : ${instructions.trim() || 'Créer un devis pour les travaux décrits dans les sources.'}\nInformations issues des sources à vérifier :\n${observations.trim()}`;
+  const request = `Prépare un brouillon de devis à partir des éléments suivants. Les mesures, prix et TVA absents doivent rester à compléter. Les instructions de l’artisan priment en cas de différence. Recopie les références d’assurance dans insurance (insurer, mission_reference, case_reference, claim_address), et les coordonnées exactes de l’assuré dans la fiche client. Conserve le montant et la mention exacte HT/TTC de franchise dans les notes : MANUFEO calcule son poste négatif séparé. Ne suppose pas HT ou TTC si ce n’est pas indiqué.\nInstructions de l’artisan : ${instructions.trim() || 'Créer un devis pour les travaux décrits dans les sources.'}\nInformations issues des sources à vérifier :\n${observations.trim()}`;
   if (request.length > 14_000) throw new Error('La demande et les documents sont trop longs. Réduisez les sources.');
   return request;
 }
