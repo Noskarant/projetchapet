@@ -115,7 +115,7 @@ export async function buildBusinessDocumentPdf({
   };
 
   const lines = (value: string, width: number) => {
-    const normalized = String(value || "").trim();
+    const normalized = String(value || "").replace(/[\u00a0\u202f]/g, " ").trim();
     if (!normalized) return [] as string[];
     const split = pdf.splitTextToSize(normalized, width) as string[] | string;
     return Array.isArray(split) ? split : [split];
@@ -131,7 +131,7 @@ export async function buildBusinessDocumentPdf({
   ) => {
     const wrapped = lines(value, width);
     if (!wrapped.length) return startY;
-    pdf.text(wrapped, x, startY, options);
+    pdf.text(wrapped, x, startY, { ...options, lineHeightFactor: lineHeight * pdf.internal.scaleFactor / pdf.getFontSize() });
     return startY + wrapped.length * lineHeight;
   };
 
@@ -259,7 +259,7 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8);
     pdf.text("Désignation", margin + 3, y + 6);
-    pdf.text("Qté", 120, y + 6, { align: "right" });
+    pdf.text("Qté", withoutPrices ? 192 : 120, y + 6, { align: "right" });
     if (!withoutPrices) {
       pdf.text("PU HT", 148, y + 6, { align: "right" });
       pdf.text("TVA", 165, y + 6, { align: "right" });
@@ -274,39 +274,51 @@ export async function buildBusinessDocumentPdf({
   drawTableHeader();
 
   recalculatePercentageLines(document.items).forEach((item, index) => {
-    const labelLines = lines(item.label || `Prestation ${index + 1}`, 86);
-    const descriptionLines = item.description ? lines(item.description, 86) : [];
+    // Measure with the exact font used to draw, leaving a gap before quantity.
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    const labelLines = lines(item.label || `Prestation ${index + 1}`, withoutPrices ? 145 : 82);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.3);
+    const descriptionLines = item.description ? lines(item.description, withoutPrices ? 145 : 82) : [];
     const rowHeight = Math.max(12, labelLines.length * 4.2 + descriptionLines.length * 3.6 + 3);
-    if (y + rowHeight > safeBottom) {
+    if (y + 12 > safeBottom || (y + rowHeight > safeBottom && rowHeight <= safeBottom - 70)) {
       pdf.addPage();
       y = 15;
       drawPageHeader(true);
       drawTableHeader();
     }
 
-    pdf.setTextColor(20, 42, 65);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
-    pdf.text(labelLines, margin + 3, y);
-    if (descriptionLines.length) {
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(92, 109, 126);
-      pdf.setFontSize(7.3);
-      pdf.text(descriptionLines, margin + 3, y + labelLines.length * 4.2 + 1.5);
-    }
-
+    const numericY = y;
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(20, 42, 65);
     pdf.setFontSize(8.5);
-    drawFittedRight(item.quantity === null ? "À préciser" : `${quantity(item.quantity)} ${item.unit || ""}`.trim(), 120, y, 16);
+    drawFittedRight(item.quantity === null ? "À préciser" : `${quantity(item.quantity)} ${item.unit || ""}`.trim(), withoutPrices ? 192 : 120, numericY, withoutPrices ? 26 : 16);
     if (!withoutPrices) {
-      drawFittedRight(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, y, 24);
-      pdf.text(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, y, { align: "right" });
-      drawFittedRight(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, y, 24);
+      drawFittedRight(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, numericY, 24);
+      drawFittedRight(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, numericY, 13);
+      drawFittedRight(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, numericY, 24);
     }
-    y += rowHeight;
+    // Very long descriptions continue on following pages instead of entering
+    // totals/footer space. Numeric cells are printed once for the whole item.
+    const textRows = [
+      ...labelLines.map(text => ({ text, size: 8.5, font: "bold", height: 4.2 })),
+      ...descriptionLines.map(text => ({ text, size: 7.3, font: "normal", height: 3.6 })),
+    ];
+    textRows.forEach((line, lineIndex) => {
+      if (lineIndex === labelLines.length && descriptionLines.length) y += 1.5;
+      if (y + line.height + 3 > safeBottom) {
+        pdf.addPage(); y = 15; drawPageHeader(true); drawTableHeader();
+      }
+      pdf.setFont("helvetica", line.font);
+      pdf.setFontSize(line.size);
+      pdf.setTextColor(...(line.font === "bold" ? [20, 42, 65] : [92, 109, 126]) as [number, number, number]);
+      pdf.text(line.text, margin + 3, y);
+      y += line.height;
+    });
+    y += Math.max(5, 12 - Math.min(rowHeight, 12));
     pdf.setDrawColor(229, 235, 241);
-    pdf.line(margin, y - 4, right, y - 4);
+    pdf.line(margin, y - 2, right, y - 2);
   });
 
   if (!withoutPrices) {
@@ -356,7 +368,7 @@ export async function buildBusinessDocumentPdf({
       pdf.text("Franchise TTC", labelX, y);
       drawFittedRight(`- ${money(deductible.amount)}`, 192, y, 30);
       y += 7;
-      pdf.text("Montant après franchise", labelX, y);
+      drawFittedRight("Montant après franchise", 159, y, 30);
       drawFittedRight(money(deductible.afterDeductible), 192, y, 30);
       y += 10;
     }
@@ -372,15 +384,22 @@ export async function buildBusinessDocumentPdf({
   }
 
   if (document.notes.trim()) {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
     const noteLines = lines(document.notes.trim(), 174);
-    ensureSpace(noteLines.length * 4 + 16);
+    ensureSpace(16);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);
     pdf.text("NOTES CLIENT", margin, y);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8);
-    pdf.text(noteLines, margin, y + 6);
-    y += noteLines.length * 4 + 12;
+    y += 6;
+    for (const line of noteLines) {
+      ensureSpace(5);
+      pdf.setFont("helvetica", "normal"); pdf.setFontSize(8);
+      pdf.text(line, margin, y); y += 4;
+    }
+    y += 8;
   }
 
   if (quote) {
@@ -397,6 +416,8 @@ export async function buildBusinessDocumentPdf({
     y += 37;
   } else {
     const paymentText = company.paymentTerms || "Paiement selon les conditions convenues.";
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.6);
     const paymentLines = lines(paymentText, 170);
     const boxHeight = Math.max(29, 15 + paymentLines.length * 3.7);
     ensureSpace(boxHeight + 4);

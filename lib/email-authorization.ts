@@ -55,9 +55,9 @@ export function snapshotRecipientsForDocument(
   };
 }
 
-export function recipientsAreAuthorized(requested: string[], allowed: string[]) {
+export function recipientsAreAuthorized(requested: string[], allowed: string[], customRecipient = false) {
   const allowedSet = new Set(uniqueValidEmails(allowed));
   const requestedEmails = requested.map(normalizeEmailAddress).filter(Boolean);
   return requestedEmails.length > 0
-    && requestedEmails.every((email) => isValidEmailAddress(email) && allowedSet.has(email));
+    && requestedEmails.every((email) => isValidEmailAddress(email) && (customRecipient || allowedSet.has(email)));
 }
