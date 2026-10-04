@@ -10,6 +10,7 @@ import {
   COMMERCIAL_FAILED_PUSH_RETRY_MS,
   COMMERCIAL_PULL_INTERVAL_MS,
   commercialCloudSignature,
+  applyCommercialSyncResult,
   fetchCommercialCloudState,
   isCommercialCloudConflict,
   mergeConcurrentCommercialState,
@@ -46,6 +47,9 @@ import {
   parseMobileWorkspace,
   readQuoteInternalMeta,
 } from "@/lib/mobile-quote-preview";
+import type { CommercialProject } from "@/lib/mobile-commercial-demo";
+import { buildProjectPhotoReport } from "@/lib/project-photo-report";
+import { sendProjectPhotoEmail } from "@/lib/project-photo-email";
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import { MOBILE_WORKSPACE_STORAGE_KEY } from "@/lib/mobile-workspace-storage";
 import MobileCommercialProjects from "./mobile-commercial-projects";
@@ -267,11 +271,12 @@ export default function MobileCommercialDemo() {
 
         if (disposed) return;
         const currentLocal = readCommercialDemoState(window.localStorage);
+        const appliedState = applyCommercialSyncResult(local, currentLocal, next.state);
         const shouldApplyServer =
-          localChanged || commercialCloudSignature(next.state) !== commercialCloudSignature(currentLocal);
+          localChanged || commercialCloudSignature(appliedState) !== commercialCloudSignature(currentLocal);
         if (shouldApplyServer) {
-          writeCommercialDemoState(window.localStorage, next.state);
-          setCommercial(next.state);
+          writeCommercialDemoState(window.localStorage, appliedState);
+          setCommercial(appliedState);
         }
         commercialBaseline.current = next;
         commercialLastPull.current = Date.now();
@@ -628,6 +633,18 @@ export default function MobileCommercialDemo() {
     });
   };
 
+  const sendPhotoReport = async (project: CommercialProject, ids: string[], recipient: string) => {
+    const currentWorkspace = readWorkspace();
+    const customer = currentWorkspace ? findCustomer(currentWorkspace, project.customerId) : null;
+    const selected = project.photos.filter(photo => ids.includes(photo.id));
+    const fingerprint = JSON.stringify({ project: { id: project.id, name: project.name, address: project.address }, to: recipient.trim().toLowerCase(), photos: selected.map(photo => ({ id: photo.id, caption: photo.caption, createdAt: photo.createdAt })), company: commercial.company.displayName, customer: customer ? [customer.companyName, customer.lastName, customer.firstName].filter(Boolean).join(' ') : '' });
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprint));
+    const requestId = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    const blob = await buildProjectPhotoReport(project, ids, commercial.company.displayName, customer ? [customer.companyName, customer.lastName, customer.firstName].filter(Boolean).join(' ') : '', requestId);
+    await sendProjectPhotoEmail(project.id, ids, recipient, await blobToBase64(blob), requestId);
+    logActivity({ kind: 'email', message: `${project.name} · dossier de ${ids.length} photo(s) envoyé à ${recipient}.`, projectId: project.id });
+  };
+
   const sendEmail = async () => {
     if (!email || !email.recipient.trim()) {
       notify("Renseignez l’adresse e-mail du destinataire.");
@@ -834,7 +851,9 @@ export default function MobileCommercialDemo() {
                 state={commercial}
                 selectedProjectId={selectedProjectId}
                 onSelectProject={setSelectedProjectId}
-                onChange={setCommercial}
+                onChange={next => { writeCommercialDemoState(window.localStorage, next); setCommercial(next); }}
+                customerEmail={workspace ? findCustomer(workspace, commercial.projects.find(item => item.id === selectedProjectId)?.customerId ?? commercial.projects[0]?.customerId ?? "")?.emails.find(Boolean) || "" : ""}
+                onSendPhotoReport={sendPhotoReport}
                 onNotify={notify}
                 onCreateQuote={(customerId, title) => {
                   setOverlay(null);

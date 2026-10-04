@@ -75,6 +75,7 @@ export async function planVoiceActions({
   parsed,
   signal,
   quoteSources = false,
+  sourceTarget,
 }: {
   organizationId: string;
   transcript: string;
@@ -82,13 +83,14 @@ export async function planVoiceActions({
   parsed?: unknown;
   signal?: AbortSignal;
   quoteSources?: boolean;
+  sourceTarget?: "customer" | "quote";
 }) {
   return authenticatedJson<{ batchReference: string | null; proposals: ActionProposalView[] }>(
     "/api/actions/plan",
     {
       method: "POST",
       signal,
-      body: JSON.stringify({ organizationId, transcript, target, parsed, quoteSources }),
+      body: JSON.stringify({ organizationId, transcript, target, parsed, quoteSources, sourceTarget }),
     },
   );
 }

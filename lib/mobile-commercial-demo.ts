@@ -270,11 +270,12 @@ export function addProjectIssue(
 }
 
 export function addProjectPhoto(state: CommercialDemoState, projectId: string, photo: Omit<CommercialProjectPhoto, "id" | "createdAt">) {
+  if ((state.projects.find(project => project.id === projectId)?.photos.length || 0) >= 100) throw new Error("Maximum 100 photos par chantier. Les photos existantes ont été conservées.");
   return {
     ...state,
     projects: state.projects.map((project) => project.id !== projectId ? project : {
       ...project,
-      photos: [{ ...photo, id: `photo-${Date.now()}`, createdAt: nowIso() }, ...project.photos].slice(0, 12),
+      photos: [{ ...photo, id: `photo-${crypto.randomUUID()}`, createdAt: nowIso() }, ...project.photos],
     }),
   };
 }

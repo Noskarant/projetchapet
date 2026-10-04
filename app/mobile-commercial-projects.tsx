@@ -10,11 +10,12 @@ import {
   FileText,
   HardHat,
   MapPin,
+  Mail,
   Plus,
   Search,
   ShieldCheck,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   addProjectIssue,
   addProjectPhoto,
@@ -24,6 +25,7 @@ import {
   toggleProjectStep,
   type CommercialDemoState,
   type CommercialProjectIssue,
+  type CommercialProject,
   type ProjectTab,
 } from "@/lib/mobile-commercial-demo";
 
@@ -74,6 +76,8 @@ export default function MobileCommercialProjects({
   onNotify,
   onDownloadDocument,
   onCreateQuote,
+  customerEmail = "",
+  onSendPhotoReport,
 }: {
   state: CommercialDemoState;
   selectedProjectId: string;
@@ -82,7 +86,17 @@ export default function MobileCommercialProjects({
   onNotify: (message: string) => void;
   onDownloadDocument: (projectId: string, withoutPrices: boolean) => void;
   onCreateQuote: (customerId: string, title: string) => void;
+  customerEmail?: string;
+  onSendPhotoReport?: (project: CommercialProject, photoIds: string[], recipient: string) => Promise<void>;
 }) {
+  const latestState = useRef(state); latestState.current = state;
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
+  const [recipients, setRecipients] = useState<Record<string, string>>({});
+  const [autoSend, setAutoSend] = useState<Record<string, boolean>>({});
+  const [selections, setSelections] = useState<Record<string, string[]>>({});
+  const operationBusy = useRef(false);
   const [tab, setTab] = useState<ProjectTab>("suivi");
   const [workerMode, setWorkerMode] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
@@ -148,28 +162,43 @@ export default function MobileCommercialProjects({
     onNotify("Signalement enregistré.");
   };
 
-  const handlePhoto = async (file: File | null) => {
-    if (!file) return;
+  const sendReport = async (current: CommercialProject, ids: string[]) => {
+    if (!onSendPhotoReport) return;
+    setReportBusy(true); setReportMessage("Préparation et synchronisation du dossier…");
     try {
-      const dataUrl = await compressImage(file);
-      onChange(
-        appendActivity(
-          addProjectPhoto(state, project.id, {
-            name: file.name,
-            caption: "Photo chantier",
-            dataUrl,
-          }),
-          {
-            kind: "chantier",
-            message: `${project.name} · photo ajoutée au suivi.`,
-            projectId: project.id,
-          },
-        ),
-      );
-      onNotify("Photo ajoutée au chantier.");
+      await onSendPhotoReport(current, ids, recipients[current.id] ?? customerEmail);
+      setReportMessage("Dossier photo envoyé.");
     } catch (error) {
-      onNotify(error instanceof Error ? error.message : "Ajout de la photo impossible.");
-    }
+      setReportMessage(error instanceof Error ? error.message : "Envoi du dossier impossible.");
+    } finally { setReportBusy(false); }
+  };
+
+  const handlePhoto = async (files: File[]) => {
+    if (!files.length || operationBusy.current) return;
+    operationBusy.current = true; setPhotoBusy(true); setReportMessage('');
+    try {
+      if (files.length > 6) throw new Error('Ajoutez au maximum 6 photos à la fois.');
+      const prepared = [];
+      for (const file of files) {
+        if (!file.type.startsWith('image/') || file.size > 10_000_000) throw new Error('Choisissez des photos de moins de 10 Mo.');
+        prepared.push({ name: file.name, caption: 'Photo chantier', dataUrl: await compressImage(file) });
+      }
+      let next = latestState.current;
+      const current = next.projects.find(item => item.id === project.id);
+      if (!current) throw new Error('Chantier indisponible.');
+      if (current.photos.length + prepared.length > 100) throw new Error('Maximum 100 photos par chantier. Les photos existantes sont conservées.');
+      for (const photo of prepared) next = addProjectPhoto(next, project.id, photo);
+      next = appendActivity(next, { kind: 'chantier', message: `${project.name} · ${prepared.length} photo(s) ajoutée(s) au suivi.`, projectId: project.id });
+      onChange(next);
+      const updated = next.projects.find(item => item.id === project.id)!;
+      const ids = selections[project.id] ? [...selections[project.id], ...updated.photos.filter(photo => !current.photos.some(old => old.id === photo.id)).map(photo => photo.id)] : updated.photos.map(photo => photo.id);
+      setSelections(values => ({ ...values, [project.id]: ids }));
+      onNotify('Photos ajoutées au chantier.');
+      if (autoSend[project.id]) await sendReport(updated, ids);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Ajout de photos impossible.';
+      setReportMessage(message); onNotify(message);
+    } finally { operationBusy.current = false; setPhotoBusy(false); }
   };
 
   const resolveIssue = (issueId: string) => {
@@ -211,7 +240,7 @@ export default function MobileCommercialProjects({
           ← Retour direction
         </button>
         <label className="rm-project-search"><Search size={17} /><input type="search" value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} placeholder="Rechercher un chantier" /></label>
-        <div className="rm-project-switcher">{filteredProjects.map((item) => <button type="button" key={item.id} className={project.id === item.id ? "active" : ""} onClick={() => onSelectProject(item.id)}>{item.name}</button>)}</div>
+        <div className="rm-project-switcher">{filteredProjects.map((item) => <button type="button" key={item.id} disabled={photoBusy || reportBusy} className={project.id === item.id ? "active" : ""} onClick={() => onSelectProject(item.id)}>{item.name}</button>)}</div>
 
         <section className="rm-worker-hero">
           <span className="rm-worker-badge"><HardHat size={17} /> ESPACE ÉQUIPE</span>
@@ -251,7 +280,8 @@ export default function MobileCommercialProjects({
               type="file"
               accept="image/*"
               capture="environment"
-              onChange={(event) => void handlePhoto(event.target.files?.[0] || null)}
+              disabled={photoBusy || reportBusy}
+              onChange={(event) => { const files = Array.from(event.target.files || []); event.target.value = ""; void handlePhoto(files); }}
             />
           </label>
           <button type="button" onClick={() => setShowIssueForm((value) => !value)}>
@@ -277,7 +307,7 @@ export default function MobileCommercialProjects({
           <button
             type="button"
             key={item.id}
-            className={project.id === item.id ? "active" : ""}
+            disabled={photoBusy || reportBusy} className={project.id === item.id ? "active" : ""}
             onClick={() => {
               onSelectProject(item.id);
               setTab("suivi");
@@ -419,12 +449,27 @@ export default function MobileCommercialProjects({
               type="file"
               accept="image/*"
               capture="environment"
-              onChange={(event) => void handlePhoto(event.target.files?.[0] || null)}
+              disabled={photoBusy || reportBusy}
+              onChange={(event) => { const files = Array.from(event.target.files || []); event.target.value = ""; void handlePhoto(files); }}
             />
           </label>
+          <label className="rm-project-photo-upload">
+            <Plus size={20} /><strong>Choisir plusieurs photos</strong>
+            <input type="file" accept="image/*" multiple aria-label="Photos du chantier" disabled={photoBusy || reportBusy} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void handlePhoto(files); }} />
+          </label>
+          {photoBusy && <p role="status">Ajout des photos…</p>}
+          {onSendPhotoReport && <div className="rm-photo-report">
+            <strong>Dossier photo pour le client</strong>
+            <label>Destinataire<input type="email" value={recipients[project.id] ?? customerEmail} disabled={photoBusy || reportBusy} onChange={event => setRecipients(values => ({ ...values, [project.id]: event.target.value }))} /></label>
+            <label className="rm-photo-auto"><input type="checkbox" checked={Boolean(autoSend[project.id])} disabled={photoBusy || reportBusy} onChange={event => setAutoSend(values => ({ ...values, [project.id]: event.target.checked }))} />Envoyer automatiquement après chaque ajout</label>
+            <small>Un PDF rassemble les photos sélectionnées. L’envoi automatique concerne ce chantier pendant cette session.</small>
+            <button type="button" disabled={photoBusy || reportBusy || !(selections[project.id] ?? project.photos.map(photo => photo.id)).length} onClick={() => { if (operationBusy.current) return; operationBusy.current = true; void sendReport(project, selections[project.id] ?? project.photos.map(photo => photo.id)).finally(() => { operationBusy.current = false; }); }}><Mail size={18} /> {reportBusy ? 'Envoi en cours…' : 'Envoyer le dossier au client'}</button>
+            {reportMessage && <p role="status">{reportMessage}</p>}
+          </div>}
           <div className="rm-project-gallery">
             {project.photos.map((photo) => (
               <figure key={photo.id}>
+                {onSendPhotoReport && <label className="rm-photo-selection"><input type="checkbox" aria-label={`Inclure ${photo.name}`} disabled={photoBusy || reportBusy} checked={(selections[project.id] ?? project.photos.map(item => item.id)).includes(photo.id)} onChange={event => { const ids = selections[project.id] ?? project.photos.map(item => item.id); setSelections(values => ({ ...values, [project.id]: event.target.checked ? [...ids, photo.id] : ids.filter(id => id !== photo.id) })); }} />Inclure au dossier</label>}
                 {photo.dataUrl ? <img src={photo.dataUrl} alt={photo.caption} /> : <Camera size={28} />}
                 <figcaption><strong>{photo.caption}</strong><small>{timeFr(photo.createdAt)}</small></figcaption>
               </figure>

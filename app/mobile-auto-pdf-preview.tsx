@@ -1,4 +1,5 @@
 "use client";
+import { documentInsurance } from "@/lib/document-insurance";
 import { documentDeductible } from "@/lib/document-deductible";
 
 import { recalculatePercentageLines } from "@/lib/percentage-adjustments";
@@ -601,7 +602,11 @@ export default function MobileAutoPdfPreview() {
             <small>Total TTC</small>
             <strong>{money(totals.total)}</strong>
           </div>
-          {documentDeductible(preview.quote.notes, totals.total).amount > 0 && <>
+          {documentInsurance(preview.quote.notes, totals.total).recovery !== null && <>
+            <div><small>Part client (franchise)</small><strong>{money(documentInsurance(preview.quote.notes, totals.total).recovery || 0)}</strong></div>
+            <div><small>Solde hors franchise</small><strong>{money(documentInsurance(preview.quote.notes, totals.total).insurerShare || 0)}</strong></div>
+          </>}
+          {documentInsurance(preview.quote.notes, totals.total).recovery === null && documentDeductible(preview.quote.notes, totals.total).amount > 0 && <>
             <div><small>Franchise TTC</small><strong>-{money(documentDeductible(preview.quote.notes, totals.total).amount)}</strong></div>
             <div className="primary"><small>Montant après franchise</small><strong>{money(documentDeductible(preview.quote.notes, totals.total).afterDeductible)}</strong></div>
           </>}

@@ -1,3 +1,4 @@
+import { insuranceDocumentNotes } from "./document-insurance";
 import { spokenAmountPattern } from "./spoken-financial-number";
 import { deductibleNotes, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
@@ -74,7 +75,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const quantityFromEvidence = quantityEvidence ? explicitQuantity(quantityEvidence) : null;
   const quantity = quantityFromEvidence !== null ? quantityFromEvidence
     : roomQuantity !== undefined ? roomQuantity : numberOrNull(source.quantity);
-  const pricesInRoom = roomSegment ? [...roomSegment.matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
+  const pricesInRoom = roomSegment ? [...withoutPaymentAdjustments(roomSegment).matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
   const priceInRoom = pricesInRoom.length === 1 ? explicitPrice(pricesInRoom[0][0]) : null;
   const sourcePrice = numberOrNull(source.unit_price);
   const explicitSingleForfait = text(source.unit, 40).toLocaleLowerCase("fr-FR") === "forfait"
@@ -222,7 +223,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_id: text(source.quote_id, 80) || null,
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
-    notes: deductibleNotes(text(source.notes, 2400), transcript) || null,
+    notes: insuranceDocumentNotes(deductibleNotes(text(source.notes, 2400), transcript), source.insurance, transcript) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,

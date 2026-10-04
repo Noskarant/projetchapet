@@ -1,3 +1,4 @@
+import { restrictSourcePlan } from "@/lib/source-plan";
 import { resolveVoicePlanCustomers } from "@/lib/voice-plan-customers";
 import { orderVoicePlan } from "@/lib/voice-plan-order";
 import { NextResponse } from "next/server";
@@ -51,6 +52,7 @@ Pour chaque ligne recopie la courte expression exacte de la dictée dans quantit
 Un devis ou une facture est seulement un brouillon : conserve les prestations explicitement demandées même si leur libellé, quantité ou prix manque ; laisse la valeur absente vide/null et ajoute un warning clair. Ne bloque le brouillon que si le client ou toute prestation exploitable manque. Ne mets pas de chemins techniques comme items[3].quantity dans missing_fields.
 Un montant comme « 1 700 euros » vaut 1700, jamais 700. Les étapes préparation, peinture et finition d'une même intervention avec une seule unité et un seul prix constituent UN poste contenant toutes ces étapes ; ne répète pas ce prix sur plusieurs lignes.
 Conserve dans create_customer l'adresse et le code postal dictés. Rattache le document à cette fiche avec customer_from_position ; le prénom suivi du nom et le nom suivi du prénom désignent la même personne.
+Pour un document d’assurance, recopie dans insurance uniquement les références explicitement présentes : assureur, numéro de dossier, référence de mission et adresse du sinistre. L’assuré est le client, l’assureur n’est pas sa société. Recopie les coordonnées complètes. Une franchise « à récupérer » est à la charge du client : conserve ce libellé exact dans notes sans diminuer le total TTC, les prix HT ni la TVA. Ne crée jamais une prestation pour une franchise.
 Pour l'agenda, convertis les dates relatives uniquement si elles sont déterminables sans ambiguïté ; sinon laisse date vide et demande une précision. Quand la date est donnée sans heure, crée schedule_task avec time vide : c'est un événement à la journée, sans horaire inventé et sans missing_fields pour l'heure.
 
 Réponds uniquement par ce JSON :
@@ -71,7 +73,7 @@ create_customer: {"kind":"business|individual","company_name":"","civility":"M.|
 create_supplier: {"name":"","contact":"","email":"","phone":"","address":"","notes":""}
 create_collaborator: {"name":"prénom et nom ou seulement un nom","role":"","phone":""}
 create_project: {"name":"","subtitle":"","customer_hint":"","customer_from_position":null,"quote_from_position":null,"address":"","start_date":"YYYY-MM-DD ou vide","next_visit":"YYYY-MM-DD ou vide","collaborator_names":[],"collaborator_from_positions":[]}
-prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","items":[{"label":"","description":"","quantity":null,"quantity_evidence":"","unit":null,"unit_price":null,"price_evidence":"","price_type":"ht|ttc|unknown","tax_rate":null,"tax_evidence":""}]}
+prepare_quote/prepare_invoice: {"customer_hint":"","customer_from_position":null,"title":"","notes":"","insurance":{"insurer":"","mission_reference":"","case_reference":"","claim_address":""},"items":[{"label":"","description":"","quantity":null,"quantity_evidence":"","unit":null,"unit_price":null,"price_evidence":"","price_type":"ht|ttc|unknown","tax_rate":null,"tax_evidence":""}]}
 schedule_task: {"customer_hint":"","title":"","date":"YYYY-MM-DD","time":"HH:MM","location":"","type":"Chantier|Commande|Facturation|Relance","notes":""}
 update_project_note: {"project_id":"","body":""}
 prepare_supplier_order: {"project_id":"","supplier_name":"","supplier_email":"","label":"","unit":"","quantity":1,"unit_price":0,"notes":""}
@@ -356,6 +358,7 @@ export async function POST(request: Request) {
       target?: unknown;
       parsed?: unknown;
       quoteSources?: unknown;
+      sourceTarget?: unknown;
     }>(request, 40_000);
     const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
     const transcript = typeof body.transcript === "string" ? normalizeVoiceTranscript(body.transcript) : "";
@@ -370,8 +373,11 @@ export async function POST(request: Request) {
     let planned = target === "command" || target === "supplier"
       ? await planWithDeepSeek(transcript, target === "supplier")
       : [plannedActionFromParsed(target, body.parsed, transcript)];
-    if (body.quoteSources === true) {
-      planned = planned.filter(action => ['create_customer', 'prepare_quote'].includes(action.intentType));
+    if (body.sourceTarget === "customer") {
+      planned = restrictSourcePlan(planned, "customer");
+      if (!planned.length) throw new ApiInputError("Aucune identité client lisible. Complétez le nom dans la note.", 422);
+    } else if (body.quoteSources === true || body.sourceTarget === "quote") {
+      planned = restrictSourcePlan(planned, "quote");
       if (!planned.some(action => action.intentType === 'prepare_quote')) throw new ApiInputError('Décrivez les travaux à chiffrer pour préparer un devis.', 422);
     }
     await resolveVoicePlanCustomers(planned, organizationId, context.client);

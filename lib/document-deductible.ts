@@ -18,5 +18,7 @@ export function documentDeductible(notes: string | null | undefined, total: numb
   return { amount, afterDeductible: Math.round(Math.max(0, total - amount) * 100) / 100 };
 }
 export function withoutPaymentAdjustments(transcript: string) {
-  return transcript.replace(new RegExp(`\\b(?:franchise|acompte)\\s+(?:de\\s+)?${spokenAmountPattern}\\s*(?:€|euros?)\\s*(?:TTC|HT|toutes taxes comprises|hors taxes)?`, 'giu'), '');
+  const labelledFranchise = `\\bfranchise\\s+(?:TTC\\s+)?(?:[àa]\\s+(?:r[ée]cup[ée]rer|recouvrer|d[ée]duire)(?:\\s+(?:aupr[èe]s\\s+du\\s+client|du\\s+montant\\s+TTC))?|[àa]\\s+la\\s+charge\\s+(?:du\\s+client|de\\s+l['’]assur[ée]))\\s*[:：]?\\s*(?:de\\s+)?${spokenAmountPattern}\\s*(?:€|euros?)\\s*(?:TTC|HT|toutes taxes comprises|hors taxes)?`;
+  return transcript.replace(new RegExp(labelledFranchise, 'giu'), '')
+    .replace(new RegExp(`\\b(?:franchise|acompte)\\s+(?:de\\s+)?${spokenAmountPattern}\\s*(?:€|euros?)\\s*(?:TTC|HT|toutes taxes comprises|hors taxes)?`, 'giu'), '');
 }
