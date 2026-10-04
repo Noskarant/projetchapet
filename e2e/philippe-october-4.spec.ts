@@ -70,7 +70,7 @@ for (const kind of ['txt', 'photo', 'pdf'] as const) test(`devis depuis ${kind} 
   if (kind === 'txt') {
     await input.setInputFiles({ name: 'metres.txt', mimeType: 'text/plain', buffer: Buffer.from('Client Dupont. Peinture plafond 100 m² à 23 euros HT. TVA 10 %.') });
   } else if (kind === 'photo') {
-    await input.setInputFiles({ name: 'plafond.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS9sAAAAASUVORK5CYII=', 'base64') });
+    await input.setInputFiles({ name: 'plafond.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGP8//8/AymAiSTVoxpGNQwpDQBVbQMdPVIhQwAAAABJRU5ErkJggg==', 'base64') });
     await page.getByRole('textbox', { name: 'Demande à MANUFEO' }).fill('Client Dupont. Surface 100 m² à 23 euros HT. TVA 10 %.');
   } else {
     const pdf = new jsPDF(); pdf.text('Client Dupont. Peinture plafond 100 m2 a 23 euros HT. TVA 10%.', 15, 30);

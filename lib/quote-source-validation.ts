@@ -24,4 +24,3 @@ export function validateQuoteSources(value: unknown): QuoteSource[] {
     return { name: source.name.trim(), ...(text ? { text } : {}), ...(image ? { image } : {}) };
   });
 }
-
