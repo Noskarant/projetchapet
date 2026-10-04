@@ -21,7 +21,7 @@ const styles=build.outputFiles.filter(file=>file.path.endsWith('.css')).map(file
 test.beforeEach(async({page})=>{
  await page.addInitScript(()=>{localStorage.setItem('sb-help-backend-auth-token',JSON.stringify({access_token:'test-token',refresh_token:'refresh-test',expires_at:Math.floor(Date.now()/1000)+3600,user:{id:'22222222-2222-4222-8222-222222222222'}}));});
  await page.route('https://help-backend.manufeo.test/**',route=>route.fulfill({json:route.request().url().includes('ensure_personal_organization')?'11111111-1111-4111-8111-111111111111':[]}));
- await page.route('https://mascot.manufeo.test/**',route=>route.fulfill({contentType:'text/html',body:'<html><body><div id="root"></div></body></html>'}));
+ await page.route('https://mascot.manufeo.test/**',route=>route.fulfill({contentType:'text/html',body:'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div></body></html>'}));
  await page.goto('https://mascot.manufeo.test/');
  await page.addStyleTag({content:readFileSync(path.join(root,'app/globals.css'),'utf8')+'\n'+styles+'\nbody{background:#020807;color:white;margin:0}.rm-shell{height:100dvh}.rm-create-dock{position:fixed;bottom:90px;height:54px;left:20px;right:20px}'});
  await page.addScriptTag({content:script});
