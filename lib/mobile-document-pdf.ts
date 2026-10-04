@@ -1,3 +1,4 @@
+import { documentInsurance } from "./document-insurance";
 import { documentDeductible } from "./document-deductible";
 import { recalculatePercentageLines } from "./percentage-adjustments";
 import type { MobileCustomer, MobileInvoice, MobileQuote } from "./mobile-prototype";
@@ -249,6 +250,9 @@ export async function buildBusinessDocumentPdf({
     rightY = drawWrapped(`Objet : ${document.title}`, rightX, rightY + 0.6, rightWidth, 3.8);
     rightY = drawWrapped(`Statut : ${document.status}`, rightX, rightY + 0.6, rightWidth, 3.8);
 
+    for (const reference of documentInsurance(document.notes).references) {
+      rightY = drawWrapped(reference, rightX, rightY + 0.6, rightWidth, 3.8);
+    }
     y = Math.max(leftY, rightY) + 7;
   };
 
@@ -324,7 +328,8 @@ export async function buildBusinessDocumentPdf({
   if (!withoutPrices) {
     const taxLines = quoteTaxBreakdown(document.items, quoteMeta.discountPercent);
     const deductible = documentDeductible(document.notes, total);
-    const totalsHeight = (deductible.amount > 0 ? 18 : 0) + (quoteTotals && quoteTotals.discountPercent > 0 ? 51 : 39) + Math.max(0, taxLines.length - 1) * 6;
+    const insurance = documentInsurance(document.notes, total);
+    const totalsHeight = (insurance.recovery !== null || deductible.amount > 0 ? 18 : 0) + (quoteTotals && quoteTotals.discountPercent > 0 ? 51 : 39) + Math.max(0, taxLines.length - 1) * 6;
     ensureSpace(totalsHeight);
     y += 4;
     const labelX = 129;
@@ -363,7 +368,15 @@ export async function buildBusinessDocumentPdf({
     drawFittedRight(money(total), 192, y + 2.5, 38);
     pdf.setTextColor(20, 42, 65);
     y += 17;
-    if (deductible.amount > 0) {
+    if (insurance.recovery !== null) {
+      pdf.setFontSize(8.5);
+      drawFittedRight("Part client (franchise)", 159, y, 30);
+      drawFittedRight(money(insurance.recovery), 192, y, 30);
+      y += 7;
+      drawFittedRight("Solde hors franchise", 159, y, 30);
+      drawFittedRight(money(insurance.insurerShare || 0), 192, y, 30);
+      y += 10;
+    } else if (deductible.amount > 0) {
       pdf.setFontSize(8.5);
       pdf.text("Franchise TTC", labelX, y);
       drawFittedRight(`- ${money(deductible.amount)}`, 192, y, 30);

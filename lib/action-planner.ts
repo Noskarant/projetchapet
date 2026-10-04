@@ -1,3 +1,4 @@
+import { insuranceDocumentNotes } from "./document-insurance";
 import { spokenAmountPattern } from "./spoken-financial-number";
 import { deductibleNotes, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
@@ -222,7 +223,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_id: text(source.quote_id, 80) || null,
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
-    notes: deductibleNotes(text(source.notes, 2400), transcript) || null,
+    notes: insuranceDocumentNotes(deductibleNotes(text(source.notes, 2400), transcript), source.insurance, transcript) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,

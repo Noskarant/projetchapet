@@ -154,6 +154,13 @@ export function commercialCloudSignature(state: CommercialDemoState) {
   });
 }
 
+export function applyCommercialSyncResult(requested: CommercialDemoState, current: CommercialDemoState, server: CommercialDemoState) {
+  // A photo or edit added while the upload was in flight must remain queued.
+  const applied = commercialCloudSignature(current) === commercialCloudSignature(requested)
+    ? server : mergeConcurrentCommercialState(requested, current, server);
+  return { ...applied, company: current.company, filters: current.filters };
+}
+
 export function commercialStateToPayload(state: CommercialDemoState) {
   return {
     collaborators: state.collaborators.map((person) => ({ ...person })),
