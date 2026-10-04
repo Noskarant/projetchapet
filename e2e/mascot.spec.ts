@@ -142,3 +142,147 @@ test('l’icône reste accessible sur l’accueil et tous les onglets après avo
  await launcher.click();await expect(dialog).toBeVisible();
  await dialog.getByRole('button',{name:'Fermer les questions à l’agent',exact:true}).click();await expect(launcher).toBeVisible();
 });
+
+async function mockHelpMicrophone(page: Page, mode: 'silence' | 'talk' | 'denied' | 'deferred' = 'silence') {
+ await page.evaluate(mode=>{
+  const state={mode,started:0,streams:0,stops:0,closed:0,speechStarted:false,release:null as null|(()=>void)};
+  (window as unknown as {helpVoiceTest:typeof state}).helpVoiceTest=state;
+  const stream=()=>{state.streams++;return {getTracks:()=>[{stop:()=>{state.stops++;}}]};};
+  class FakeRecorder {
+   static isTypeSupported(type:string){return type==='audio/mp4';}
+   state='inactive';mimeType:string;ondataavailable:((event:{data:Blob})=>void)|null=null;onstop:(()=>void)|null=null;onerror:(()=>void)|null=null;
+   constructor(_stream:unknown,options?:{mimeType:string}){this.mimeType=options?.mimeType||'audio/mp4';}
+   start(){this.state='recording';state.started=performance.now();}
+   stop(){this.state='inactive';this.ondataavailable?.({data:new Blob([new Uint8Array(1024)],{type:this.mimeType})});window.setTimeout(()=>this.onstop?.(),0);}
+  }
+  class FakeAudio {
+   state='running';resume(){return Promise.resolve();}close(){this.state='closed';state.closed++;return Promise.resolve();}
+   createMediaStreamSource(){return {connect(){},disconnect(){}};}
+   createAnalyser(){return {fftSize:1024,disconnect(){},getFloatTimeDomainData(samples:Float32Array){samples.fill(state.mode==='talk'||performance.now()-state.started<550?.06:0);}};}
+  }
+  class FakeSpeech {start(){state.speechStarted=true;}}
+  Object.defineProperty(window,'AudioContext',{configurable:true,value:FakeAudio});
+  Object.defineProperty(window,'MediaRecorder',{configurable:true,value:FakeRecorder});
+  Object.defineProperty(window,'webkitSpeechRecognition',{configurable:true,value:FakeSpeech});
+  Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>{
+   if(state.mode==='denied')throw new DOMException('Denied','NotAllowedError');
+   if(state.mode==='deferred')return new Promise(resolve=>{state.release=()=>resolve(stream());});
+   return stream();
+  }}});
+ },mode);
+}
+
+async function openHelp(page: Page) {
+ await page.getByRole('button',{name:'Poser une question à l’agent MANUFEO',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Posez votre question',exact:true});await expect(dialog).toBeVisible();return dialog;
+}
+
+test('question vocale : fin de phrase, envoi automatique unique, réponse et relance sans confirmation',async({page},testInfo)=>{
+ await mockHelpMicrophone(page);
+ let transcriptions=0;const requests:Array<{question:string;history:unknown[]}> = [];
+ await page.route('https://mascot.manufeo.test/api/transcribe',route=>{
+  expect(route.request().headers().authorization).toBe('Bearer test-token');
+  const body=route.request().postDataBuffer()!.toString();expect(body).toContain('question.m4a');expect(body).toContain('audio/mp4');
+  transcriptions++;return route.fulfill({json:{text:transcriptions===1?'Comment envoyer ma facture ?':'Et à une autre adresse ?'}});
+ });
+ await page.route('https://mascot.manufeo.test/api/ai/help',route=>{requests.push(route.request().postDataJSON());return route.fulfill({json:{answer:requests.length===1?'Ouvrez le document puis Envoyer.':'Vous pouvez modifier le destinataire avant l’envoi.'}});});
+ const dialog=await openHelp(page);
+ await expect(dialog.getByRole('textbox',{name:'Votre question',exact:true})).not.toBeFocused();
+ await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await expect(dialog.getByRole('button',{name:'Terminer et envoyer',exact:true})).toBeVisible();
+ await page.screenshot({path:testInfo.outputPath('help-voice-listening.png')});
+ await expect(dialog.getByRole('log')).toContainText('Ouvrez le document puis Envoyer.');
+ expect(transcriptions).toBe(1);expect(requests).toHaveLength(1);expect(requests[0].question).toBe('Comment envoyer ma facture ?');
+ await expect(dialog.getByRole('textbox',{name:'Votre question',exact:true})).not.toBeFocused();
+ await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await expect(dialog.getByRole('log')).toContainText('modifier le destinataire');
+ expect(transcriptions).toBe(2);expect(requests).toHaveLength(2);expect(requests[1].history).toHaveLength(2);
+ const state=await page.evaluate(()=>(window as unknown as {helpVoiceTest:{stops:number;closed:number;speechStarted:boolean}}).helpVoiceTest);
+ expect(state.stops).toBe(2);expect(state.closed).toBe(2);expect(state.speechStarted).toBe(false);
+ await page.screenshot({path:testInfo.outputPath('help-voice-answer.png')});
+});
+
+test('terminer la question vocale envoie directement et une panne de réponse conserve le texte',async({page})=>{
+ await mockHelpMicrophone(page,'talk');let transcriptions=0,answers=0;
+ await page.route('https://mascot.manufeo.test/api/transcribe',route=>{transcriptions++;return route.fulfill({json:{text:'Comment ajouter une marge ?'}});});
+ await page.route('https://mascot.manufeo.test/api/ai/help',route=>{answers++;return route.fulfill(answers===1?{status:503,json:{error:'Agent momentanément indisponible.'}}:{json:{answer:'Indiquez le pourcentage dans Majoration sur les prix HT.'}});});
+ const dialog=await openHelp(page);await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await dialog.getByRole('button',{name:'Terminer et envoyer',exact:true}).click();
+ await expect(dialog.getByRole('alert')).toContainText('indisponible');
+ await expect(dialog.getByRole('textbox',{name:'Votre question',exact:true})).toHaveValue('Comment ajouter une marge ?');
+ await dialog.getByRole('button',{name:'Poser la question',exact:true}).click();
+ await expect(dialog.getByRole('log')).toContainText('Majoration sur les prix HT');expect(transcriptions).toBe(1);expect(answers).toBe(2);
+});
+
+test('micro refusé, annulation et fermeture arrêtent les ressources sans envoyer de question',async({page})=>{
+ await mockHelpMicrophone(page,'denied');let requests=0;
+ await page.route('https://mascot.manufeo.test/api/transcribe',route=>{requests++;return route.fulfill({json:{text:'Texte interdit après annulation'}});});
+ const dialog=await openHelp(page);await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await expect(dialog.getByRole('alert')).toContainText('Micro refusé');
+ await page.evaluate(()=>{(window as unknown as {helpVoiceTest:{mode:string}}).helpVoiceTest.mode='talk';});
+ await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await dialog.getByRole('button',{name:'Annuler la question vocale',exact:true}).click();
+ await expect(dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true})).toBeEnabled();
+ await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await expect(dialog.getByRole('button',{name:'Terminer et envoyer',exact:true})).toBeVisible();
+ await dialog.getByRole('button',{name:'Fermer les questions à l’agent',exact:true}).click();
+ await expect(dialog).toHaveCount(0);
+ const state=await page.evaluate(()=>(window as unknown as {helpVoiceTest:{streams:number;stops:number;closed:number}}).helpVoiceTest);
+ expect(state.streams).toBe(2);expect(state.stops).toBe(2);expect(state.closed).toBe(3);expect(requests).toBe(0);
+});
+
+test('fermer pendant l’autorisation micro libère aussi un flux arrivé plus tard',async({page})=>{
+ await mockHelpMicrophone(page,'deferred');let requests=0;
+ await page.route('https://mascot.manufeo.test/api/transcribe',route=>{requests++;return route.fulfill({json:{text:'Texte interdit après fermeture'}});});
+ const dialog=await openHelp(page);await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await expect(dialog.getByRole('button',{name:'Ouverture du micro…',exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>Boolean((window as unknown as {helpVoiceTest:{release:null|(()=>void)}}).helpVoiceTest.release))).toBe(true);
+ await dialog.getByRole('button',{name:'Fermer les questions à l’agent',exact:true}).click();
+ await page.evaluate(()=>{(window as unknown as {helpVoiceTest:{release:()=>void}}).helpVoiceTest.release();});
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {helpVoiceTest:{stops:number}}).helpVoiceTest.stops)).toBe(1);
+ expect(requests).toBe(0);
+});
+
+test('une transcription vide ne pose pas de question et le micro permet de réessayer',async({page})=>{
+ await mockHelpMicrophone(page,'talk');let transcriptions=0,answers=0;
+ await page.route('https://mascot.manufeo.test/api/transcribe',route=>{transcriptions++;return route.fulfill({json:{text:transcriptions===1?'':'Comment envoyer une facture ?'}});});
+ await page.route('https://mascot.manufeo.test/api/ai/help',route=>{answers++;return route.fulfill({json:{answer:'Ouvrez la facture puis Envoyer.'}});});
+ const dialog=await openHelp(page);
+ for(let attempt=0;attempt<2;attempt++) {
+  await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();await dialog.getByRole('button',{name:'Terminer et envoyer',exact:true}).click();
+  if(attempt===0){await expect(dialog.getByRole('alert')).toContainText('Aucune parole');expect(answers).toBe(0);}
+ }
+ await expect(dialog.getByRole('log')).toContainText('Ouvrez la facture puis Envoyer');expect(answers).toBe(1);expect(transcriptions).toBe(2);
+});
+
+test('annuler une transcription bloque la question même si la réponse arrive ensuite',async({page})=>{
+ await mockHelpMicrophone(page,'talk');let answers=0;
+ const pending=page.waitForRequest('https://mascot.manufeo.test/api/transcribe');
+ let finish:()=>void=()=>{};const gate=new Promise<void>(resolve=>{finish=resolve;});
+ await page.route('https://mascot.manufeo.test/api/transcribe',async route=>{await gate;await route.fulfill({json:{text:'Question annulée'}}).catch(()=>{});});
+ await page.route('https://mascot.manufeo.test/api/ai/help',route=>{answers++;return route.fulfill({json:{answer:'Cette réponse ne doit pas apparaître.'}});});
+ const dialog=await openHelp(page);await dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true}).click();
+ await dialog.getByRole('button',{name:'Terminer et envoyer',exact:true}).click();await pending;
+ await dialog.getByRole('button',{name:'Annuler la question vocale',exact:true}).click();finish();
+ await expect(dialog.getByRole('button',{name:'Parler à MANUFEO',exact:true})).toBeEnabled();
+ await expect(dialog.getByRole('textbox',{name:'Votre question',exact:true})).toHaveValue('');
+ await expect(dialog.getByRole('log')).not.toContainText('Question annulée');expect(answers).toBe(0);
+});
+
+test('l’ouverture garde le clavier fermé et le formulaire reste visible dans le viewport du clavier',async({page},testInfo)=>{
+ await page.evaluate(()=>{
+  const viewport=Object.assign(new EventTarget(),{height:window.innerHeight,offsetTop:0});
+  Object.defineProperty(window,'visualViewport',{configurable:true,value:viewport});
+  (window as unknown as {resizeHelpViewport:(height:number,top:number)=>void}).resizeHelpViewport=(height,top)=>{viewport.height=height;viewport.offsetTop=top;viewport.dispatchEvent(new Event('resize'));};
+ });
+ const dialog=await openHelp(page);
+ await expect(dialog.getByRole('textbox',{name:'Votre question',exact:true})).not.toBeFocused();
+ await page.screenshot({path:testInfo.outputPath('help-voice-home.png')});
+ await dialog.getByRole('textbox',{name:'Votre question',exact:true}).focus();
+ await page.evaluate(()=>{(window as unknown as {resizeHelpViewport:(height:number,top:number)=>void}).resizeHelpViewport(360,28);});
+ await expect.poll(async()=>Math.round((await page.locator('.manufeo-help-backdrop').boundingBox())!.height)).toBe(360);
+ const close=(await dialog.getByRole('button',{name:'Fermer les questions à l’agent',exact:true}).boundingBox())!,input=(await dialog.getByRole('textbox',{name:'Votre question',exact:true}).boundingBox())!;
+ expect(close.y).toBeGreaterThanOrEqual(28);expect(input.y+input.height).toBeLessThanOrEqual(388);
+ const box=(await dialog.boundingBox())!;expect(box.width).toBeLessThanOrEqual((await page.viewportSize())!.width);expect(box.height).toBeLessThanOrEqual(360);
+ await page.screenshot({path:testInfo.outputPath('help-voice-keyboard.png')});
+});

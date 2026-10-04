@@ -108,6 +108,21 @@ export function askManufeoQuestion(organizationId: string, question: string, his
   });
 }
 
+export async function transcribeManufeoQuestion(blob: Blob, signal?: AbortSignal) {
+  const token = await accessToken();
+  const type = blob.type || 'audio/mp4';
+  const extension = type.includes('mp4') ? 'm4a' : type.includes('webm') ? 'webm' : type.includes('ogg') ? 'ogg' : 'audio';
+  const form = new FormData();
+  form.append('file', new File([blob], `question.${extension}`, { type }));
+  const response = await fetch('/api/transcribe', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form, signal });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Transcription impossible. Réessayez.');
+  const text = typeof result.text === 'string' ? result.text.trim() : '';
+  if (!text) throw new Error('Aucune parole reconnue. Rapprochez-vous du micro puis réessayez.');
+  if (text.length > 2000) throw new Error('La question est trop longue. Posez une question plus courte.');
+  return text;
+}
+
 export async function executeVoiceActions({
   organizationId,
   proposalIds,
