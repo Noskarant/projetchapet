@@ -66,13 +66,21 @@ async function fixture(page: Page, width = 390, geo: 'prompt' | 'granted' | 'den
 
 for (const width of [320, 820, 1440]) for (const entity of ['Devis', 'Factures']) test(`${entity} à ${width}px : recherche, gros bouton IA et modification vocale uniforme sans changer les montants`, async ({ page }, testInfo) => {
   const { errors } = await fixture(page, width);
+  await page.getByRole('button', { name: 'Accueil', exact: true }).click();
+  const homeAi = await page.locator('.rm-create-main').boundingBox();
+  const homeManual = await page.locator('.rm-create-manual').boundingBox();
+  expect(homeAi!.height).toBe(width < 768 ? 84 : 92);
+  expect(homeManual!.height).toBe(homeAi!.height);
+  expect(homeManual!.y).toBe(homeAi!.y);
+  expect(homeManual!.width).toBe(width < 768 ? 96 : 140);
+  await page.screenshot({ path: testInfo.outputPath('home.png') });
   await page.getByRole('button', { name: entity, exact: true }).click();
   const search = page.getByPlaceholder(entity === 'Devis' ? 'Rechercher un devis' : 'Rechercher une facture');
   expect(await search.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(0, 0, 0)');
   expect(await search.evaluate(el => getComputedStyle(el.parentElement!).borderTopColor)).toBe('rgb(255, 255, 255)');
   const label = entity === 'Devis' ? workspace.quotes[0].customerName : workspace.invoices[0].customerName;
   await search.fill(label); await expect(page.locator('.rm-document-card')).toHaveCount(1);
-  const dock = await page.locator('.rm-create-main').boundingBox(); expect(dock!.height).toBeGreaterThanOrEqual(88);
+  const dock = await page.locator('.rm-create-main').boundingBox(); expect(dock!.height).toBeGreaterThanOrEqual(84);
   expect(await page.locator('.rm-document-main strong').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
   const list = page.locator('.rm-list-scroll'); await list.evaluate(el => el.scrollTop = el.scrollHeight);
   const card = await page.locator('.rm-document-card').first().boundingBox(); expect(card!.y + card!.height).toBeLessThanOrEqual(dock!.y);
