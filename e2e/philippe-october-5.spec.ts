@@ -217,6 +217,11 @@ for (const width of [320, 390, 820]) test(`carte météo à ${width}px : semaine
   await card.getByRole('button', { name: 'Voir les 7 prochains jours' }).click();
   const days = card.locator('.rm-weather-day'); await expect(days).toHaveCount(7);
   await expect(days.first()).toContainText('Aujourd’hui'); await expect(days.nth(1)).toContainText('Demain');
+  const lastDay = await days.last().boundingBox();
+  expect(await page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('.rm-weather-day')), { x: lastDay!.x + lastDay!.width / 2, y: lastDay!.y + lastDay!.height / 2 })).toBe(true);
+  await card.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(card.getByRole('button', { name: 'Fermer la météo' })).toBeInViewport();
+  await card.evaluate(element => { element.scrollTop = 0; });
   await page.screenshot({ path: testInfo.outputPath(`weather-week-${width}.png`) });
   await days.last().click();
   await expect(card).toContainText('Prévisions par créneau de 6 h');
