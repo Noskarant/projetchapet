@@ -38,7 +38,7 @@
     justify-content: space-between;
     margin-bottom: 9px;
   }
-  .rm-v2-lines article > header strong { font-size: 12px; }
+  .rm-v2-lines article > header strong { font-size: 13px; }
   .rm-v2-lines article > header button {
     width: 34px;
     height: 34px;
@@ -78,7 +78,7 @@
     display: grid;
     gap: 5px;
     color: #9da8b7;
-    font-size: 9px;
+    font-size: 10px;
   }
   .rm-v2-line-total {
     display: flex;
@@ -88,8 +88,8 @@
     padding-top: 9px;
     border-top: 1px solid rgba(255,255,255,.08);
   }
-  .rm-v2-line-total span { color: #9da8b7; font-size: 10px; }
-  .rm-v2-line-total strong { font-size: 13px; }
+  .rm-v2-line-total span { color: #9da8b7; font-size: 11px; }
+  .rm-v2-line-total strong { font-size: 14px; }
   .rm-v2-check {
     display: flex !important;
     grid-template-columns: none !important;
@@ -129,9 +129,9 @@
     background: #0a1b2c;
   }
   .rm-v2-choice > header div { text-align: center; }
-  .rm-v2-choice > header small { color: #7faadd; font-size: 9px; letter-spacing: .9px; }
-  .rm-v2-choice > header h2 { margin: 4px 0 0; font-size: 19px; }
-  .rm-v2-choice > p { margin: 16px 4px; color: #9da8b7; font-size: 12px; line-height: 1.5; }
+  .rm-v2-choice > header small { color: #7faadd; font-size: 10px; letter-spacing: .9px; }
+  .rm-v2-choice > header h2 { margin: 4px 0 0; font-size: 20px; }
+  .rm-v2-choice > p { margin: 16px 4px; color: #9da8b7; font-size: 13px; line-height: 1.5; }
   .rm-v2-choice > button:not(header button) {
     width: 100%;
     min-height: 76px;
@@ -149,7 +149,7 @@
   }
   .rm-v2-choice > button strong,
   .rm-v2-choice > button small { display: block; }
-  .rm-v2-choice > button small { margin-top: 4px; color: #8f9bad; font-size: 10px; }
+  .rm-v2-choice > button small { margin-top: 4px; color: #8f9bad; font-size: 11px; }
 
   .rm-v2-pdf-backdrop { align-items: stretch; }
   .rm-v2-pdf {
@@ -170,8 +170,8 @@
     padding: env(safe-area-inset-top) 14px 12px;
     border-bottom: 1px solid rgba(255,255,255,.09);
   }
-  .rm-v2-pdf > header small { color: #7faadd; font-size: 9px; letter-spacing: .9px; }
-  .rm-v2-pdf > header h2 { margin: 4px 0 0; font-size: 18px; }
+  .rm-v2-pdf > header small { color: #7faadd; font-size: 10px; letter-spacing: .9px; }
+  .rm-v2-pdf > header h2 { margin: 4px 0 0; font-size: 19px; }
   .rm-v2-pdf iframe { width: 100%; height: 100%; border: 0; background: #fff; }
   .rm-v2-pdf > footer {
     display: grid;
@@ -191,7 +191,7 @@
     border-radius: 12px;
     color: #fff;
     background: rgba(255,255,255,.055);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 750;
   }
 
@@ -209,7 +209,7 @@
     color: #fff;
     background: rgba(2,8,23,.94);
     box-shadow: 0 16px 42px rgba(0,0,0,.36);
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .rm-status-avoir { background: #7c3aed; }
@@ -218,7 +218,7 @@
     .rm-v2-two,
     .rm-v2-three { grid-template-columns: 1fr; }
     .rm-v2-line-grid { grid-template-columns: 1fr 1fr; }
-    .rm-v2-pdf > footer button { font-size: 9px; }
+    .rm-v2-pdf > footer button { font-size: 10px; }
   }
 }
-.rm-invoice-month{margin:15px 8px 8px;color:#47647f;text-transform:capitalize;font-size:13px}.rm-list>div>.rm-document-card{width:100%}
+.rm-invoice-month{margin:15px 8px 8px;color:#47647f;text-transform:capitalize;font-size:14px}.rm-list>div>.rm-document-card{width:100%}

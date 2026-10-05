@@ -22,6 +22,7 @@ import {
   spokenPriceType,
 } from "@/lib/voice-facts";
 import { polishFrenchTradeDesignation } from "@/lib/quote-language-polish";
+import { sharedVoiceUnitPrice } from './voice-document-lines';
 
 export type VoiceActionTarget = "command" | "quote" | "invoice" | "customer" | "supplier" | "agenda";
 
@@ -68,12 +69,13 @@ function intent(value: unknown): ActionIntent | null {
   return ACTION_INTENTS.includes(candidate) ? candidate : null;
 }
 
-function normalizeLine(value: unknown, transcript: string, roomSegment?: string, roomQuantity?: number | null, alreadyConverted = false) {
+function normalizeLine(value: unknown, transcript: string, roomSegment?: string, roomQuantity?: number | null, alreadyConverted = false, sharedPrice?: ReturnType<typeof sharedVoiceUnitPrice>) {
   const source = record(value);
   const quantityEvidence = groundedEvidence(transcript, source.quantity_evidence);
   const priceEvidence = groundedEvidence(transcript, source.price_evidence);
   const taxEvidence = groundedEvidence(transcript, source.tax_evidence);
-  const quantityFromEvidence = quantityEvidence ? explicitQuantity(quantityEvidence) : null;
+  const unitEvidence = quantityEvidence || priceEvidence;
+  const quantityFromEvidence = unitEvidence ? explicitQuantity(unitEvidence) : null;
   const quantity = quantityFromEvidence !== null ? quantityFromEvidence
     : roomQuantity !== undefined ? roomQuantity : numberOrNull(source.quantity);
   const pricesInRoom = roomSegment ? [...withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment)).matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
@@ -84,7 +86,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     && [...transcript.matchAll(/\b(?:un|une|1)\s+forfait\b[^.!?]{0,45}?\b(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/giu)]
       .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null
-    ? sourcePrice : (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
+    ? sourcePrice : sharedPrice?.amount ?? (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
   const taxesInTranscript = [...withoutPaymentAdjustments(withoutSupplierMarkup(transcript)).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
       const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
@@ -115,7 +117,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)
     && /(?:\bht\b|hors taxes?)/iu.test(priceTranscript);
-  const priceType = spokenPriceType(priceEvidence) ?? roomPriceType
+  const priceType = sharedPrice?.type ?? spokenPriceType(priceEvidence) ?? roomPriceType
     ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(priceTranscript) ?? "unknown");
   const normalizedTax = tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax : null;
   const needsTtcConversion = priceType === "ttc" && (!alreadyConverted || sourcePrice === null);
@@ -125,9 +127,11 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     : spokenPrice;
   return {
     label: polishFrenchTradeDesignation(text(source.label, 240)),
-    description: text(source.description, 800),
+    description: text(source.description, 800).split('\n').map(polishFrenchTradeDesignation).join('\n'),
     quantity: quantity ?? (explicitSingleForfait ? 1 : null),
-    unit: text(source.unit, 40) || (/^rouleaux?\b/iu.test(text(source.label, 240)) && /\brouleaux?\b/iu.test(transcript) ? 'rouleaux' : null),
+    unit: /\b(?:une?|1)\s+unit[ée](?![\p{L}])/iu.test(unitEvidence) ? 'unité'
+      : /\b(?:une?|1)\s+forfait\b/iu.test(unitEvidence) ? 'forfait'
+      : text(source.unit, 40) || (/^rouleaux?\b/iu.test(text(source.label, 240)) && /\brouleaux?\b/iu.test(transcript) ? 'rouleaux' : null),
     unit_price: unitPrice,
     tax_rate: normalizedTax,
     price_type: priceType,
@@ -182,9 +186,10 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
   const markupPercent = spokenSupplierMarkup(transcript);
   const original = Array.isArray(source.items) ? source.items.slice(0, 100).filter(item => !isDeductibleLine({ label: text(record(item).label, 240) }) && !(markupPercent !== null && isSupplierMarkupLine(text(record(item).label,240)))) : [];
   const labels = original.map((item) => text(record(item).label, 240));
+  const sharedPrice = sharedVoiceUnitPrice(transcript, original.length);
   const roomSegments = roomEvidenceSegments(transcript, labels);
   const roomQuantities = roomQuantityEvidence(transcript, labels);
-  let normalizedItems = original.map((item, index) => normalizeLine(item, transcript, roomSegments[index], roomQuantities[index], alreadyConverted)).filter((line) =>
+  let normalizedItems = original.map((item, index) => normalizeLine(item, transcript, roomSegments[index], roomQuantities[index], alreadyConverted, sharedPrice)).filter((line) =>
     // A trailing empty placeholder from the model is not a requested service.
     Boolean(line.label && !/^prestation(?:\s+à\s+compléter)?$/i.test(line.label))
       || (line.quantity !== null && line.quantity > 0) || line.unit_price !== null,
@@ -198,7 +203,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
   const otherQuantities = [...serviceTranscript.matchAll(/\b\d+(?:[,.]\d+)?\s*(?:m²|m2|mètres?|rouleaux?|heures?|pièces?|unités?|forfaits?)(?![\p{L}])/giu)];
   if (normalizedItems.length >= 1 && prices.length === 1 && units.length === 1
     && otherQuantities.every(match => /^(?:1)\s+(?:unit[ée]|forfait)(?![\p{L}])/iu.test(match[0]))
-    && !/\b(?:chacun|chacune|chaque|par\s+poste|prix\s+identiques?)\b/iu.test(serviceTranscript)
+    && !sharedPrice && !/\b(?:chacun|chacune|chaque|par\s+poste|prix\s+identiques?)\b/iu.test(serviceTranscript)
     && !roomSegments.some(Boolean)
     && normalizedItems.every(item => item.quantity === 1 && (item.unit_price !== null || item.spoken_price_ttc !== null || item.spoken_price_ambiguous !== null))) {
     const first = normalizedItems[0];

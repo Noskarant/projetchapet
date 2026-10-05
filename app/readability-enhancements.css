@@ -1,58 +1,58 @@
 /* Lisibilité globale : pensée pour une utilisation quotidienne sur chantier et au bureau. */
-body { font-size: 16px; }
+body { font-size: 17px; }
 .pc-sidebar { width: 260px; }
 .pc-main { width: calc(100% - 260px); margin-left: 260px; }
-.pc-brand strong { font-size: 17px; }
-.pc-brand small { font-size: 11px; }
-.pc-company span, .pc-support span { font-size: 10px; }
-.pc-company strong { font-size: 14px; }
-.pc-company small { font-size: 12px; }
-.pc-sidebar nav button { padding: 12px 13px; font-size: 14px; }
-.pc-support strong { font-size: 12px; line-height: 1.4; }
-.pc-support button { font-size: 12px; }
-.pc-profile strong { font-size: 13px; }
-.pc-profile small { font-size: 11px; }
-.pc-global-search input { height: 43px; font-size: 14px; }
-.pc-primary, .pc-voice-button, .pc-secondary { min-height: 42px; font-size: 13px; }
+.pc-brand strong { font-size: 18px; }
+.pc-brand small { font-size: 12px; }
+.pc-company span, .pc-support span { font-size: 11px; }
+.pc-company strong { font-size: 15px; }
+.pc-company small { font-size: 13px; }
+.pc-sidebar nav button { padding: 12px 13px; font-size: 15px; }
+.pc-support strong { font-size: 13px; line-height: 1.4; }
+.pc-support button { font-size: 13px; }
+.pc-profile strong { font-size: 14px; }
+.pc-profile small { font-size: 12px; }
+.pc-global-search input { height: 43px; font-size: 15px; }
+.pc-primary, .pc-voice-button, .pc-secondary { min-height: 42px; font-size: 14px; }
 .pc-content { max-width: 1560px; padding-top: 34px; }
-.pc-heading > div > span, .pc-panel-head > div > span, .pc-voice-header > span { font-size: 11px; }
+.pc-heading > div > span, .pc-panel-head > div > span, .pc-voice-header > span { font-size: 12px; }
 .pc-heading h1 { font-size: clamp(34px, 3.2vw, 44px); }
-.pc-heading p { font-size: 14px; line-height: 1.45; }
+.pc-heading p { font-size: 15px; line-height: 1.45; }
 .pc-kpi { min-height: 122px; padding: 19px; }
-.pc-kpi span { font-size: 12px; }
+.pc-kpi span { font-size: 13px; }
 .pc-kpi strong { font-size: 28px; }
-.pc-kpi small { font-size: 11px; line-height: 1.35; }
+.pc-kpi small { font-size: 12px; line-height: 1.35; }
 .pc-panel-head h2, .pc-setting-title h2 { font-size: 21px; }
-.pc-panel-head > button { font-size: 12px; }
-.pc-panel-head > b { font-size: 12px; }
-.pc-priority strong { font-size: 13px; }
-.pc-priority span { font-size: 11px; line-height: 1.35; }
-.pc-priority button { font-size: 12px; }
-.pc-activity strong { font-size: 13px; }
-.pc-activity span { font-size: 11px; }
+.pc-panel-head > button { font-size: 13px; }
+.pc-panel-head > b { font-size: 13px; }
+.pc-priority strong { font-size: 14px; }
+.pc-priority span { font-size: 12px; line-height: 1.35; }
+.pc-priority button { font-size: 13px; }
+.pc-activity strong { font-size: 14px; }
+.pc-activity span { font-size: 12px; }
 .pc-table-row { min-height: 66px; }
-.pc-table-row > span, .pc-table-row > strong, .pc-table-row small { font-size: 13px; }
-.pc-table-head > span { font-size: 11px; }
-.pc-status { font-size: 11px; }
-.pc-client-card h3 { font-size: 18px; }
-.pc-client-card p, .pc-client-meta span { font-size: 12px; }
-.pc-full-button { font-size: 13px; }
+.pc-table-row > span, .pc-table-row > strong, .pc-table-row small { font-size: 14px; }
+.pc-table-head > span { font-size: 12px; }
+.pc-status { font-size: 12px; }
+.pc-client-card h3 { font-size: 19px; }
+.pc-client-card p, .pc-client-meta span { font-size: 13px; }
+.pc-full-button { font-size: 14px; }
 .pc-crud-modal header h2 { font-size: 25px; }
-.pc-crud-modal header p { font-size: 13px; }
-.pc-crud-form h3 { font-size: 17px; }
-.pc-crud-form label { font-size: 13px; }
-.pc-crud-form input, .pc-crud-form select, .pc-crud-form textarea { min-height: 44px; font-size: 15px; }
+.pc-crud-modal header p { font-size: 14px; }
+.pc-crud-form h3 { font-size: 18px; }
+.pc-crud-form label { font-size: 14px; }
+.pc-crud-form input, .pc-crud-form select, .pc-crud-form textarea { min-height: 44px; font-size: 16px; }
 .pc-crud-form textarea { min-height: 100px; }
-.pc-item-editor strong { font-size: 13px; }
-.pc-totals span { font-size: 13px; }
-.pc-totals strong { font-size: 16px; }
-.pc-document-summary span, .pc-document-lines span, .pc-document-lines small { font-size: 12px; }
-.pc-document-summary strong { font-size: 15px; }
-.pc-details-grid dt { font-size: 11px; }
-.pc-details-grid dd { font-size: 14px; }
-.pc-calendar-live h2, .pc-search-results h2 { font-size: 20px; }
-.pc-calendar-live button strong, .pc-search-results button strong { font-size: 13px; }
-.pc-calendar-live button small, .pc-search-results button small { font-size: 11px; }
+.pc-item-editor strong { font-size: 14px; }
+.pc-totals span { font-size: 14px; }
+.pc-totals strong { font-size: 17px; }
+.pc-document-summary span, .pc-document-lines span, .pc-document-lines small { font-size: 13px; }
+.pc-document-summary strong { font-size: 16px; }
+.pc-details-grid dt { font-size: 12px; }
+.pc-details-grid dd { font-size: 15px; }
+.pc-calendar-live h2, .pc-search-results h2 { font-size: 21px; }
+.pc-calendar-live button strong, .pc-search-results button strong { font-size: 14px; }
+.pc-calendar-live button small, .pc-search-results button small { font-size: 12px; }
 
 .pc-enhancement-launcher {
   position: fixed;
@@ -78,7 +78,7 @@ body { font-size: 16px; }
   border-radius: 10px;
   color: #27435f;
   background: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 .pc-enhancement-launcher .pc-enhancement-voice { color: #fff; border-color: #2563a6; background: #2563a6; }
@@ -116,7 +116,7 @@ body { font-size: 16px; }
   display: block;
   margin-bottom: 5px;
   color: #2563a6;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 850;
   text-transform: uppercase;
   letter-spacing: .8px;
@@ -136,7 +136,7 @@ body { font-size: 16px; }
   gap: 7px;
   margin-bottom: 14px;
   color: #4c6074;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
 }
 .pc-enhancement-panel input, .pc-enhancement-panel select, .pc-enhancement-panel textarea, .pc-signature-modal input {
@@ -148,7 +148,7 @@ body { font-size: 16px; }
   outline: none;
   color: #17212f;
   background: #fff;
-  font-size: 15px;
+  font-size: 16px;
 }
 .pc-enhancement-panel textarea { min-height: 160px; resize: vertical; line-height: 1.5; }
 .pc-enhancement-form, .pc-document-actions { display: grid; gap: 10px; }
@@ -165,7 +165,7 @@ body { font-size: 16px; }
   border-radius: 11px;
   color: #3b556f;
   background: #f3f8fd;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 .pc-enhancement-tabs { margin-bottom: 18px; }
@@ -179,9 +179,9 @@ body { font-size: 16px; }
   border-radius: 12px;
   background: #f8fafc;
 }
-.pc-selected-document strong { font-size: 15px; }
-.pc-selected-document span { color: #68778a; font-size: 13px; }
-.pc-selected-document b { margin-top: 5px; color: #183b56; font-size: 19px; }
+.pc-selected-document strong { font-size: 16px; }
+.pc-selected-document span { color: #68778a; font-size: 14px; }
+.pc-selected-document b { margin-top: 5px; color: #183b56; font-size: 20px; }
 .pc-document-actions button { width: 100%; }
 .pc-enhancement-loading { display: flex; align-items: center; gap: 9px; padding: 30px 0; color: #68778a; }
 .pc-voice-capture {
@@ -196,7 +196,7 @@ body { font-size: 16px; }
   border-radius: 11px;
   color: #234f7e;
   background: #edf5fc;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
 }
 .pc-voice-capture.listening { color: #fff; background: #b63c4a; border-color: #b63c4a; animation: pc-pulse 1.1s infinite; }
@@ -216,7 +216,7 @@ body { font-size: 16px; }
   border: 1px solid #bfd0e1;
   border-radius: 8px;
   background: #f0f6fc;
-  font-size: 15px;
+  font-size: 16px;
 }
 .pc-inline-mic.listening { border-color: #b63c4a; background: #fae9ec; animation: pc-pulse 1s infinite; }
 .pc-signature-modal {
@@ -254,7 +254,7 @@ body { font-size: 16px; }
   color: #fff;
   background: #102a43;
   box-shadow: 0 16px 45px rgba(16,42,67,.24);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 @keyframes pc-pulse { 50% { opacity: .68; transform: scale(.98); } }

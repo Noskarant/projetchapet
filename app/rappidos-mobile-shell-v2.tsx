@@ -2,6 +2,7 @@
 import { readQuoteInternalMeta } from "@/lib/mobile-quote-preview";
 import PdfPages from "./pdf-pages";
 import ManufeoHelpButton from "./manufeo-help-button";
+import LocalWeather from './local-weather';
 
 import {
   AlertTriangle, ArrowLeft, BarChart3, Bell, Building2, CalendarDays, Camera, Check, CheckCircle2,
@@ -494,6 +495,7 @@ export default function RappidosMobileShellV2() {
 
         <main className="rm-content">
           {tab === "home" && <section className="rm-section rm-home-section"><div className="rm-scroll-area">
+            <LocalWeather />
             <div className="rm-home-hero"><span>PILOTAGE ENTREPRISE</span><strong>{money(indicators.revenue)}</strong><small>Chiffre d’affaires facturé HT · {dateFr(indicators.from)} → {dateFr(indicators.to)}</small><div><b>{indicators.evolution === null ? "N−1 non disponible" : `${indicators.evolution > 0 ? "+" : ""}${indicators.evolution} %`}</b><span>même période N−1</span></div><label className="rm-period-control">Période<select aria-label="Période de pilotage" value={companyProfile.dashboardPeriod || "exercise"} onChange={event => setPeriod(event.target.value as CompanyProfile["dashboardPeriod"])}><option value="exercise">Exercice en cours</option><option value="month">Mois en cours</option><option value="rolling3">3 mois glissants</option><option value="rolling6">6 mois glissants</option><option value="custom">Dates au choix</option></select></label>{companyProfile.dashboardPeriod === "custom" && <div className="rm-period-dates">{(["dashboardFrom", "dashboardTo"] as const).map(key => <label key={key}>{key === "dashboardFrom" ? "Du" : "Au"}<input type="date" value={companyProfile[key] || ""} onChange={event => { const next = writeCompanyProfile(window.localStorage, { ...companyProfile, [key]: event.target.value }); setCompanyProfile(next); window.dispatchEvent(new CustomEvent("projetchapet:company-profile-updated", { detail: next })); }} /></label>)}</div>}</div>
             <div className="rm-kpi-grid">
               <button onClick={() => { switchTab("quotes"); setQuoteFilter("En attente"); }}><FileText size={20} /><strong>{workspace.quotes.filter((item) => item.status === "En attente").length}</strong><span>Devis en attente</span></button>

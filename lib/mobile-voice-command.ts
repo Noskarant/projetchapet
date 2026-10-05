@@ -21,11 +21,14 @@ import {
 import { parseAgendaVoiceRequest } from "./mobile-agenda-voice";
 import { spokenDiscount } from "./percentage-adjustments";
 import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
+import { polishFrenchTradeDesignation } from './quote-language-polish';
+import { groupedVoiceLineOrder, sharedVoiceUnitPrice } from './voice-document-lines';
 
 export type VoiceEntityKind = "quote" | "invoice" | "agenda" | "customer";
 
 export type VoiceLineOperation = {
   action: "add" | "update" | "delete";
+  line_id?: string;
   match?: string;
   designation?: string;
   description?: string;
@@ -67,6 +70,8 @@ export type MobileVoiceCommand = {
     vat?: string;
   };
   line_operations?: VoiceLineOperation[];
+  line_order?: string[];
+  line_order_only?: boolean;
 };
 
 const normalize = (value: string) => value
@@ -85,6 +90,7 @@ function validTime(value: unknown) {
 }
 
 function finite(value: unknown) {
+  if (value === null || value === undefined || value === '') return undefined;
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
@@ -122,7 +128,7 @@ function applyLineOperations(items: LineItem[], operations: VoiceLineOperation[]
       const incomplete = operation.quantite === undefined || operation.unite === undefined || operation.prix_unitaire_ht === undefined;
       result.push({
         id: makeId("line"),
-        label: designation,
+        label: polishFrenchTradeDesignation(designation),
         description: String(operation.description || ""),
         quantity: finite(operation.quantite) ?? null,
         unit: operation.unite === undefined ? null : String(operation.unite),
@@ -134,12 +140,14 @@ function applyLineOperations(items: LineItem[], operations: VoiceLineOperation[]
     }
 
     const match = String(operation.match || operation.designation || "").trim();
-    if (!match) continue;
+    if (!match && !operation.line_id) continue;
     const ranked = result
       .map((line, index) => ({ index, score: lineScore(line, match) }))
       .sort((a, b) => b.score - a.score);
-    if (!ranked[0] || ranked[0].score <= 0) continue;
-    const index = ranked[0].index;
+    const exactIndex = operation.line_id ? result.findIndex(line => line.id === operation.line_id) : -1;
+    if (operation.line_id && exactIndex < 0) continue;
+    if (exactIndex < 0 && (!ranked[0] || ranked[0].score <= 0 || ranked[0].score === ranked[1]?.score)) continue;
+    const index = exactIndex >= 0 ? exactIndex : ranked[0].index;
 
     if (operation.action === "delete") {
       result = result.filter((_, current) => current !== index);
@@ -149,7 +157,7 @@ function applyLineOperations(items: LineItem[], operations: VoiceLineOperation[]
     const current = result[index];
     result[index] = {
       ...current,
-      label: String(operation.designation || current.label),
+      label: operation.designation ? polishFrenchTradeDesignation(operation.designation) : current.label,
       description: operation.description === undefined ? current.description : String(operation.description),
       quantity: finite(operation.quantite) ?? current.quantity,
       unit: operation.unite === undefined ? current.unit : String(operation.unite),
@@ -158,6 +166,14 @@ function applyLineOperations(items: LineItem[], operations: VoiceLineOperation[]
     };
   }
   return result;
+}
+
+function applyLineOrder(items: LineItem[], order?: string[]) {
+  // An order is a permutation, never a replacement of the document's lines.
+  if (!order || order.length !== items.length || new Set(order).size !== items.length) return items;
+  const byId = new Map(items.map(item => [item.id, item]));
+  if (order.some(id => !byId.has(id))) return items;
+  return order.map(id => byId.get(id)!);
 }
 
 function quoteStatus(value: unknown): QuoteStatus | undefined {
@@ -194,7 +210,7 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
     const current = workspace.quotes.find((item) => item.id === command.id);
     if (!current) return workspace;
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
-    const items = applyLineOperations(current.items, command.line_operations);
+    const items = applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order);
     const quote: MobileQuote = normalizeQuote({
       ...current,
       customerId: customer?.id || current.customerId,
@@ -216,7 +232,7 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
     const current = workspace.invoices.find((item) => item.id === command.id);
     if (!current) return workspace;
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
-    const items = applyLineOperations(current.items, command.line_operations);
+    const items = applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order);
     const status = invoiceStatus(changes.status) || current.status;
     const invoice: MobileInvoice = normalizeInvoice({
       ...current,
@@ -355,16 +371,27 @@ export function fallbackMobileVoiceCommand(
     });
   }
 
+  const document = target.entity === 'quote' || target.entity === 'invoice' ? target.data as MobileQuote | MobileInvoice : null;
+  const lineOrder = document ? groupedVoiceLineOrder(text, document.items) : undefined;
+  const orderOnly = Boolean(lineOrder && !/\b(?:ajout\w*|supprim\w*|retir\w*|enlev\w*|remplac\w*|prix|tarif|tva|quantit\w*|montant\w*|client|date|statut|remise|note\w*|titre|objet)\b/u.test(normalizedText));
+  const sharedPrice = document ? sharedVoiceUnitPrice(text, document.items.length) : null;
+  if (document && sharedPrice && sharedPrice.type === 'ht') {
+    document.items.forEach(line => operations.push({ action: 'update', line_id: line.id, prix_unitaire_ht: sharedPrice.amount }));
+  }
   return {
     entity: target.entity,
     id: target.id,
     summary: `Modification vocale de ${target.entity === "quote" ? "ce devis" : target.entity === "invoice" ? "cette facture" : target.entity === "agenda" ? "cet événement" : "ce client"}.`,
     changes,
     line_operations: operations,
+    line_order: lineOrder,
+    line_order_only: orderOnly,
   };
 }
 
 export function sanitizeMobileVoiceCommand(value: unknown, fallback: MobileVoiceCommand): MobileVoiceCommand {
+  // Pure grouping requests cannot acquire financial edits from a model response.
+  if (fallback.line_order_only) return { ...fallback, summary: 'Prestations regroupées par pièce. Prix, quantités et TVA conservés.' };
   if (!value || typeof value !== "object") return fallback;
   const raw = value as Record<string, unknown>;
   const entity = ["quote", "invoice", "agenda", "customer"].includes(String(raw.entity))
@@ -379,6 +406,8 @@ export function sanitizeMobileVoiceCommand(value: unknown, fallback: MobileVoice
   const lineOperations = Array.isArray(raw.line_operations)
     ? raw.line_operations.slice(0, 100).filter((operation): operation is VoiceLineOperation => Boolean(operation && typeof operation === "object" && ["add", "update", "delete"].includes(String((operation as Record<string, unknown>).action))))
     : fallback.line_operations;
-  return { entity, id, summary, changes, line_operations: lineOperations?.filter(operation =>
-    !(operation.action === 'delete' && /\bremise\b/iu.test(operation.match || operation.designation || ''))) };
+  const sharedOperations = fallback.line_operations?.filter(operation => operation.line_id && operation.prix_unitaire_ht !== undefined) || [];
+  return { entity, id, summary, changes, line_order: fallback.line_order ?? (Array.isArray(raw.line_order) && raw.line_order.every(id => typeof id === 'string') ? raw.line_order.slice(0, 100) : undefined),
+    line_operations: [...(lineOperations?.filter(operation =>
+    !(operation.action === 'delete' && /\bremise\b/iu.test(operation.match || operation.designation || ''))) || []), ...sharedOperations] };
 }

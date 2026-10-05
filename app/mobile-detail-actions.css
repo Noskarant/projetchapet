@@ -50,7 +50,7 @@
 
   .mda-preview > header > div:last-child { display: flex; gap: 8px; }
   .mda-sheet > header small,
-  .mda-preview > header small { display: block; color: #9fb2d4; font-size: 11px; font-weight: 800; letter-spacing: .18em; }
+  .mda-preview > header small { display: block; color: #9fb2d4; font-size: 12px; font-weight: 800; letter-spacing: .18em; }
   .mda-sheet > header h2,
   .mda-preview > header h2 { margin: 5px 0 0; font-size: 22px; line-height: 1.05; }
 
@@ -63,7 +63,7 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .mda-form label { display: grid; gap: 8px; color: #a8b4c9; font-size: 13px; font-weight: 700; }
+  .mda-form label { display: grid; gap: 8px; color: #a8b4c9; font-size: 14px; font-weight: 700; }
   .mda-form input,
   .mda-form textarea {
     width: 100%;
@@ -74,7 +74,7 @@
     color: #fff;
     background: rgba(15, 23, 42, .82);
     font: inherit;
-    font-size: 16px;
+    font-size: 17px;
   }
   .mda-form textarea { min-height: 110px; resize: vertical; }
   .mda-form input:focus,
@@ -137,7 +137,7 @@
 
   .mda-document { padding: 24px 20px; }
   .mda-document > span,
-  .mda-document > div small { display: block; color: #96a5bc; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+  .mda-document > div small { display: block; color: #96a5bc; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
   .mda-document > strong { display: block; margin: 5px 0 18px; font-size: 21px; }
   .mda-document > div { padding: 18px; border-radius: 18px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09); }
   .mda-document > div b { display: block; margin-top: 8px; font-size: 34px; }

@@ -26,15 +26,15 @@
   display: block;
   margin-top: 5px;
   color: #68778a;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .pc-ai-targets { margin-top: 6px !important; }
 .pc-ai-section-title > span { display: none !important; }
-.pc-ai-section-title > strong { font-size: 17px !important; }
+.pc-ai-section-title > strong { font-size: 18px !important; }
 .pc-ai-capture-actions { grid-template-columns: 1fr auto !important; }
-.pc-ai-record { min-height: 52px !important; font-size: 14px !important; }
-.pc-ai-browser { min-height: 52px !important; font-size: 13px !important; }
+.pc-ai-record { min-height: 52px !important; font-size: 15px !important; }
+.pc-ai-browser { min-height: 52px !important; font-size: 14px !important; }
 
 .pc-inline-document-tools {
   display: flex;
@@ -49,7 +49,7 @@
   min-width: 176px;
   min-height: 48px;
   padding-inline: 20px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 850;
   box-shadow: 0 9px 22px rgba(37, 99, 166, .2);
 }
@@ -93,7 +93,7 @@
   border-radius: 999px;
   background: #e8f1fb;
   color: #155493;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: .8px;
@@ -107,7 +107,7 @@
 .pc-document-preview-modal > header p {
   margin: 0;
   color: #5e6f82;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .pc-document-preview-modal > header button {
@@ -144,7 +144,7 @@
   min-height: 36px;
   padding: 0 10px;
   color: #23435f;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 850;
 }
 
@@ -176,14 +176,14 @@
 }
 
 .pc-send-panel-title div { display: grid; gap: 3px; }
-.pc-send-panel-title strong { color: #102a43; font-size: 15px; }
-.pc-send-panel-title span { color: #68778a; font-size: 12px; line-height: 1.45; }
+.pc-send-panel-title strong { color: #102a43; font-size: 16px; }
+.pc-send-panel-title span { color: #68778a; font-size: 13px; line-height: 1.45; }
 
 .pc-document-preview-body label {
   display: grid;
   gap: 7px;
   color: #34475d;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -197,7 +197,7 @@
 
 .pc-document-preview-body aside p {
   color: #68778a;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -233,7 +233,7 @@
   color: #fff;
   background: #102a43;
   box-shadow: 0 16px 44px rgba(16,42,67,.24);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -250,5 +250,5 @@
   .pc-inline-document-tools { width: 100%; }
   .pc-inline-document-tools button { flex: 1 1 145px; }
   .pc-inline-document-tools .pc-preview-primary { flex-basis: 100%; }
-  .pc-ai-header > div::before { font-size: 20px; }
+  .pc-ai-header > div::before { font-size: 21px; }
 }

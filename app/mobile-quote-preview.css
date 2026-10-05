@@ -24,7 +24,7 @@
     flex: 0 0 auto;
     border-radius: 11px;
     background: #e5efff;
-    font-size: 16px;
+    font-size: 17px;
   }
 
   .rm-private-notes-heading div {
@@ -34,13 +34,13 @@
 
   .rm-private-notes-heading strong {
     color: #102a43;
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .rm-private-notes-heading small,
   .rm-private-discount-label > small {
     color: #64778d;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.4;
   }
 
@@ -48,7 +48,7 @@
     display: grid;
     gap: 7px;
     color: #314b65;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 750;
   }
 
@@ -76,7 +76,7 @@
     align-items: center;
     gap: 8px;
     color: #102a43;
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .rm-private-discount-label input {
@@ -133,14 +133,14 @@
   .rm-philippe-preview-header small {
     display: block;
     color: #9bb7dc;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 850;
     letter-spacing: 0.16em;
   }
 
   .rm-philippe-preview-header h2 {
     margin: 3px 0 0;
-    font-size: 18px;
+    font-size: 19px;
   }
 
   .rm-philippe-summary {
@@ -168,14 +168,14 @@
 
   .rm-philippe-summary small {
     color: #8eafd2;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 800;
     text-transform: uppercase;
   }
 
   .rm-philippe-summary strong {
     overflow: hidden;
-    font-size: 13px;
+    font-size: 14px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -183,7 +183,7 @@
   .rm-philippe-summary span {
     overflow: hidden;
     color: #c5d5e8;
-    font-size: 10px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -205,7 +205,7 @@
     border-radius: 13px;
     background: rgba(255, 255, 255, 0.06);
     color: #c8d8ea;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
   }
 
@@ -239,18 +239,18 @@
 
   .rm-philippe-section-title small {
     color: #6f8298;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 850;
     letter-spacing: 0.12em;
   }
 
   .rm-philippe-section-title strong {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .rm-philippe-section-title > span {
     color: #718398;
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .rm-philippe-lines {
@@ -284,14 +284,14 @@
 
   .rm-philippe-line-head small {
     color: #7c8ea1;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 850;
     letter-spacing: 0.09em;
   }
 
   .rm-philippe-line-head strong {
     color: #102a43;
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.3;
   }
 
@@ -303,7 +303,7 @@
   .rm-philippe-line-card > p {
     margin: 0;
     color: #607286;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.45;
   }
 
@@ -323,13 +323,13 @@
 
   .rm-philippe-line-prices small {
     color: #7b8da1;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 750;
   }
 
   .rm-philippe-line-prices strong {
     color: #102a43;
-    font-size: 12px;
+    font-size: 13px;
     white-space: nowrap;
   }
 
@@ -341,7 +341,7 @@
     border-radius: 8px;
     background: #eef3f8;
     color: #6f8195;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 800;
   }
 
@@ -367,7 +367,7 @@
   }
 
   .rm-philippe-internal-card small {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 850;
     letter-spacing: 0.06em;
   }
@@ -375,13 +375,13 @@
   .rm-philippe-internal-card p {
     margin: 0;
     white-space: pre-wrap;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.45;
   }
 
   .rm-philippe-internal-card span {
     color: #617b98;
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .rm-philippe-pdf-page {
@@ -436,14 +436,14 @@
 
   .rm-philippe-totals small {
     color: #718398;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 800;
   }
 
   .rm-philippe-totals strong {
     overflow: hidden;
     color: #102a43;
-    font-size: 11px;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -467,7 +467,7 @@
 
   .rm-philippe-totals .discount span {
     color: #9a5360;
-    font-size: 8px;
+    font-size: 9px;
   }
 
   .rm-philippe-preview-actions {
@@ -488,7 +488,7 @@
     border-radius: 14px;
     background: #fff;
     color: #102a43;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 850;
   }
 

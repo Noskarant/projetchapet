@@ -30,8 +30,8 @@
     background: #fff;
     box-shadow: 0 4px 14px rgba(0,0,0,.11);
   }
-  .pc-brand strong { font-size: 16px; letter-spacing: -.2px; }
-  .pc-brand small { font-size: 9px; letter-spacing: 1.05px; }
+  .pc-brand strong { font-size: 17px; letter-spacing: -.2px; }
+  .pc-brand small { font-size: 10px; letter-spacing: 1.05px; }
 
   .pc-company {
     gap: 3px;
@@ -41,9 +41,9 @@
     border-radius: 11px;
     background: rgba(255,255,255,.055);
   }
-  .pc-company span { font-size: 8px; letter-spacing: .95px; }
-  .pc-company strong { font-size: 12.5px; }
-  .pc-company small { font-size: 9.5px; }
+  .pc-company span { font-size: 9px; letter-spacing: .95px; }
+  .pc-company strong { font-size: 13.5px; }
+  .pc-company small { font-size: 10.5px; }
 
   .pc-sidebar nav { gap: 3px; }
   .pc-sidebar nav button {
@@ -51,7 +51,7 @@
     gap: 10px;
     padding: 9px 11px;
     border-radius: 9px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 690;
   }
   .pc-sidebar nav button.active {
@@ -78,8 +78,8 @@
     border-radius: 9px;
     background: #f8fafc;
   }
-  .pc-global-search input { height: 38px; font-size: 12.5px; }
-  .pc-global-search kbd { font-size: 9px; }
+  .pc-global-search input { height: 38px; font-size: 13.5px; }
+  .pc-global-search kbd { font-size: 10px; }
   .pc-top-actions { gap: 7px; margin-left: auto; }
   .pc-top-actions .pc-disabled-feature { display: none !important; }
   .pc-icon-button { min-width: 38px; min-height: 38px; padding: 8px; border-radius: 9px; }
@@ -115,7 +115,7 @@
   }
   .pc-heading { align-items: center; margin-bottom: 18px; }
   .pc-heading > div > span,
-  .pc-panel-head > div > span { font-size: 8.5px; letter-spacing: 1px; }
+  .pc-panel-head > div > span { font-size: 9.5px; letter-spacing: 1px; }
   .pc-heading h1 {
     margin: 3px 0 4px;
     font-size: clamp(28px, 2.35vw, 34px);
@@ -123,7 +123,7 @@
     letter-spacing: -1px;
     font-weight: 760;
   }
-  .pc-heading p { font-size: 12.5px; line-height: 1.45; }
+  .pc-heading p { font-size: 13.5px; line-height: 1.45; }
   .pc-heading > .pc-secondary { min-height: 38px; }
 
   .pc-kpis { gap: 11px; margin-bottom: 13px; }
@@ -135,9 +135,9 @@
     box-shadow: 0 3px 12px rgba(16,42,67,.03);
   }
   .pc-kpi-icon { width: 34px; height: 34px; border-radius: 9px; }
-  .pc-kpi span { margin-bottom: 4px; font-size: 10.5px; }
+  .pc-kpi span { margin-bottom: 4px; font-size: 11.5px; }
   .pc-kpi strong { margin-bottom: 4px; font-size: 23px; }
-  .pc-kpi small { font-size: 9.5px; }
+  .pc-kpi small { font-size: 10.5px; }
 
   .pc-dashboard-grid { grid-template-columns: minmax(0,1.65fr) minmax(290px,.75fr); gap: 12px; }
   .pc-panel { border-radius: 12px; box-shadow: 0 3px 12px rgba(16,42,67,.028); }
@@ -146,71 +146,71 @@
   .pc-recent,
   .pc-setting { padding: 16px; }
   .pc-panel-head h2,
-  .pc-setting-title h2 { font-size: 16px; }
+  .pc-setting-title h2 { font-size: 17px; }
   .pc-chart-meta { margin: 18px 0 8px; }
   .pc-bars { height: 160px; gap: 8px; }
   .pc-priority { padding: 11px 0; }
   .pc-priority strong,
-  .pc-activity strong { font-size: 11.5px; }
+  .pc-activity strong { font-size: 12.5px; }
   .pc-priority span,
-  .pc-activity span { font-size: 9.5px; }
+  .pc-activity span { font-size: 10.5px; }
   .pc-recent { margin-top: 12px; }
 
   .pc-toolbar { gap: 9px; margin-bottom: 11px; }
   .pc-toolbar > label { border-radius: 9px; }
-  .pc-toolbar input { height: 40px; font-size: 12px; }
+  .pc-toolbar input { height: 40px; font-size: 13px; }
   .pc-toolbar > div button,
   .pc-calendar-toolbar > div button {
     min-height: 34px;
     padding: 7px 10px;
     border-radius: 8px;
-    font-size: 10px;
+    font-size: 11px;
   }
   .pc-table-panel { border-radius: 12px; }
   .pc-table-row {
     min-height: 54px;
     padding: 8px 14px;
-    font-size: 11.5px;
+    font-size: 12.5px;
   }
-  .pc-table-head { min-height: 39px; font-size: 8px; }
-  .pc-table-row small { font-size: 9.5px; }
-  .pc-status { padding: 5px 8px; font-size: 9.5px; }
+  .pc-table-head { min-height: 39px; font-size: 9px; }
+  .pc-table-row small { font-size: 10.5px; }
+  .pc-status { padding: 5px 8px; font-size: 10.5px; }
 
   .pc-empty {
     min-height: 260px !important;
     padding: 44px 24px !important;
   }
-  .pc-empty h3 { font-size: 18px !important; }
-  .pc-empty p { max-width: 420px; margin-left: auto !important; margin-right: auto !important; font-size: 12px !important; }
+  .pc-empty h3 { font-size: 19px !important; }
+  .pc-empty p { max-width: 420px; margin-left: auto !important; margin-right: auto !important; font-size: 13px !important; }
 
   .pc-settings-grid { gap: 12px; }
   .pc-setting-title { margin-bottom: 14px; }
   .pc-form-grid { gap: 11px; }
   .pc-form-grid label,
-  .pc-wide-label { font-size: 10.5px; }
+  .pc-wide-label { font-size: 11.5px; }
   .pc-form-grid input,
   .pc-wide-label input,
   .pc-setting input {
     min-height: 41px;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .pc-calendar-live { border-radius: 12px; }
-  .pc-calendar-live h2 { font-size: 16px; }
+  .pc-calendar-live h2 { font-size: 17px; }
 
   .pc-crud-modal {
     border-radius: 14px;
     box-shadow: 0 28px 80px rgba(17,35,54,.22);
   }
   .pc-crud-modal header { padding: 18px 20px 14px; }
-  .pc-crud-modal header span { font-size: 8px; letter-spacing: 1px; }
-  .pc-crud-modal header h2 { font-size: 20px; }
+  .pc-crud-modal header span { font-size: 9px; letter-spacing: 1px; }
+  .pc-crud-modal header h2 { font-size: 21px; }
   .pc-crud-form { padding: 17px 20px 20px; }
-  .pc-crud-form label { font-size: 10.5px; }
+  .pc-crud-form label { font-size: 11.5px; }
   .pc-crud-form input,
   .pc-crud-form select,
-  .pc-crud-form textarea { font-size: 12px; }
+  .pc-crud-form textarea { font-size: 13px; }
 
   /* Account becomes a real product drawer instead of a technical popup. */
   .forgeo-account-backdrop {
@@ -241,7 +241,7 @@
     padding-bottom: 18px;
     border-bottom: 1px solid #e2e8ef;
   }
-  .forgeo-account-panel header small { color: #1769aa !important; font-size: 9px !important; letter-spacing: 1.1px !important; }
+  .forgeo-account-panel header small { color: #1769aa !important; font-size: 10px !important; letter-spacing: 1.1px !important; }
   .forgeo-account-panel header strong { margin-top: 6px; color: #142335; font-size: 22px !important; letter-spacing: -.45px; }
   .forgeo-account-panel header button {
     width: 38px !important;
@@ -259,14 +259,14 @@
     background: #fff !important;
     box-shadow: 0 4px 14px rgba(16,42,67,.03);
   }
-  .forgeo-account-meta span { color: #738397 !important; font-size: 10px !important; }
-  .forgeo-account-meta strong { color: #172638 !important; font-size: 13px !important; }
+  .forgeo-account-meta span { color: #738397 !important; font-size: 11px !important; }
+  .forgeo-account-meta strong { color: #172638 !important; font-size: 14px !important; }
   .forgeo-account-sync {
     margin-top: 4px;
     padding: 10px 11px;
     border-radius: 9px;
     background: #eef8f3;
-    font-size: 10.5px !important;
+    font-size: 11.5px !important;
   }
   .forgeo-account-sync.saved { color: #17765d !important; }
   .forgeo-account-sync.saving { color: #986316 !important; background: #fff7e8; }
@@ -278,7 +278,7 @@
     border-radius: 10px !important;
     color: #a43846 !important;
     background: #fff !important;
-    font-size: 12px;
+    font-size: 13px;
   }
 }
 
@@ -320,7 +320,7 @@
     border-radius: 13px;
     box-shadow: 0 3px 12px rgba(21, 48, 73, .055);
   }
-  .rm-search input { height: 45px; font-size: 14px; }
+  .rm-search input { height: 45px; font-size: 15px; }
   .rm-segmented {
     gap: 3px;
     margin-bottom: 10px;
@@ -328,7 +328,7 @@
     border: 1px solid #e0e6ed;
     background: #e9eef3;
   }
-  .rm-segmented button { min-height: 36px; color: #617286; font-size: 10.5px; }
+  .rm-segmented button { min-height: 36px; color: #617286; font-size: 11.5px; }
   .rm-segmented button.active { color: #17344e; background: #fff; box-shadow: 0 2px 7px rgba(20,46,70,.08); }
 
   .rm-list { gap: 9px; }
@@ -339,11 +339,11 @@
     border-radius: 15px;
     box-shadow: 0 4px 13px rgba(20,45,68,.055);
   }
-  .rm-document-main strong { margin-bottom: 5px; font-size: 15px; }
+  .rm-document-main strong { margin-bottom: 5px; font-size: 16px; }
   .rm-document-main small,
-  .rm-document-side small { color: #718094; font-size: 11px; }
-  .rm-document-side strong { margin-bottom: 7px; font-size: 17px; }
-  .rm-status { margin-top: 8px; padding: 5px 10px; font-size: 10.5px; }
+  .rm-document-side small { color: #718094; font-size: 12px; }
+  .rm-document-side strong { margin-bottom: 7px; font-size: 18px; }
+  .rm-status { margin-top: 8px; padding: 5px 10px; font-size: 11.5px; }
 
   .rm-home-hero {
     padding: 17px;
@@ -362,8 +362,8 @@
     border-radius: 14px;
     box-shadow: 0 3px 12px rgba(20,45,68,.045);
   }
-  .rm-kpi-grid strong { font-size: 18px; }
-  .rm-kpi-grid span { color: #66778b; font-size: 10.5px; }
+  .rm-kpi-grid strong { font-size: 19px; }
+  .rm-kpi-grid span { color: #66778b; font-size: 11.5px; }
   .rm-home-panel {
     margin-top: 9px;
     padding: 14px;
@@ -373,7 +373,7 @@
     box-shadow: 0 3px 12px rgba(20,45,68,.04);
   }
   .rm-panel-title span { color: #1769aa; }
-  .rm-panel-title strong { color: #172638; font-size: 16px; }
+  .rm-panel-title strong { color: #172638; font-size: 17px; }
   .rm-panel-title > small,
   .rm-panel-title > button { color: #56758e; }
   .rm-home-panel > button {
@@ -381,7 +381,7 @@
     border-top-color: #edf1f5;
     color: #1a2b3d;
   }
-  .rm-home-panel > button small { color: #718094; font-size: 10.5px; }
+  .rm-home-panel > button small { color: #718094; font-size: 11.5px; }
   .rm-home-panel > button > svg { color: #7c8b9b; }
 
   .rm-bottom-nav {
@@ -391,7 +391,7 @@
     background: rgba(255,255,255,.985);
     box-shadow: 0 -4px 18px rgba(15, 42, 65, .07);
   }
-  .rm-bottom-nav button { gap: 4px; font-size: 10px; }
+  .rm-bottom-nav button { gap: 4px; font-size: 11px; }
   .rm-bottom-nav button.active { color: #1769aa; }
   .rm-create-dock {
     height: 54px;
@@ -404,7 +404,7 @@
   .rm-create-main {
     border-radius: 15px;
     background: #1769aa;
-    font-size: 15px;
+    font-size: 16px;
     box-shadow: 0 8px 18px rgba(23,105,170,.2);
   }
   .rm-create-manual,
@@ -454,7 +454,7 @@
     box-shadow: 24px 0 70px rgba(0,0,0,.34);
   }
   .rm-side-drawer header { border-bottom-color: rgba(255,255,255,.09) !important; }
-  .rm-side-drawer header small { color: #8fb7d7 !important; font-size: 10px !important; letter-spacing: 1.2px !important; }
+  .rm-side-drawer header small { color: #8fb7d7 !important; font-size: 11px !important; letter-spacing: 1.2px !important; }
   .rm-side-drawer header strong { font-size: 22px !important; }
   .rm-drawer-list { gap: 9px !important; }
   .rm-drawer-list > button {
@@ -462,13 +462,13 @@
     border-radius: 15px !important;
     background: rgba(255,255,255,.045) !important;
   }
-  .rm-drawer-list > button strong { font-size: 14px !important; }
-  .rm-drawer-list > button small { font-size: 11px !important; line-height: 1.35 !important; }
+  .rm-drawer-list > button strong { font-size: 15px !important; }
+  .rm-drawer-list > button small { font-size: 12px !important; line-height: 1.35 !important; }
   .rm-work-card[data-forgeo-empty-project="true"] { opacity: .9; cursor: default; }
   .rm-work-card[data-forgeo-empty-project="true"] + .rm-action-grid { opacity: .45; pointer-events: none; }
 
   .rm-commercial-header .rm-commercial-live { color: #9ed5b7; border-color: rgba(67,183,123,.2); }
-  .rm-commercial-header h2 { font-size: 19px; }
+  .rm-commercial-header h2 { font-size: 20px; }
 
   .forgeo-account-backdrop {
     z-index: 50000 !important;
@@ -482,5 +482,5 @@
     border-radius: 22px 22px 0 0 !important;
   }
 
-  .rm-commercial-filter-trigger { font-size: 10.5px !important; }
+  .rm-commercial-filter-trigger { font-size: 11.5px !important; }
 }
