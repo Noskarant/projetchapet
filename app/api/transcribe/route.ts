@@ -19,7 +19,7 @@ const ALLOWED_AUDIO_TYPES = new Set([
 ]);
 
 const BTP_PROMPT =
-  "Dictée artisan français. Transcrire seulement la parole audible, sans ajout. Nombres et centimes exacts : 18,50 mètres carrés, 77,10 euros HT, TVA 10 %. Noms et prénoms épelés. Arobase, point, tiret. Placoplâtre hydrofuge, joints, laine de verre, trappe 60 par 60, accès pousse-lâche, fourniture et pose, plafond, murs, mat, deux couches, papier peint, échafaudage, rechampissage, HT, TTC.";
+  "Dictée artisan français. Transcrire seulement la parole audible, sans ajout. Nombres et centimes exacts : 18,50 mètres carrés, une unité à 1 700 euros hors taxes, 77,10 euros HT, TVA 10 %. Noms et prénoms épelés. Arobase, point, tiret. Placoplâtre hydrofuge, piquage, purge, ratissage, enduissage des supports, joints, laine de verre, trappe 60 par 60, accès pousse-lâche, fourniture et pose, plafond, murs, mat, deux couches, papier peint, échafaudage, réchampissage, HT, TTC.";
 
 const TRANSCRIPTION_MODEL = "whisper-large-v3";
 

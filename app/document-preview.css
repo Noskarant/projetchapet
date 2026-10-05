@@ -12,7 +12,7 @@
   color: var(--pc-navy);
   background: #fff;
   box-shadow: 0 14px 34px rgba(16, 42, 67, .16);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -51,7 +51,7 @@
 
 .pc-pdf-preview-shell > header span {
   color: var(--pc-blue);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 850;
   text-transform: uppercase;
   letter-spacing: .8px;
@@ -65,7 +65,7 @@
 .pc-pdf-preview-shell > header p {
   margin: 0;
   color: var(--pc-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .pc-pdf-preview-actions {
@@ -103,12 +103,12 @@
     align-items: flex-start;
     padding: 13px;
   }
-  .pc-pdf-preview-shell > header h2 { font-size: 18px; }
+  .pc-pdf-preview-shell > header h2 { font-size: 19px; }
   .pc-pdf-preview-actions { gap: 6px; }
   .pc-pdf-preview-actions .pc-secondary,
   .pc-pdf-preview-actions .pc-primary {
     padding: 9px 10px;
-    font-size: 11px;
+    font-size: 12px;
   }
   .pc-pdf-frame-wrap { padding: 6px; }
 }

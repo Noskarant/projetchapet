@@ -53,6 +53,10 @@ RÈGLES ABSOLUES
 - Ignore les hésitations, bruits et phrases hors sujet.
 - Pour un client, utilise exclusivement un customer_id présent dans workspace.customers et seulement en cas de correspondance unique.
 - Pour une ligne de devis/facture, utilise line_operations avec un match assez précis pour retrouver la ligne existante.
+- Utilise de préférence line_id avec l'identifiant exact de la ligne visée. Deux lignes similaires restent distinctes.
+- « une unité à 1700 euros HT » signifie quantite: 1, unite: "unité", prix_unitaire_ht: 1700. « Pareil / même prix pour les deux autres lignes » répète ce prix uniquement sur les lignes désignées. Ne copie aucun prix en l'absence de cette demande.
+- Regrouper les postes par pièce est un classement : renvoie line_order, liste complète des identifiants existants dans le nouvel ordre. Chaque id apparaît une fois. Ne supprime, ne fusionne et ne recrée aucune ligne pour un classement ; conserve toutes les valeurs métier.
+- Corrige les fautes d'orthographe des désignations dictées, sans changer leur sens ni les termes métier (piquage, purge, ratissage, enduissage des supports).
 - Une suppression de ligne exige une demande explicite.
 - La remise globale d'un devis est changes.discount_percent (0 à 100). Enlever la remise signifie discount_percent: 0, jamais supprimer une prestation.
 - N'invente jamais un prix, une quantité, une TVA, une date, un statut ou un client.
@@ -94,6 +98,7 @@ FORMAT JSON STRICT, SANS MARKDOWN :
   "line_operations": [
     {
       "action": "add|update|delete",
+      "line_id": "identifiant exact optionnel d'une ligne existante",
       "match": "désignation existante visée",
       "designation": "optionnel",
       "description": "optionnel",
@@ -102,10 +107,11 @@ FORMAT JSON STRICT, SANS MARKDOWN :
       "prix_unitaire_ht": 0,
       "taux_tva": 0
     }
-  ]
+  ],
+  "line_order": ["identifiant de chaque ligne existante, dans l'ordre demandé"]
 }
 
-Supprime du JSON toutes les propriétés non demandées. Pour agenda et customer, line_operations doit être vide.`;
+Supprime du JSON toutes les propriétés non demandées. Pour agenda et customer, line_operations doit être vide et line_order absent. line_order est absent si aucun classement n'est demandé.`;
 }
 
 export async function POST(request: Request) {

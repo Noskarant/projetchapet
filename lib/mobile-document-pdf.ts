@@ -321,8 +321,8 @@ export async function buildBusinessDocumentPdf({
       y += line.height;
     });
     y += Math.max(5, 12 - Math.min(rowHeight, 12));
-    pdf.setDrawColor(229, 235, 241);
-    pdf.line(margin, y - 2, right, y - 2);
+    // White space separates services cleanly; hairlines become irregular when
+    // scaled by the mobile PDF canvas and can look like struck-through text.
   });
 
   if (!withoutPrices) {

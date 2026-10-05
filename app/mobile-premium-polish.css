@@ -15,7 +15,7 @@
   .rm-header h1 {
     margin-bottom: 2px;
     color: #f8fafc;
-    font-size: 18px;
+    font-size: 19px;
   }
 
   .rm-header-menu,
@@ -58,7 +58,7 @@
     padding: 3px 2px 4px;
     border-radius: 14px;
     color: #91a0b7;
-    font-size: 9.5px;
+    font-size: 10.5px;
     line-height: 1.05;
   }
 
@@ -87,11 +87,11 @@
   }
 
   .rm-create-main > span {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .rm-create-main > small {
-    font-size: 7.5px;
+    font-size: 8.5px;
   }
 
   .rm-create-manual {
@@ -101,7 +101,7 @@
   }
 
   .rm-create-manual span {
-    font-size: 9px;
+    font-size: 10px;
   }
 
   /* L’assistant garde le fond noir premium demandé et prend moins de place. */
@@ -180,11 +180,11 @@
   }
 
   .forgeo-voice-title {
-    font-size: 18px;
+    font-size: 19px;
   }
 
   .forgeo-voice-detail {
-    font-size: 10.5px;
+    font-size: 11.5px;
   }
 
   @keyframes forgeo-wave-thinking {

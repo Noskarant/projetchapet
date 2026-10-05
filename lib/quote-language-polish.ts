@@ -18,6 +18,10 @@ const TYPOGRAPHIC_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\bfacade\b/giu, "façade"],
   [/\bplatre\b/giu, "plâtre"],
   [/\breagreage\b/giu, "ragréage"],
+  [/\b(?:ratisage|rattissage|rattisssage)\b/giu, "ratissage"],
+  [/\b(?:enduisage|enduis[s]?sage)\b/giu, "enduissage"],
+  [/\b(?:rechampisage|rechampis[s]?sage)\b/giu, "réchampissage"],
+  [/\bprotections?\s+des\s+sole?\b/giu, "protection des sols"],
   [/\bsous[\s-]+couche\b/giu, "sous-couche"],
   [/\bmain[\s-]+d[’'\s-]*(?:oeuvre|œuvre)\b/giu, "main-d’œuvre"],
 ];

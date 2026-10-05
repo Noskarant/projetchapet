@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
-import styles from "./mobile-voice-edit-assistant.module.css";
+import { X } from 'lucide-react';
+import { VoicePreviewButton, VoiceStartingVisualizer, VoiceListeningVisualizer, VoiceProcessingVisualizer } from './action-voice-experience';
+import './action-voice-assistant.css';
 import {
   applyMobileVoiceCommand,
   type MobileVoiceCommand,
@@ -31,7 +33,7 @@ type VoiceTarget = {
   data: TargetData;
 };
 
-type Stage = "ready" | "recording" | "transcribing" | "analysing" | "review" | "error" | "applied";
+type Stage = "ready" | "starting" | "recording" | "transcribing" | "analysing" | "review" | "error" | "applied";
 
 type AudioContextConstructor = new (options?: AudioContextOptions) => AudioContext;
 type PcmSession = {
@@ -213,6 +215,7 @@ function changeSummary(command: MobileVoiceCommand) {
     const verb = operation.action === "add" ? "Ajouter" : operation.action === "delete" ? "Supprimer" : "Modifier";
     labels.push(`${verb} : ${operation.designation || operation.match || "ligne"}`);
   }
+  if (command.line_order?.length) labels.push('Regrouper les prestations dans l’ordre demandé, en conservant leurs montants.');
   return labels.length ? labels : ["Aucune modification certaine détectée."];
 }
 
@@ -225,6 +228,9 @@ export default function MobileVoiceEditAssistant() {
   const pcmRef = useRef<PcmSession | null>(null);
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const transcriptRef = useRef("");
+  const recordingEpoch = useRef(0);
+  const applying = useRef(false);
+  const [micLevel, setMicLevel] = useState(0);
 
   const updateTranscript = useCallback((value: string) => {
     transcriptRef.current = value;
@@ -232,6 +238,9 @@ export default function MobileVoiceEditAssistant() {
   }, []);
 
   const close = useCallback(() => {
+    if (applying.current) return;
+    recordingEpoch.current++;
+    if (recognitionRef.current) recognitionRef.current.onend = null;
     recognitionRef.current?.stop();
     recognitionRef.current = null;
     const session = pcmRef.current;
@@ -302,6 +311,7 @@ export default function MobileVoiceEditAssistant() {
       setMessage("Dictez ou écrivez la modification à appliquer.");
       return;
     }
+    const epoch = recordingEpoch.current;
     setStage("analysing");
     setMessage("");
     try {
@@ -316,6 +326,7 @@ export default function MobileVoiceEditAssistant() {
         }),
       });
       const result = await response.json().catch(() => ({}));
+      if (epoch !== recordingEpoch.current) return;
       if (!response.ok || !result?.data) throw new Error(result?.error || "Analyse impossible.");
       const next = result.data as MobileVoiceCommand;
       next.entity = target.entity;
@@ -324,12 +335,14 @@ export default function MobileVoiceEditAssistant() {
       setMessage(result.warning || "");
       setStage("review");
     } catch (error) {
+      if (epoch !== recordingEpoch.current) return;
       setMessage(error instanceof Error ? error.message : "La commande vocale n’a pas pu être analysée.");
       setStage("error");
     }
   }
 
   async function transcribe(blob: Blob) {
+    const epoch = recordingEpoch.current;
     if (blob.size < 1000) {
       setMessage("L’enregistrement est trop court.");
       setStage("ready");
@@ -341,13 +354,15 @@ export default function MobileVoiceEditAssistant() {
       form.append("file", new File([blob], "modification-vocale.wav", { type: "audio/wav" }));
       const response = await fetch("/api/transcribe", { method: "POST", body: form });
       const result = await response.json().catch(() => ({}));
+      if (epoch !== recordingEpoch.current) return;
       if (!response.ok) throw new Error(result.error || "Transcription impossible.");
       const text = String(result.text || "").trim();
       if (!text) throw new Error("Aucun texte reconnu.");
       updateTranscript(text);
       setStage("ready");
-      window.setTimeout(() => void analyseWithText(text), 0);
+      window.setTimeout(() => { if (epoch === recordingEpoch.current) void analyseWithText(text); }, 0);
     } catch (error) {
+      if (epoch !== recordingEpoch.current) return;
       setMessage(error instanceof Error ? error.message : "Transcription impossible.");
       setStage("error");
     }
@@ -355,6 +370,7 @@ export default function MobileVoiceEditAssistant() {
 
   async function analyseWithText(text: string) {
     if (!target || !text.trim()) return;
+    const epoch = recordingEpoch.current;
     setStage("analysing");
     setMessage("");
     try {
@@ -365,6 +381,7 @@ export default function MobileVoiceEditAssistant() {
         body: JSON.stringify({ transcript: text, target: { entity: target.entity, id: target.id, data: target.data }, workspace }),
       });
       const result = await response.json().catch(() => ({}));
+      if (epoch !== recordingEpoch.current) return;
       if (!response.ok || !result?.data) throw new Error(result?.error || "Analyse impossible.");
       const next = result.data as MobileVoiceCommand;
       next.entity = target.entity;
@@ -373,12 +390,14 @@ export default function MobileVoiceEditAssistant() {
       setMessage(result.warning || "");
       setStage("review");
     } catch (error) {
+      if (epoch !== recordingEpoch.current) return;
       setMessage(error instanceof Error ? error.message : "Analyse impossible.");
       setStage("error");
     }
   }
 
   function browserDictation() {
+    const epoch = recordingEpoch.current;
     const Constructor = speechConstructor();
     if (!Constructor) {
       setMessage("Micro indisponible. Écrivez la commande dans la zone de texte.");
@@ -390,14 +409,17 @@ export default function MobileVoiceEditAssistant() {
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.onresult = (event) => {
+      if (epoch !== recordingEpoch.current) return;
       const text = Array.from(event.results).map((result) => result[0]?.transcript || "").join(" ").trim();
       if (text) updateTranscript(`${transcriptRef.current} ${text}`.trim());
     };
     recognition.onerror = () => {
+      if (epoch !== recordingEpoch.current) return;
       setMessage("Le micro a été interrompu. Vous pouvez reprendre ou écrire la commande.");
       setStage("ready");
     };
     recognition.onend = () => {
+      if (epoch !== recordingEpoch.current) return;
       recognitionRef.current = null;
       const text = transcriptRef.current.trim();
       if (text) void analyseWithText(text);
@@ -409,6 +431,7 @@ export default function MobileVoiceEditAssistant() {
   }
 
   async function startRecording() {
+    const epoch = ++recordingEpoch.current;
     setMessage("");
     setCommand(null);
     updateTranscript("");
@@ -419,16 +442,22 @@ export default function MobileVoiceEditAssistant() {
     }
     let context: AudioContext | null = null;
     let stream: MediaStream | null = null;
+    setStage('starting');
     try {
       context = new AudioContextClass({ latencyHint: "interactive" });
       await context.resume();
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      if (epoch !== recordingEpoch.current) { stream.getTracks().forEach(track => track.stop()); await context.close(); return; }
       const source = context.createMediaStreamSource(stream);
       const processor = context.createScriptProcessor(4096, 1, 1);
       const silentGain = context.createGain();
       silentGain.gain.value = 0;
       const buffers: Float32Array[] = [];
-      processor.onaudioprocess = (event) => buffers.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      processor.onaudioprocess = (event) => {
+        const samples = new Float32Array(event.inputBuffer.getChannelData(0));
+        buffers.push(samples);
+        setMicLevel(Math.min(1, audioPeak(samples) * 3));
+      };
       source.connect(processor);
       processor.connect(silentGain);
       silentGain.connect(context.destination);
@@ -437,6 +466,7 @@ export default function MobileVoiceEditAssistant() {
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       if (context) void context.close().catch(() => undefined);
+      if (epoch !== recordingEpoch.current) return;
       const name = error instanceof DOMException ? error.name : "";
       if (name === "NotAllowedError" || name === "SecurityError") {
         setMessage("Microphone refusé. Autorisez-le dans les réglages Safari du site.");
@@ -448,6 +478,7 @@ export default function MobileVoiceEditAssistant() {
   }
 
   async function stopRecording() {
+    const epoch = recordingEpoch.current;
     const session = pcmRef.current;
     if (!session) {
       recognitionRef.current?.stop();
@@ -456,6 +487,7 @@ export default function MobileVoiceEditAssistant() {
     pcmRef.current = null;
     await new Promise((resolve) => window.setTimeout(resolve, 100));
     tearDown(session);
+    if (epoch !== recordingEpoch.current) return;
     const samples = mergeFloat32Buffers(session.buffers);
     if (samples.length < session.sampleRate * 0.15 || audioPeak(samples) < 0.0005) {
       setMessage("Le micro n’a pas capté votre voix. Vérifiez son autorisation et réessayez.");
@@ -466,7 +498,8 @@ export default function MobileVoiceEditAssistant() {
   }
 
   async function apply() {
-    if (!target || !command) return;
+    if (!target || !command || applying.current) return;
+    applying.current = true;
     setStage('analysing');
     setMessage('Enregistrement de la modification…');
     try {
@@ -487,6 +520,7 @@ export default function MobileVoiceEditAssistant() {
       setMessage("Modification enregistrée. Actualisation de l’écran…");
       window.setTimeout(() => window.location.reload(), 650);
     } catch (error) {
+      applying.current = false;
       setStage('review');
       setMessage(error instanceof Error ? error.message : 'La modification reste en attente de sauvegarde.');
     }
@@ -495,62 +529,49 @@ export default function MobileVoiceEditAssistant() {
   if (!target) return null;
   const busy = stage === "transcribing" || stage === "analysing";
   const changes = command ? changeSummary(command) : [];
+  const immersive = busy || stage === 'recording' || stage === 'starting';
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Modifier à la voix">
-      <section className={`${styles.panel} ${busy ? styles.busy : ""}`}>
-        <header className={styles.header}>
-          <button className={styles.close} onClick={close} aria-label="Fermer">×</button>
-          <div><small>COMMANDE VOCALE</small><h2>Modifier à la voix</h2></div>
-          <span />
+    <div className={`ava-overlay${immersive ? ' ava-overlay-immersive' : ''}`} role="dialog" aria-modal="true" aria-label="Modifier à la voix">
+      {stage === 'starting' ? <VoiceStartingVisualizer onClose={close} />
+        : stage === 'recording' ? <VoiceListeningVisualizer level={micLevel} activity={micLevel} reactive={Boolean(pcmRef.current)} onFinish={() => void stopRecording()} onClose={close} />
+        : busy ? <VoiceProcessingVisualizer onClose={close} label={applying.current ? message : undefined} closeDisabled={applying.current} />
+        : <section className="ava-panel">
+        <header className="ava-header">
+          <div><small>MANUFEO · MODIFICATION</small><h2>Modifier à la voix</h2></div>
+          <button onClick={close} aria-label="Fermer"><X size={20} /></button>
         </header>
-
-        <div className={styles.context}>
-          <small>Élément sélectionné</small>
-          <strong>{target.label}</strong>
-        </div>
-
+        <div className="ava-capture">
+        <span className="ava-target">{target.label}</span>
         {stage !== "review" && stage !== "applied" && (
           <>
-            <div className={styles.micRow}>
-              <button
-                className={`${styles.mic} ${stage === "recording" ? styles.recording : ""}`}
-                onClick={stage === "recording" ? () => void stopRecording() : () => void startRecording()}
-                disabled={busy}
-                aria-label={stage === "recording" ? "Arrêter la dictée" : "Commencer la dictée"}
-              >
-                {busy ? "…" : stage === "recording" ? "■" : "🎙"}
-              </button>
-              <strong>{stage === "recording" ? "Je vous écoute…" : stage === "transcribing" ? "Transcription…" : stage === "analysing" ? "Analyse des modifications…" : "Dictez la modification"}</strong>
-            </div>
+            <VoicePreviewButton onStart={() => void startRecording()} />
+            <p>Dictez les changements ou écrivez votre demande.</p>
             <textarea
-              className={styles.textarea}
+              aria-label="Modification à demander à MANUFEO"
               value={transcript}
               onChange={(event) => updateTranscript(event.target.value)}
               placeholder="Ex. Sur la ligne peinture murale, passe le prix à 35 euros et mets le devis en Validé."
             />
-            <div className={styles.actions}>
-              <button onClick={close}>Annuler</button>
-              <button className={styles.primary} onClick={() => void analyse()} disabled={busy || !transcript.trim()}>Analyser</button>
-            </div>
+            <button className="ava-primary" onClick={() => void analyse()} disabled={!transcript.trim()}>Analyser</button>
+            <button className="ava-secondary" onClick={close}>Annuler</button>
           </>
         )}
 
         {stage === "review" && command && (
-          <div className={styles.review}>
+          <div className="ava-voice-edit-review">
             <small>Vérification avant application</small>
             <strong>{command.summary}</strong>
-            <ul className={styles.changeList}>{changes.map((item) => <li key={item}>{item}</li>)}</ul>
-            <div className={styles.actions}>
-              <button onClick={() => { setCommand(null); setStage("ready"); }}>Corriger la demande</button>
-              <button className={styles.primary} onClick={() => void apply()}>Appliquer</button>
-            </div>
+            <ul>{changes.map((item, index) => <li key={index}>{item}</li>)}</ul>
+            <button className="ava-primary" onClick={() => void apply()}>Appliquer</button>
+            <button className="ava-secondary" onClick={() => { setCommand(null); setStage("ready"); }}>Corriger la demande</button>
           </div>
         )}
 
-        {stage === "applied" && <div className={styles.review}><small>Terminé</small><strong>La modification a été enregistrée.</strong></div>}
-        {message && <p className={styles.message}>{message}</p>}
-      </section>
+        {stage === "applied" && <div className="ava-confirmation"><strong>La modification a été enregistrée.</strong></div>}
+        {message && <div className="ava-message" role="status">{message}</div>}
+        </div>
+      </section>}
     </div>
   );
 }

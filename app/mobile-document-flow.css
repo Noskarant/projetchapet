@@ -31,14 +31,14 @@
   .rm-document-focus > header small {
     display: block;
     color: #8ca3c8;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 850;
     letter-spacing: 1.2px;
   }
 
   .rm-document-focus > header h2 {
     margin: 3px 0 0;
-    font-size: 17px;
+    font-size: 18px;
     line-height: 1;
   }
 
@@ -83,7 +83,7 @@
     border-radius: 999px;
     color: #fff;
     background: #f97316;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 850;
   }
 
@@ -110,13 +110,13 @@
 
   .rm-focus-dates small {
     color: #9da8b8;
-    font-size: 8px;
+    font-size: 9px;
   }
 
   .rm-focus-dates strong {
     margin-top: 3px;
     overflow: hidden;
-    font-size: 10px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -131,7 +131,7 @@
 
   .rm-focus-client strong {
     overflow: hidden;
-    font-size: 13px;
+    font-size: 14px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -140,7 +140,7 @@
     margin-top: 3px;
     overflow: hidden;
     color: #6b7280;
-    font-size: 9px;
+    font-size: 10px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -167,7 +167,7 @@
     min-height: 45px;
     padding: 0 10px;
     border-radius: 13px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 850;
   }
 
@@ -195,7 +195,7 @@
   .rm-document-focus > footer button {
     min-height: 40px;
     border-radius: 11px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .rm-document-focus > footer button:last-child {
@@ -220,7 +220,7 @@
 
   .rm-focus-action-menu > strong {
     margin-bottom: 4px;
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .rm-focus-action-menu > button {
@@ -230,7 +230,7 @@
     border-radius: 12px;
     color: #fff;
     background: #111b2d;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
   }
 
@@ -306,11 +306,11 @@
 
   @media (max-width: 380px) {
     .rm-focus-primary-actions button {
-      font-size: 9px;
+      font-size: 10px;
     }
 
     .rm-v2-editor > footer strong {
-      font-size: 15px;
+      font-size: 16px;
     }
   }
 }

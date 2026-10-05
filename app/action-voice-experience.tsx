@@ -96,7 +96,7 @@ export function VoiceListeningVisualizer({ level, activity, reactive, onFinish, 
   );
 }
 
-export function VoiceProcessingVisualizer({ onClose }: VoiceOverlayProps) {
+export function VoiceProcessingVisualizer({ onClose, label, closeDisabled = false }: VoiceOverlayProps & { label?: string; closeDisabled?: boolean }) {
   const [longWait, setLongWait] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
@@ -111,12 +111,12 @@ export function VoiceProcessingVisualizer({ onClose }: VoiceOverlayProps) {
     <div className={`ava-voice-immersive ava-voice-processing ${longWait ? "long-wait" : ""}`} data-testid="voice-processing-visualizer">
       <div className="ava-voice-processing-surface" role="status" aria-live="polite">
         <span className="ava-mascot-stage"><ManufeoMascot mood={mascotPreparationMood(elapsed)} /></span>
-        <span className="ava-voice-listening-state">MANUFEO prépare</span>
+        <span className="ava-voice-listening-state">{label || 'MANUFEO prépare'}</span>
         <span className="ava-voice-processing-message">
-          {longWait ? "Encore un peu de patience, MANUFEO finalise…" : "MANUFEO construit votre demande…"}
+          {label ? 'La modification sera visible une fois enregistrée.' : longWait ? "Encore un peu de patience, MANUFEO finalise…" : "MANUFEO construit votre demande…"}
         </span>
       </div>
-      <button type="button" className="ava-voice-immersive-close" aria-label="Fermer" onClick={onClose}>
+      <button type="button" className="ava-voice-immersive-close" aria-label="Fermer" onClick={onClose} disabled={closeDisabled}>
         <X size={20} />
       </button>
     </div>

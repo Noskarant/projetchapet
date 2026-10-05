@@ -58,7 +58,7 @@
   .mai-target-label {
     display: block;
     color: #8ca4c8;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 900;
     letter-spacing: 1.2px;
   }
@@ -102,7 +102,7 @@
   .mai-intro span {
     max-width: 330px;
     color: #9aa8bb;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.5;
   }
 
@@ -137,13 +137,13 @@
   }
 
   .mai-choices button strong {
-    font-size: 17px;
+    font-size: 18px;
   }
 
   .mai-choices button small {
     margin-top: 5px;
     color: #7c8798;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.35;
   }
 
@@ -183,7 +183,7 @@
   .mai-capture > p {
     margin: 0 0 6px;
     color: #9ba9bc;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.45;
   }
 
@@ -198,7 +198,7 @@
     color: #edf4ff;
     background: rgba(255,255,255,.055);
     font: inherit;
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.5;
     text-align: left;
   }
@@ -212,7 +212,7 @@
     border-radius: 12px;
     color: #ffd39f;
     background: rgba(180,91,18,.13);
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.4;
     text-align: left;
   }
@@ -222,7 +222,7 @@
     width: 100%;
     min-height: 52px;
     border-radius: 15px;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 850;
   }
 
@@ -265,7 +265,7 @@
   .mai-success small {
     margin-top: 3px;
     color: #9bacbd;
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .mai-review-card,
@@ -280,9 +280,9 @@
     text-align: left;
   }
 
-  .mai-review-card > strong { font-size: 17px; }
-  .mai-review-card > span { color: #4d5c70; font-size: 12px; }
-  .mai-review-card > small { color: #8791a0; font-size: 11px; }
+  .mai-review-card > strong { font-size: 18px; }
+  .mai-review-card > span { color: #4d5c70; font-size: 13px; }
+  .mai-review-card > small { color: #8791a0; font-size: 12px; }
 
   .mai-lines > div,
   .mai-applied-lines > div:not(.mai-applied-heading) {
@@ -305,7 +305,7 @@
   .mai-applied-lines > div small {
     margin-top: 4px;
     color: #8791a0;
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .mai-applied-lines {
@@ -327,7 +327,7 @@
     border-radius: 99px;
     color: #2466a5;
     background: #e8f1fb;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 900;
   }
 

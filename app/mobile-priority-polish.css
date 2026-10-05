@@ -10,7 +10,7 @@
 
   .rm-header h1 {
     margin-bottom: 4px;
-    font-size: 19px;
+    font-size: 20px;
   }
 
   .rm-header-menu,
@@ -39,7 +39,7 @@
 
   .rm-search input {
     height: 42px;
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .rm-segmented {
@@ -50,7 +50,7 @@
   .rm-segmented button {
     min-height: 33px;
     border-radius: 9px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .rm-list {
@@ -66,23 +66,23 @@
 
   .rm-document-main strong {
     margin-bottom: 4px;
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .rm-document-main small,
   .rm-document-side small {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .rm-document-side strong {
     margin-bottom: 7px;
-    font-size: 17px;
+    font-size: 18px;
   }
 
   .rm-status {
     margin-top: 7px;
     padding: 5px 10px;
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .rm-client-card {
@@ -99,12 +99,12 @@
   }
 
   .rm-client-card strong {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .rm-client-card small,
   .rm-client-card div > span {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .rm-list-scroll,
@@ -127,7 +127,7 @@
 
   .rm-bottom-nav button {
     gap: 2px;
-    font-size: 8px;
+    font-size: 9px;
   }
 
   .rm-bottom-nav button svg {
@@ -154,13 +154,13 @@
   }
 
   .rm-create-main > span {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 850;
   }
 
   .rm-create-main > small {
     color: rgba(255, 255, 255, 0.78);
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
   }
 
@@ -178,7 +178,7 @@
   }
 
   .rm-create-manual span {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 850;
   }
 
@@ -190,11 +190,11 @@
   .rm-agenda-summary button {
     min-height: 48px;
     border-radius: 12px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .rm-agenda-summary button strong {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .rm-agenda-list button {
@@ -333,7 +333,7 @@
 
   .forgeo-voice-title {
     max-width: 310px;
-    font-size: 19px;
+    font-size: 20px;
     line-height: 1.15;
     letter-spacing: -.25px;
   }
@@ -341,7 +341,7 @@
   .forgeo-voice-detail {
     max-width: 310px;
     color: #9fb0c8;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.4;
   }
 
