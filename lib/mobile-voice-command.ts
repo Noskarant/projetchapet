@@ -209,6 +209,8 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
   if (command.entity === "quote") {
     const current = workspace.quotes.find((item) => item.id === command.id);
     if (!current) return workspace;
+    if (command.line_order_only) return { ...workspace, quotes: workspace.quotes.map(quote => quote.id === current.id
+      ? { ...current, items: applyLineOrder(current.items, command.line_order) } : quote) };
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
     const items = applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order);
     const quote: MobileQuote = normalizeQuote({
@@ -231,6 +233,8 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
   if (command.entity === "invoice") {
     const current = workspace.invoices.find((item) => item.id === command.id);
     if (!current) return workspace;
+    if (command.line_order_only) return { ...workspace, invoices: workspace.invoices.map(invoice => invoice.id === current.id
+      ? { ...current, items: applyLineOrder(current.items, command.line_order) } : invoice) };
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
     const items = applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order);
     const status = invoiceStatus(changes.status) || current.status;

@@ -21,6 +21,8 @@ test('classement vocal des pièces : devis et facture conservent chaque ligne et
     const workspace = seedMobileWorkspace();
     const document = entity === 'quote' ? workspace.quotes[0] : workspace.invoices[0];
     document.items = structuredClone(lines); Object.assign(document, calculateTotals(lines));
+    // Reordering must retain stored accounting totals, including any server adjustment.
+    document.total -= 150;
     const before = structuredClone(document);
     const fallback = fallbackMobileVoiceCommand('Rassemble les postes de la salle de bain ensemble et ceux de la cuisine ensemble.', { entity, id: document.id, data: document }, workspace);
     // Even an omitted or incorrect model order must not undo deterministic grouping.
