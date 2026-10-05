@@ -24,6 +24,7 @@ export default function LocalWeather() {
   const request = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const locating = useRef(false);
+  const root = useRef<HTMLDivElement | null>(null);
 
   const locate = useCallback(() => {
     if (!navigator.geolocation) { setMessage('La localisation n’est pas disponible dans ce navigateur.'); return; }
@@ -59,7 +60,7 @@ export default function LocalWeather() {
         if (!mounted.current) return;
         if (permission?.state === 'granted') {
           if (cached && cached.expires > Date.now()) setWeather(cached.weather);
-          else { setWeather(null); locate(); }
+          else locate();
         }
       } catch { /* Safari can require an explicit tap to activate location. */ }
     };
@@ -69,11 +70,22 @@ export default function LocalWeather() {
     return () => { mounted.current = false; request.current?.abort(); window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); };
   }, [locate]);
 
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [open]);
+
   const { Icon, label } = weather ? weatherAppearance(weather.symbol) : { Icon: CloudSun, label: 'Météo locale' };
-  return <div className="rm-local-weather">
+  return <div className="rm-local-weather" ref={root}>
     <button type="button" className="rm-weather-button" aria-expanded={open} aria-label={weather ? `Météo locale : ${label}, ${weather.temperature} degrés` : 'Activer la météo locale'}
       onClick={() => { setOpen(!open); if (!weather && !busy) locate(); }}>
-      {busy ? <Loader2 size={18} className="ava-spin" /> : <Icon size={19} />}{weather && <span>{weather.temperature}°</span>}
+      {busy && !weather ? <Loader2 size={18} className="ava-spin" /> : <Icon size={19} />}
     </button>
     {open && <div className="rm-weather-detail" role="status">
       <strong>{weather ? `${label} · ${weather.temperature} °C` : 'Météo locale'}</strong>
