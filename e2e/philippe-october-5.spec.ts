@@ -66,6 +66,11 @@ async function fixture(page: Page, width = 390, geo: 'prompt' | 'granted' | 'den
 
 for (const width of [320, 820, 1440]) for (const entity of ['Devis', 'Factures']) test(`${entity} à ${width}px : recherche, gros bouton IA et modification vocale uniforme sans changer les montants`, async ({ page }, testInfo) => {
   const { errors } = await fixture(page, width);
+  const weather = page.locator('.rm-header-actions .rm-weather-button');
+  await expect(weather).toBeVisible();
+  const weatherBox = await weather.boundingBox();
+  const mascotBox = await page.getByRole('button', { name: 'Questions à MANUFEO' }).boundingBox();
+  expect(weatherBox!.x + weatherBox!.width).toBeLessThanOrEqual(mascotBox!.x);
   await page.getByRole('button', { name: 'Accueil', exact: true }).click();
   const homeAi = await page.locator('.rm-create-main').boundingBox();
   const homeManual = await page.locator('.rm-create-manual').boundingBox();
@@ -75,6 +80,7 @@ for (const width of [320, 820, 1440]) for (const entity of ['Devis', 'Factures']
   expect(homeManual!.width).toBe(width < 768 ? 96 : 140);
   await page.screenshot({ path: testInfo.outputPath('home.png') });
   await page.getByRole('button', { name: entity, exact: true }).click();
+  await expect(weather).toBeVisible();
   const search = page.getByPlaceholder(entity === 'Devis' ? 'Rechercher un devis' : 'Rechercher une facture');
   expect(await search.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(0, 0, 0)');
   expect(await search.evaluate(el => getComputedStyle(el.parentElement!).borderTopColor)).toBe('rgb(255, 255, 255)');
@@ -119,6 +125,18 @@ test('météo : localisation à la demande et erreur de permission sans bloquer 
   await expect(activate).toBeVisible(); expect(state.weather).toBe(0);
   await activate.click(); await expect(page.getByRole('button', { name: /Météo locale : Éclaircies, 13 degrés/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /MET Norway/ })).toBeVisible(); expect(state.weather).toBe(1);
+  await page.setViewportSize({ width: 320, height: 844 });
+  const detail = await page.locator('.rm-weather-detail').boundingBox();
+  expect(detail!.x).toBeGreaterThanOrEqual(0); expect(detail!.x + detail!.width).toBeLessThanOrEqual(320);
+  for (const tab of ['Devis', 'Factures', 'Clients', 'Agenda', 'Accueil']) {
+    await page.getByRole('button', { name: tab, exact: true }).click();
+    await expect(page.locator('.rm-header-actions').getByRole('button', { name: /Météo locale : Éclaircies, 13 degrés/ })).toBeVisible();
+    await expect(page.locator('.rm-weather-detail')).toHaveCount(0);
+  }
+  expect(state.weather).toBe(1);
+  await page.locator('.rm-weather-button').click();
+  await expect(page.locator('.rm-weather-detail')).toContainText('Éclaircies · 13 °C');
+  await page.keyboard.press('Escape'); await expect(page.locator('.rm-weather-detail')).toHaveCount(0);
   await page.getByRole('button', { name: 'Devis', exact: true }).click(); await expect(page.getByPlaceholder('Rechercher un devis')).toBeVisible();
   expect(errors).toEqual([]);
 });
