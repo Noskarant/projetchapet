@@ -206,7 +206,7 @@ test('météo refusée : message discret, aucune requête et navigation disponib
   expect(errors).toEqual([]);
 });
 
-for (const width of [320, 390, 820]) test(`carte météo à ${width}px : semaine, créneaux, source discrète et fermeture`, async ({ page }, testInfo) => {
+for (const width of [320, 390, 428, 820]) test(`carte météo à ${width}px : semaine, créneaux, source discrète et fermeture`, async ({ page }, testInfo) => {
   const { errors, state } = await fixture(page, width);
   await page.locator('.rm-weather-button').click();
   const card = page.getByRole('dialog', { name: 'Météo locale' });
@@ -217,6 +217,14 @@ for (const width of [320, 390, 820]) test(`carte météo à ${width}px : semaine
   await card.getByRole('button', { name: 'Voir les 7 prochains jours' }).click();
   const days = card.locator('.rm-weather-day'); await expect(days).toHaveCount(7);
   await expect(days.first()).toContainText('Aujourd’hui'); await expect(days.nth(1)).toContainText('Demain');
+  for (const row of await days.all()) {
+    const positions = await row.evaluate(element => {
+      const style = getComputedStyle(element), name = element.querySelector('strong')!.getBoundingClientRect(), temperature = element.querySelector('small')!.getBoundingClientRect();
+      return { left: element.getBoundingClientRect().left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft), name: name.left, temperature: temperature.left };
+    });
+    expect(Math.abs(positions.name - positions.left)).toBeLessThanOrEqual(1);
+    expect(Math.abs(positions.temperature - positions.left)).toBeLessThanOrEqual(1);
+  }
   const lastDay = await days.last().boundingBox();
   expect(await page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('.rm-weather-day')), { x: lastDay!.x + lastDay!.width / 2, y: lastDay!.y + lastDay!.height / 2 })).toBe(true);
   await card.evaluate(element => { element.scrollTop = element.scrollHeight; });
