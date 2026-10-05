@@ -26,7 +26,7 @@ const items = [
 workspace.quotes[0].items = items; Object.assign(workspace.quotes[0], calculateTotals(items));
 workspace.invoices[0].items = items; Object.assign(workspace.invoices[0], calculateTotals(items));
 
-async function fixture(page: Page, width = 390, geo: 'prompt' | 'granted' | 'denied' = 'prompt') {
+async function fixture(page: Page, width = 390, geo: 'prompt' | 'granted' | 'denied' = 'prompt', unavailable: 'city' | 'weather' | null = null) {
   await page.setViewportSize({ width, height: width > 600 ? 1000 : 844 });
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   const state = { weather: 0, locations: 0 };
@@ -41,13 +41,24 @@ async function fixture(page: Page, width = 390, geo: 'prompt' | 'granted' | 'den
     Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => { throw new DOMException('Microphone refused', 'NotAllowedError'); } } });
   }, { workspace, geo });
   await page.route('https://backend.manufeo.test/**', route => route.fulfill({ json: [] }));
+  await page.route('https://api.bigdatacloud.net/**', route => {
+    state.locations++;
+    expect(new URL(route.request().url()).searchParams.get('latitude')).toBe('45.71');
+    return route.fulfill({ status: unavailable === 'city' ? 503 : 200, json: { city: 'Oullins', localityInfo: { informative: [{ name: 'Europe/Paris' }] } } });
+  });
   await page.route('https://artisan.manufeo.test/**', async route => {
     const url = route.request().url();
     if (/\.(?:webp|svg)$/.test(url)) return route.fulfill({ contentType: url.endsWith('.svg') ? 'image/svg+xml' : 'image/webp', body: readFileSync(path.join(root, 'public', path.basename(new URL(url).pathname))) });
     if (url.includes('/api/weather?')) {
       state.weather++; const query = new URL(url).searchParams;
       expect(query.get('lat')).toBe('45.71'); expect(query.get('lon')).toBe('4.81');
-      return route.fulfill({ json: { temperature: 13, symbol: 'partlycloudy_day', time: new Date().toISOString() } });
+      const now = Date.now(), start = Math.floor(now / 3600_000) * 3600_000;
+      const slots = Array.from({ length: 72 + 20 }, (_, index) => ({
+        time: new Date(start + (index < 72 ? index : 72 + (index - 72) * 6) * 3600_000).toISOString(),
+        temperature: 13 + index % 6, symbol: 'partlycloudy_day', hours: index < 72 ? 1 : 6,
+        windKmh: 18, rainMm: index % 3 === 0 ? 0.6 : 0, minimum: null, maximum: null,
+      }));
+      return route.fulfill({ status: unavailable === 'weather' ? 503 : 200, json: { temperature: 13, symbol: 'partlycloudy_day', time: new Date(now).toISOString(), slots } });
     }
     if (url.endsWith('/api/ai/command')) {
       const body = route.request().postDataJSON();
@@ -124,7 +135,12 @@ test('météo : localisation à la demande et erreur de permission sans bloquer 
   const activate = page.getByRole('button', { name: 'Activer la météo locale' });
   await expect(activate).toBeVisible(); expect(state.weather).toBe(0);
   await activate.click(); await expect(page.getByRole('button', { name: /Météo locale : Éclaircies, 13 degrés/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: /MET Norway/ })).toBeVisible(); expect(state.weather).toBe(1);
+  await expect(page.getByRole('heading', { name: 'Oullins' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /MET Norway/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Informations météo' }).click();
+  await expect(page.getByRole('link', { name: /MET Norway/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Informations météo' }).click();
+  expect(state.weather).toBe(1); expect(state.locations).toBe(1);
   await page.setViewportSize({ width: 320, height: 844 });
   const detail = await page.locator('.rm-weather-detail').boundingBox();
   expect(detail!.x).toBeGreaterThanOrEqual(0); expect(detail!.x + detail!.width).toBeLessThanOrEqual(320);
@@ -135,7 +151,7 @@ test('météo : localisation à la demande et erreur de permission sans bloquer 
   }
   expect(state.weather).toBe(1);
   await page.locator('.rm-weather-button').click();
-  await expect(page.locator('.rm-weather-detail')).toContainText('Éclaircies · 13 °C');
+  await expect(page.locator('.rm-weather-current')).toContainText('13 °C');
   await page.keyboard.press('Escape'); await expect(page.locator('.rm-weather-detail')).toHaveCount(0);
   await page.getByRole('button', { name: 'Devis', exact: true }).click(); await expect(page.getByPlaceholder('Rechercher un devis')).toBeVisible();
   expect(errors).toEqual([]);
@@ -188,4 +204,52 @@ test('météo refusée : message discret, aucune requête et navigation disponib
   await expect(page.getByRole('status')).toContainText('Autorise la localisation'); expect(state.weather).toBe(0);
   await page.getByRole('button', { name: 'Factures', exact: true }).click(); await expect(page.getByPlaceholder('Rechercher une facture')).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+for (const width of [320, 390, 820]) test(`carte météo à ${width}px : semaine, créneaux, source discrète et fermeture`, async ({ page }, testInfo) => {
+  const { errors, state } = await fixture(page, width);
+  await page.locator('.rm-weather-button').click();
+  const card = page.getByRole('dialog', { name: 'Météo locale' });
+  await expect(card.getByRole('heading', { name: 'Oullins' })).toBeVisible();
+  await expect(card.getByText('Les prochaines heures', { exact: true })).toBeVisible();
+  await expect(card.getByRole('link')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath(`weather-now-${width}.png`) });
+  await card.getByRole('button', { name: 'Voir les 7 prochains jours' }).click();
+  const days = card.locator('.rm-weather-day'); await expect(days).toHaveCount(7);
+  await expect(days.first()).toContainText('Aujourd’hui'); await expect(days.nth(1)).toContainText('Demain');
+  await page.screenshot({ path: testInfo.outputPath(`weather-week-${width}.png`) });
+  await days.last().click();
+  await expect(card).toContainText('Prévisions par créneau de 6 h');
+  await expect(card.locator('.rm-weather-slot').first()).toBeVisible();
+  await expect(card).toContainText('km/h');
+  const bounds = await card.boundingBox(); expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(width > 600 ? 1000 : 844);
+  expect(await card.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath(`weather-day-${width}.png`) });
+  await card.getByRole('button', { name: 'Retour à la semaine' }).click();
+  await expect(days).toHaveCount(7);
+  await card.getByRole('button', { name: 'Retour à la météo actuelle' }).click();
+  await card.getByRole('button', { name: /^Demain/ }).click();
+  await expect(card).toContainText('Prévisions heure par heure');
+  await card.getByRole('button', { name: 'Fermer la météo' }).click();
+  await expect(card).toHaveCount(0); await expect(page.locator('.rm-weather-button')).toBeFocused();
+  expect(state.locations).toBe(1); expect(state.weather).toBe(1); expect(errors).toEqual([]);
+});
+
+test('nom de ville indisponible : météo et semaine restent accessibles', async ({ page }) => {
+  const { errors } = await fixture(page, 390, 'prompt', 'city');
+  await page.locator('.rm-weather-button').click();
+  await expect(page.getByRole('heading', { name: 'Près de toi' })).toBeVisible();
+  await expect(page.locator('.rm-weather-current')).toContainText('13 °C');
+  await page.getByRole('button', { name: 'Voir les 7 prochains jours' }).click();
+  await expect(page.locator('.rm-weather-day')).toHaveCount(7); expect(errors).toEqual([]);
+});
+
+test('fournisseur météo indisponible : message simple, réessayer et navigation fonctionnelle', async ({ page }) => {
+  const { errors } = await fixture(page, 390, 'prompt', 'weather');
+  await page.locator('.rm-weather-button').click();
+  await expect(page.getByRole('status')).toContainText('La météo est momentanément indisponible');
+  await expect(page.getByRole('button', { name: 'Réessayer' })).toBeVisible();
+  await expect(page.getByRole('dialog')).not.toContainText('503');
+  await page.getByRole('button', { name: 'Factures', exact: true }).click();
+  await expect(page.getByPlaceholder('Rechercher une facture')).toBeVisible(); expect(errors).toEqual([]);
 });

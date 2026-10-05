@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/api-guard';
-import { readLocalWeather, weatherCoordinates } from '@/lib/local-weather';
+import { readWeatherForecast, weatherCoordinates } from '@/lib/local-weather';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const response = await fetch(url, { headers: { 'User-Agent': 'MANUFEO/1.0 https://github.com/Noskarant/projetchapet' },
       signal: AbortSignal.timeout(8000), next: { revalidate: 1800 } });
     if (!response.ok) throw new Error('Weather unavailable');
-    const weather = readLocalWeather(await response.json());
+    const weather = readWeatherForecast(await response.json());
     if (!weather) throw new Error('Weather unavailable');
     return NextResponse.json(weather);
   } catch {
