@@ -1,12 +1,12 @@
 @media all {
   html {
-    font-size: 18px;
+    font-size: 19px;
     -webkit-text-size-adjust: 115%;
     text-size-adjust: 115%;
   }
 
   body {
-    font-size: 18px !important;
+    font-size: 19px !important;
   }
 
   .pc-content {
@@ -37,7 +37,7 @@
 
   .pc-heading > div > span,
   .pc-heading > div > p {
-    font-size: 16px !important;
+    font-size: 17px !important;
     line-height: 1.45 !important;
   }
 
@@ -51,7 +51,7 @@
   .pc-heading .pc-secondary {
     min-height: 58px !important;
     padding: 0 20px !important;
-    font-size: 18px !important;
+    font-size: 19px !important;
     line-height: 1.15 !important;
   }
 
@@ -67,7 +67,7 @@
   input,
   select,
   textarea {
-    font-size: 18px !important;
+    font-size: 19px !important;
   }
 
   .pc-filter-row,
@@ -82,7 +82,7 @@
   .pc-status-filters button {
     min-height: 48px !important;
     padding: 0 17px !important;
-    font-size: 16px !important;
+    font-size: 17px !important;
     flex: 0 0 auto !important;
   }
 
@@ -112,7 +112,7 @@
   .pc-list-card small,
   .pc-document-card p,
   .pc-list-card p {
-    font-size: 16px !important;
+    font-size: 17px !important;
     line-height: 1.45 !important;
   }
 
@@ -125,7 +125,7 @@
   .pc-pill {
     min-height: 38px !important;
     padding: 0 14px !important;
-    font-size: 15px !important;
+    font-size: 16px !important;
   }
 
   .pc-kpi-grid {
@@ -140,7 +140,7 @@
 
   .pc-kpi-card span,
   .pc-kpi-card p {
-    font-size: 17px !important;
+    font-size: 18px !important;
   }
 
   .pc-kpi-card strong {
@@ -154,7 +154,7 @@
   }
 
   .pc-mobile-nav button span {
-    font-size: 14px !important;
+    font-size: 15px !important;
   }
 
   .pc-mobile-nav button svg {
@@ -171,7 +171,7 @@
   }
 
   .pc-crud-modal {
-    font-size: 18px !important;
+    font-size: 19px !important;
   }
 
   .pc-crud-modal > header {
@@ -193,7 +193,7 @@
   }
 
   .pc-document-summary span {
-    font-size: 16px !important;
+    font-size: 17px !important;
   }
 
   .pc-document-summary strong {
@@ -201,7 +201,7 @@
   }
 
   .pc-document-lines {
-    font-size: 17px !important;
+    font-size: 18px !important;
   }
 
   .pc-document-lines .head,
@@ -210,12 +210,12 @@
   }
 
   .pc-document-lines strong {
-    font-size: 18px !important;
+    font-size: 19px !important;
   }
 
   .pc-document-bottom,
   .pc-totals {
-    font-size: 18px !important;
+    font-size: 19px !important;
   }
 
   .pc-totals .total strong {

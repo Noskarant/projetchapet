@@ -37,7 +37,7 @@
 .ava-mascot-stage .manufeo-mascot{width:clamp(104px,13vw,150px);height:clamp(130px,16.25vw,187px);position:relative}
 .ava-voice-preview-stage .ava-mascot-stage .manufeo-mascot{width:72px;height:90px}
 .ava-mascot-preview{width:66px;height:82px}
-.ava-review-mascot{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 0;color:#476b5c;font-size:12px}
+.ava-review-mascot{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 0;color:#476b5c;font-size:13px}
 .ava-review-mascot .manufeo-mascot{width:56px;height:70px}
 .ava-success>.manufeo-mascot{width:88px;height:110px}
 .manufeo-mascot-welcome{position:fixed;right:16px;bottom:calc(160px + env(safe-area-inset-bottom));z-index:1000;display:flex;align-items:center;gap:4px;max-width:calc(100vw - 24px);pointer-events:none}
@@ -49,9 +49,9 @@
 .manufeo-mascot-message strong{display:block;margin-bottom:4px}
 .manufeo-mascot-message button{display:block;margin-top:8px;border:0;border-radius:9px;background:#1a6651;color:white;padding:7px 10px;font:inherit;cursor:pointer}
 .manufeo-mascot-info{position:absolute;right:0;top:-6px;width:24px;height:24px;border-radius:50%;border:1px solid #8aa6ac66;background:#111e2b;color:#d0e6e1;cursor:pointer;font:700 12px system-ui}
-.manufeo-mascot-hide{position:absolute;left:-5px;top:-8px;width:22px;height:22px;border:1px solid #ffffff25;border-radius:50%;background:#111e2b;color:#b4c8d5;cursor:pointer;font-size:14px}
+.manufeo-mascot-hide{position:absolute;left:-5px;top:-8px;width:22px;height:22px;border:1px solid #ffffff25;border-radius:50%;background:#111e2b;color:#b4c8d5;cursor:pointer;font-size:15px}
 .rm-header-actions button.manufeo-help-launcher{flex:none;min-width:40px;min-height:40px;padding:2px;overflow:hidden}
 .rm-header-actions .manufeo-help-launcher .manufeo-mascot{width:28px;height:35px;filter:none}
 .manufeo-help-launcher:focus-visible{outline:2px solid #68d8bd;outline-offset:2px}
-@media(max-width:600px){.ava-mascot-stage .manufeo-mascot{width:104px;height:130px}.manufeo-mascot-welcome{right:10px}.manufeo-mascot-toggle .manufeo-mascot{width:52px;height:65px}.manufeo-mascot-message{max-width:205px;font-size:12px}}
+@media(max-width:600px){.ava-mascot-stage .manufeo-mascot{width:104px;height:130px}.manufeo-mascot-welcome{right:10px}.manufeo-mascot-toggle .manufeo-mascot{width:52px;height:65px}.manufeo-mascot-message{max-width:205px;font-size:13px}}
 @media(prefers-reduced-motion:reduce){.manufeo-mascot *, .manufeo-mascot *::before{animation:none!important;transition:none!important}}

@@ -535,7 +535,7 @@ export default function MobileVoiceEditAssistant() {
     <div className={`ava-overlay${immersive ? ' ava-overlay-immersive' : ''}`} role="dialog" aria-modal="true" aria-label="Modifier à la voix">
       {stage === 'starting' ? <VoiceStartingVisualizer onClose={close} />
         : stage === 'recording' ? <VoiceListeningVisualizer level={micLevel} activity={micLevel} reactive={Boolean(pcmRef.current)} onFinish={() => void stopRecording()} onClose={close} />
-        : busy ? <VoiceProcessingVisualizer onClose={close} />
+        : busy ? <VoiceProcessingVisualizer onClose={close} label={applying.current ? message : undefined} closeDisabled={applying.current} />
         : <section className="ava-panel">
         <header className="ava-header">
           <div><small>MANUFEO · MODIFICATION</small><h2>Modifier à la voix</h2></div>

@@ -16,7 +16,7 @@
   background: #eff6ff;
   color: #123c70;
   box-shadow: 0 8px 24px rgba(16, 43, 80, .10);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -43,19 +43,19 @@
 .composerHeader h3 {
   margin: 4px 0 4px;
   color: #102b50;
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.25;
 }
 
 .composerHeader p {
   margin: 0;
   color: #63758a;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .eyebrow {
   color: #0875f5;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: .12em;
 }
@@ -84,7 +84,7 @@
   background: transparent;
   color: #5e7085;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -105,7 +105,7 @@
   display: grid;
   gap: 6px;
   color: #334a64;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -180,7 +180,7 @@
   min-height: 38px;
   padding: 8px 12px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -220,13 +220,13 @@
 
 .voiceReady {
   color: #257144;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
 .warning {
   color: #94610a;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .filePicker,
@@ -240,7 +240,7 @@
   border-radius: 10px;
   color: #355773;
   background: #fbfcfe;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -267,7 +267,7 @@
   display: grid;
   gap: 7px;
   color: #334a64;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -281,7 +281,7 @@
 .mentionActive {
   padding: 6px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -309,7 +309,7 @@
   align-items: center;
   gap: 6px;
   color: #52667c;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -435,12 +435,12 @@
   gap: 6px;
   min-width: 0;
   color: #718096;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .cardIdentity strong {
   color: #2d4661;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .typeBadge,
@@ -452,7 +452,7 @@
   align-items: center;
   gap: 4px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -504,7 +504,7 @@
   border-radius: 9px;
   background: #f9fbfd;
   color: #3a536d;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -518,7 +518,7 @@
   color: #203a55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.55;
 }
 
@@ -603,7 +603,7 @@
   padding: 7px 8px;
   border-top: 1px solid #e5ebf2;
   color: #708196;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .attachmentMeta span:first-of-type {
@@ -632,7 +632,7 @@
   padding-top: 9px;
   border-top: 1px solid #edf1f5;
   color: #8593a3;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .editBox {
@@ -656,7 +656,7 @@
   background: #fbfcfe;
   color: #718196;
   text-align: center;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .spinning {
