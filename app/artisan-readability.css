@@ -1,14 +1,15 @@
 /* Field controls: a small typography increase, one consistent voice surface. */
-.rm-shell { font-size: 1.0625rem; }
+.rm-shell { font-size: 1.0625rem; --rm-create-height: 84px; }
 .rm-shell :is(input, textarea, select) { font-size: max(1rem, 16px); }
 .rm-shell :is(.rm-header-menu, .rm-header-actions button) { min-width: 40px; min-height: 40px; }
 .rm-shell .rm-header { min-height: calc(58px + env(safe-area-inset-top)); }
 .rm-shell .rm-content { top: calc(58px + env(safe-area-inset-top)); }
-.rm-shell .rm-create-dock { height: 88px; }
-.rm-shell .rm-create-main { min-height: 88px; border-radius: 20px; gap: 5px; }
+.rm-shell .rm-create-dock { height: var(--rm-create-height); }
+.rm-shell :is(.rm-create-main, .rm-create-manual) { height: 100%; min-height: var(--rm-create-height); }
+.rm-shell .rm-create-main { border-radius: 20px; gap: 5px; }
 .rm-shell .rm-create-main > span { font-size: 1.125rem; }
 .rm-shell .rm-create-main > small { font-size: .75rem; }
-.rm-shell .rm-create-manual { align-self: end; min-height: 48px; }
+.rm-shell .rm-create-manual { align-self: stretch; }
 .rm-shell .rm-scroll-area { padding-bottom: 166px; }
 .rm-shell .rm-search:has(input[placeholder="Rechercher un devis"]),
 .rm-shell .rm-search:has(input[placeholder="Rechercher une facture"]) {
@@ -34,7 +35,6 @@
 .rm-weather-detail a { font-size: .75rem; color: #476a87; }
 .rm-weather-detail button { min-height: 40px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; color: #18344c; }
 @media (min-width: 768px) {
+  .rm-shell { --rm-create-height: 92px; }
   .rm-shell .rm-content { top: calc(72px + env(safe-area-inset-top)); }
-  .rm-shell .rm-create-dock { height: 96px; }
-  .rm-shell .rm-create-main { min-height: 96px; }
 }
