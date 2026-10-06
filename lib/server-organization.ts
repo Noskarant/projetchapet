@@ -2,6 +2,7 @@ import { assertActiveSession } from "./session-security";
 import { createClient } from "@supabase/supabase-js";
 import type { OrganizationRole } from "./pilot-operations";
 import { isOrganizationRole } from "./pilot-operations";
+import { supabasePublicConfig } from "./supabase-config";
 
 export class OrganizationAuthError extends Error {
   status: number;
@@ -13,10 +14,9 @@ export class OrganizationAuthError extends Error {
 }
 
 export function createServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new OrganizationAuthError("Service serveur indisponible.", 503);
-  return createClient(url, serviceKey, {
+  if (!serviceKey) throw new OrganizationAuthError("Service serveur indisponible.", 503);
+  return createClient(supabasePublicConfig.url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
 }

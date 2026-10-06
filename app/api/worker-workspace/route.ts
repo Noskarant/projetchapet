@@ -1,4 +1,4 @@
-import { requireOrganization, requireRole } from '@/lib/server-organization';
+import { requireOrganization, requireRole, OrganizationAuthError, organizationErrorResponse } from '@/lib/server-organization';
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from '@/lib/api-guard';
 async function workerContext(request:Request){
  const context=await requireOrganization(request);requireRole(context.role,['worker','owner','admin']);
@@ -19,7 +19,7 @@ export async function GET(request:Request){try{
  if(projects.error||steps.error||photos.error)throw new Error('Chantiers indisponibles.');
  const images=[];for(const photo of photos.data||[]){const signed=await context.admin.storage.from('commercial-project-photos').createSignedUrl(photo.storage_path,600);if(signed.data)images.push({project_id:photo.project_id,id:photo.id,caption:photo.caption,url:signed.data.signedUrl});}
  return Response.json({projects:projects.data,steps:steps.data,photos:images});
-}catch(error){return errorResponse(error,'Chargement terrain impossible.');}}
+}catch(error){return error instanceof OrganizationAuthError ? organizationErrorResponse(error) : errorResponse(error,'Chargement des chantiers indisponible. Réessayez dans un instant.');}}
 export async function POST(request:Request){const limited=rateLimit(request,'worker-update',40);if(limited)return limited;try{
  const context=await workerContext(request);const body=await readJsonBody<{projectId?:unknown;stepId?:unknown;done?:unknown;photo?:unknown;name?:unknown}>(request,6000000);
  if(typeof body.projectId!=='string'||!context.projectIds.includes(body.projectId))throw new ApiInputError('Ce chantier ne vous est pas affecté.',403);
@@ -33,4 +33,4 @@ export async function POST(request:Request){const limited=rateLimit(request,'wor
  }else throw new ApiInputError('Modification invalide.');
  const bumped=await context.admin.rpc("manufeo_bump_commercial_revision",{p_organization_id:context.organizationId});if(bumped.error)throw new Error("Modification sauvegardée, synchronisation à vérifier.");
  return Response.json({saved:true});
-}catch(error){return errorResponse(error,'Mise à jour terrain impossible.');}}
+}catch(error){return error instanceof OrganizationAuthError ? organizationErrorResponse(error) : errorResponse(error,'Mise à jour terrain impossible.');}}

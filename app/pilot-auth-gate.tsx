@@ -123,12 +123,14 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const nextOrganization = await ensurePilotOrganization(session.user.id);
+        if (run !== bootstrapRun.current) return;
         if (nextOrganization.role === "worker") {
           clearPilotLocalSnapshot(window.localStorage);
           setOrganization(nextOrganization); setWorkspaceReady(true); setSyncStatus("saved"); return;
         }
         if (nextOrganization.role === "accountant") {
           const cloud = await loadPilotCloudSnapshot(nextOrganization.id);
+          if (run !== bootstrapRun.current) return;
           clearPilotLocalSnapshot(window.localStorage);
           if (cloud) writePilotLocalSnapshot(window.localStorage, cloud);
           setOrganization(nextOrganization); setWorkspaceReady(true); setSyncStatus("saved"); return;
@@ -545,7 +547,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {organization.role === "worker" ? <WorkerWorkspace /> : children}
+      {organization.role === "worker" ? <WorkerWorkspace organizationName={organization.name} accountEmail={session.user.email || ""} onAccount={() => setAccountOpen(true)} /> : children}
       <ManufeoMascotWelcome key={session.user.id} user={session.user} canUseVoice={organization.role !== "worker"} />
       <button
         type="button"
