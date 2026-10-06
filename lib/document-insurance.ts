@@ -3,14 +3,31 @@ type InsuranceSource = { insurer?: unknown; mission_reference?: unknown; case_re
 const labels = { insurer: 'Assureur', mission_reference: 'Référence mission', case_reference: 'Numéro de dossier', claim_address: 'Adresse du sinistre' } as const;
 const flat = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
 
+function exactReference(value: string, evidence: string, field: 'mission_reference' | 'case_reference') {
+  const tokens = evidence.match(/[\p{L}\p{N}]+(?:[-/][\p{L}\p{N}]+)*/gu) || [];
+  const exact = tokens.find(token => flat(token) === flat(value));
+  const label = field === 'case_reference' ? '(?:numéro|numero|n[°o])?\\s*(?:de\\s+)?dossier|référence\\s+(?:du\\s+)?(?:dossier|sinistre)' : '(?:numéro|numero|n[°o]|référence)?\\s*(?:de\\s+)?mission';
+  const identified = [...evidence.matchAll(new RegExp(`(?:${label})\\s*[:：#-]?\\s*([A-Z0-9][A-Z0-9/-]{4,79})(?![\\p{L}\\p{N}])`, 'giu'))]
+    .map(match => match[1]).filter(token => /\d/u.test(token));
+  const unique = [...new Set(identified)];
+  // An explicit, unique source label repairs a truncated/model-misread reference.
+  return unique.length === 1 ? unique[0] : exact || '';
+}
+
 /** Preserve only references present in the source; no inferred identity or payment allocation. */
 export function insuranceDocumentNotes(notes: string, raw: unknown, evidence: string) {
   const source = raw && typeof raw === 'object' ? raw as InsuranceSource : {};
   const additions: string[] = [];
   for (const [field, label] of Object.entries(labels)) {
-    const value = source[field as keyof InsuranceSource];
-    if (typeof value !== 'string' || !value.trim()) continue;
-    const clean = value.replace(/[\r\n]/g, ' ').trim().slice(0, field === 'claim_address' ? 320 : 120);
+    const reference = field === 'case_reference' || field === 'mission_reference';
+    const existing = notes.match(new RegExp(`^${label}\\s*:\\s*(.+)$`, 'imu'))?.[1];
+    const value = source[field as keyof InsuranceSource] ?? existing ?? (reference ? '' : undefined);
+    if (typeof value !== 'string' || (!reference && !value.trim())) continue;
+    let clean = value.replace(/[\r\n]/g, ' ').trim().slice(0, field === 'claim_address' ? 320 : 120);
+    if (reference) {
+      clean = exactReference(clean, evidence, field as 'case_reference' | 'mission_reference');
+      notes = notes.replace(new RegExp(`^${label}\\s*:.*(?:\\n|$)`, 'gimu'), '').trim();
+    }
     if (flat(clean).length < 2 || !flat(evidence).includes(flat(clean))) continue;
     if (!new RegExp(`^${label}\\s*:`, 'imu').test(notes)) additions.push(`${label} : ${clean}`);
   }

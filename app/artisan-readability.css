@@ -86,3 +86,7 @@
   .rm-shell { --rm-create-height: 92px; }
   .rm-shell .rm-content { top: calc(72px + env(safe-area-inset-top)); }
 }
+
+.rm-weather-permission-help { padding: 14px; border-radius: 12px; background: #ffffff0a; font-size: 14px; line-height: 1.5; color: #c3d5e9; }
+.rm-weather-permission-help strong { display: block; color: #f3f7fc; font-size: 16px; }
+.rm-weather-permission-help p { margin: 10px 0 0; }

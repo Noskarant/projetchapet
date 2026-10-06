@@ -21,7 +21,7 @@ export function spokenDiscount(transcript: string) {
   return value !== null && value >= 0 && value <= 100 ? value : null;
 }
 export function applySpokenPercentageLines(items: LineItem[], transcript: string): LineItem[] {
-  const pattern = new RegExp(`\\b(RSE|éco[- ]?participation|frais\\s+(?:de\\s+)?(?:gestion|chantier|déplacement)|(?:poste|majoration)\\s+[\\p{L}][\\p{L} -]{0,45}?)\\s*(?:(?:à|a|de)\\s*)?(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`, 'giu');
+  const pattern = new RegExp(`\\b(RSE(?:\\s+environnemental(?:e|es|s)?)?|éco[- ]?participation|frais\\s+(?:de\\s+)?(?:gestion|chantier|déplacement)|(?:poste|majoration)\\s+[\\p{L}][\\p{L} -]{0,45}?)\\s*(?:(?:à|a|de)\\s*)?(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`, 'giu');
   let result = [...items];
   for (const match of transcript.matchAll(pattern)) {
     const percent = spokenFinancialNumber(match[2]);
@@ -31,10 +31,14 @@ export function applySpokenPercentageLines(items: LineItem[], transcript: string
       .replace(/\s*\([^)]*%[^)]*\)\s*$/u, '')
       .replace(new RegExp(`\\s*(?:(?:à|a|de)\\s+)?${spokenAmountPattern}\\s*(?:%|pour\\s*cent)\\s*$`, 'iu'), '')
       .replace(/^(?:majoration|contribution|poste)\s+(?=RSE\b)/iu, '')
+      .replace(/^RSE\b.*$/iu, 'RSE')
       .trim().toLocaleLowerCase('fr-FR');
+    const existing = result.filter(item => sameAdjustment(item.label) === sameAdjustment(label));
     result = result.filter(item => sameAdjustment(item.label) !== sameAdjustment(label));
-    const rates = [...new Set(result.filter(item => linePercentage(item) === null).map(item => item.taxRate))];
-    for (const rate of rates) result.push({ id: `percent-${label}-${rate}`, label: `${label} (${percent} %)`, description: `Calcul automatique : ${percent} % du montant HT des autres postes.`, quantity: 1, unit: 'forfait', unitPrice: 0, taxRate: rate });
+    const rates = [...new Set(result.filter(item => linePercentage(item) === null && !isDeductibleLine(item)).map(item => item.taxRate))];
+    const position = result.findIndex(isDeductibleLine);
+    const additions = rates.map(rate => ({ id: existing.find(item => item.taxRate === rate)?.id || `percent-${label}-${rate}`, label: `${label} (${percent} %)`, description: `Calcul automatique : ${percent} % du montant HT des autres postes.`, quantity: 1, unit: 'forfait', unitPrice: 0, taxRate: rate }));
+    result.splice(position < 0 ? result.length : position, 0, ...additions);
   }
   return recalculatePercentageLines(result);
 }

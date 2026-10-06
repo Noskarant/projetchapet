@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { buildSync } from 'esbuild';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { seedMobileWorkspace, calculateTotals } from '../lib/mobile-prototype';
+import { seedMobileWorkspace, calculateTotals, customerDisplayName } from '../lib/mobile-prototype';
 import { fallbackMobileVoiceCommand } from '../lib/mobile-voice-command';
 
 const root = path.resolve(__dirname, '..');
@@ -89,7 +89,7 @@ for (const width of [320, 820, 1440]) for (const entity of ['Devis', 'Factures']
   expect(homeManual!.height).toBe(homeAi!.height);
   expect(homeManual!.y).toBe(homeAi!.y);
   expect(homeManual!.width).toBe(width < 768 ? 96 : 140);
-  await page.screenshot({ path: testInfo.outputPath('home.png') });
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('home.png') });
   await page.getByRole('button', { name: entity, exact: true }).click();
   await expect(weather).toBeVisible();
   const search = page.getByPlaceholder(entity === 'Devis' ? 'Rechercher un devis' : 'Rechercher une facture');
@@ -101,14 +101,14 @@ for (const width of [320, 820, 1440]) for (const entity of ['Devis', 'Factures']
   expect(await page.locator('.rm-document-main strong').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
   const list = page.locator('.rm-list-scroll'); await list.evaluate(el => el.scrollTop = el.scrollHeight);
   const card = await page.locator('.rm-document-card').first().boundingBox(); expect(card!.y + card!.height).toBeLessThanOrEqual(dock!.y);
-  await page.screenshot({ path: testInfo.outputPath('list.png') });
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('list.png') });
   await page.locator('.rm-document-card').first().click();
   await page.locator('.rm-detail-sheet').getByRole('button', { name: 'Tout modifier', exact: true }).click();
   await page.locator('.rm-v2-editor').getByRole('button', { name: 'Modifier à la voix' }).click();
   const edit = page.getByRole('dialog', { name: 'Modifier à la voix' });
   await expect(edit.locator('.ava-voice-preview .manufeo-mascot')).toBeVisible();
   const panelColor = await edit.locator('.ava-panel').evaluate(el => getComputedStyle(el).backgroundColor);
-  await page.screenshot({ path: testInfo.outputPath('voice-edit.png') });
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('voice-edit.png') });
   await edit.getByRole('textbox').fill('Rassemble les postes de la salle de bain ensemble et ceux de la cuisine ensemble.');
   await edit.getByRole('button', { name: 'Analyser', exact: true }).click();
   await expect(edit.getByRole('button', { name: 'Appliquer', exact: true })).toBeVisible();
@@ -201,8 +201,34 @@ test('météo refusée : message discret, aucune requête et navigation disponib
   const { state, errors } = await fixture(page, 390, 'denied');
   await page.getByRole('button', { name: 'Accueil', exact: true }).click();
   await page.getByRole('button', { name: 'Activer la météo locale' }).click();
-  await expect(page.getByRole('status')).toContainText('Autorise la localisation'); expect(state.weather).toBe(0);
+  await expect(page.getByRole('status')).toContainText('La localisation est bloquée'); expect(state.weather).toBe(0);
+  const help = page.locator('.rm-weather-permission-help');
+  await expect(help).toContainText('Google, Chrome ou Sites web Safari');
+  await expect(help).toContainText('Réglages du site web');
+  await page.setViewportSize({ width: 320, height: 844 });
+  expect(await help.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.getByRole('button', { name: 'Factures', exact: true }).click(); await expect(page.getByPlaceholder('Rechercher une facture')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('clients : listes et sélecteurs devis/facture en ordre alphabétique sans changer le client sélectionné', async ({ page }) => {
+  const { errors } = await fixture(page);
+  await page.getByRole('button', { name: 'Clients', exact: true }).click();
+  const names = await page.locator('.rm-client-card strong').allTextContents();
+  const key = (name: string) => name.replace(/^(?:Mme|M\.|Mr|Mlle)\s+/iu, '');
+  expect(names).toEqual([...names].sort((a, b) => key(a).localeCompare(key(b), 'fr', { sensitivity: 'base', numeric: true })));
+  for (const tab of ['Devis', 'Factures']) {
+    await page.getByRole('button', { name: tab, exact: true }).click();
+    const card = page.locator('.rm-document-card').first();
+    const customerName = (await card.locator('.rm-document-main strong').textContent())!;
+    await card.click();
+    await page.locator('.rm-detail-sheet').getByRole('button', { name: 'Tout modifier', exact: true }).click();
+    const select = page.locator('.rm-v2-editor').getByRole('combobox', { name: 'Client', exact: true });
+    const value = await select.inputValue();
+    expect(await select.locator('option').allTextContents()).toEqual(names);
+    expect(value).toBe(workspace.customers.find(customer => customerDisplayName(customer) === customerName)!.id);
+    await page.locator('.rm-v2-editor > header > button').first().click();
+  }
   expect(errors).toEqual([]);
 });
 
@@ -213,7 +239,7 @@ for (const width of [320, 390, 428, 820]) test(`carte météo à ${width}px : se
   await expect(card.getByRole('heading', { name: 'Oullins' })).toBeVisible();
   await expect(card.getByText('Les prochaines heures', { exact: true })).toBeVisible();
   await expect(card.getByRole('link')).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath(`weather-now-${width}.png`) });
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`weather-now-${width}.png`) });
   await card.getByRole('button', { name: 'Voir les 7 prochains jours' }).click();
   const days = card.locator('.rm-weather-day'); await expect(days).toHaveCount(7);
   await expect(days.first()).toContainText('Aujourd’hui'); await expect(days.nth(1)).toContainText('Demain');
@@ -230,14 +256,14 @@ for (const width of [320, 390, 428, 820]) test(`carte météo à ${width}px : se
   await card.evaluate(element => { element.scrollTop = element.scrollHeight; });
   await expect(card.getByRole('button', { name: 'Fermer la météo' })).toBeInViewport();
   await card.evaluate(element => { element.scrollTop = 0; });
-  await page.screenshot({ path: testInfo.outputPath(`weather-week-${width}.png`) });
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`weather-week-${width}.png`) });
   await days.last().click();
   await expect(card).toContainText('Prévisions par créneau de 6 h');
   await expect(card.locator('.rm-weather-slot').first()).toBeVisible();
   await expect(card).toContainText('km/h');
   const bounds = await card.boundingBox(); expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(width > 600 ? 1000 : 844);
   expect(await card.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath(`weather-day-${width}.png`) });
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`weather-day-${width}.png`) });
   await card.getByRole('button', { name: 'Retour à la semaine' }).click();
   await expect(days).toHaveCount(7);
   await card.getByRole('button', { name: 'Retour à la météo actuelle' }).click();

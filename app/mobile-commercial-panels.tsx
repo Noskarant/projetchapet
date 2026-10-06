@@ -28,7 +28,7 @@ import type {
 } from "@/lib/mobile-commercial-demo";
 import { statusOptions } from "@/lib/mobile-commercial-demo";
 import type { MobileBusinessDocument } from "@/lib/mobile-document-pdf";
-import type { MobileWorkspace } from "@/lib/mobile-prototype";
+import { sortedCustomers, type MobileWorkspace } from "@/lib/mobile-prototype";
 
 export type EmailDraft = {
   document: MobileBusinessDocument;
@@ -77,7 +77,7 @@ export function FilterPanel({
             onChange={(event) => onChange({ ...draft, customerId: event.target.value })}
           >
             <option value="">Tous les clients</option>
-            {workspace?.customers.map((customer) => (
+            {sortedCustomers(workspace?.customers || []).map((customer) => (
               <option key={customer.id} value={customer.id}>
                 {customer.kind === "Professionnel"
                   ? customer.companyName

@@ -60,7 +60,7 @@ for (const kind of ['ht','ttc'] as const) test(`franchise ${kind} : poste négat
   await expect(totals).toContainText(kind==='ttc'?'2 405,00':'2 392,50');
   await expect(totals).not.toContainText('Montant après franchise');
   await expect(totals).not.toContainText('Part client');
-  await page.screenshot({path:testInfo.outputPath('franchise.png')});
+  await page.screenshot({animations: 'disabled',path:testInfo.outputPath('franchise.png')});
   await preview.getByRole('button',{name:'Page complète',exact:true}).click();
   await expect(preview.locator('canvas').first()).toBeVisible();
   expect(errors).toEqual([]);
@@ -108,6 +108,31 @@ async function fixture(page: Page, failExtraction = false, customer = false) {
   await expect(page.getByLabel(customer ? 'Photo du client' : 'Photo du chantier')).toHaveAttribute('capture', 'environment');
   return { state, errors };
 }
+
+for (const customer of [false, true]) for (const clipboard of ['autorisé', 'refusé'] as const) test(`copier-coller un mail vers ${customer ? 'client' : 'devis'}, presse-papiers ${clipboard} : préparation sans microphone ni vision`, async ({ page }, testInfo) => {
+  const { state, errors } = await fixture(page, false, customer);
+  const text = 'Mme PIN Anne\npin@example.fr\nNuméro de dossier : F260361820H\nRéférence mission : R2600100705';
+  await page.evaluate(({ text, clipboard }) => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: async () => {
+      if (clipboard === 'refusé') throw new DOMException('Denied', 'NotAllowedError');
+      return text;
+    } } });
+  }, { text, clipboard });
+  await page.getByRole('button', { name: 'Coller le texte copié', exact: true }).click();
+  const field = page.getByRole('textbox', { name: 'Texte copié', exact: true });
+  if (clipboard === 'refusé') {
+    await expect(page.getByRole('status')).toContainText('Appuyez longtemps');
+    await expect(field).toBeFocused();
+    await field.fill(text);
+  }
+  await expect(field).toHaveValue(text);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('text-paste.png'), fullPage: true });
+  await page.getByRole('button', { name: customer ? 'Lire et préparer le client' : 'Préparer le devis avec mes sources', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Valider et exécuter', exact: true })).toBeVisible();
+  expect(state.plans[0].transcript).toContain(text);
+  expect(state.plans[0].sourceTarget).toBe(customer ? 'customer' : 'quote');
+  expect(state.extractions).toBe(0); expect(state.executions).toBe(0); expect(errors).toEqual([]);
+});
 
 for (const kind of ['txt', 'photo', 'pdf'] as const) test(`devis depuis ${kind} : import mobile, lecture, brouillon à relire et sauvegarde`, async ({ page }) => {
   const { state, errors } = await fixture(page);
@@ -168,12 +193,11 @@ for (const mode of ['champ','dictée','photo','sans majoration'] as const) test(
     await page.route('https://sources.manufeo.test/api/ai/quote-sources',route=>{state.extractions++;state.sources=route.request().postDataJSON().sources;return route.fulfill({json:{observations:pasted}})});
     await page.getByLabel('Documents du devis').setInputFiles({name:'devis-fournisseur.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGP8//8/AymAiSTVoxpGNQwpDQBVbQMdPVIhQwAAAABJRU5ErkJggg==','base64')});
   }else{
-    await page.getByText('Copier-coller un devis fournisseur',{exact:true}).click();
-    await page.getByRole('textbox',{name:'Texte du devis fournisseur',exact:true}).fill(pasted);
+    await page.getByRole('textbox',{name:'Texte copié',exact:true}).fill(pasted);
   }
   await page.getByRole('textbox',{name:'Demande à MANUFEO',exact:true}).fill(`Client Test. Reprendre les prestations.${mode==='dictée'?' Ajoute trente pour cent de marge.':''}`);
   if(mode==='champ'||mode==='photo')await page.getByRole('textbox',{name:'Majoration sur les prix HT (%)',exact:true}).fill('30');
-  await page.screenshot({path:testInfo.outputPath('supplier-import.png'),fullPage:true});
+  await page.screenshot({animations: 'disabled',path:testInfo.outputPath('supplier-import.png'),fullPage:true});
   await page.getByRole('button',{name:'Préparer le devis avec mes sources',exact:true}).click();
   await expect(page.getByRole('button',{name:'Valider et exécuter',exact:true})).toBeVisible();
   await expect(page.locator('.ava-action-main').first()).toContainText(mode==='sans majoration'?'4 259,30':'5 537,09');
@@ -208,7 +232,7 @@ test('envoi mobile : autre destinataire et erreur visible sans couvrir le bouton
  expect(await textarea.evaluate(element=>getComputedStyle(element).boxSizing)).toBe('border-box');
  expect(await textarea.evaluate(element=>getComputedStyle(element).paddingTop)).toBe('12px');
  expect(sends).toBe(1);expect(errors).toEqual([]);
- await page.screenshot({path:'tmp/philippe-email-mobile.png',fullPage:true});
+ await page.screenshot({animations: 'disabled',path:'tmp/philippe-email-mobile.png',fullPage:true});
 });
 
 
@@ -269,5 +293,5 @@ test('dossier photo : import multiple, sélection, erreur/réessai et envoi auto
  await page.getByLabel('Photos du chantier',{exact:true}).setInputFiles({...photo,name:'autre.png'});
  await expect(page.getByRole('checkbox',{name:'Inclure autre.png'})).toBeVisible();expect(attempts).toBe(4);
  expect(errors).toEqual([]);
- await page.screenshot({path:'tmp/philippe-project-photo-report.png',fullPage:true});
+ await page.screenshot({animations: 'disabled',path:'tmp/philippe-project-photo-report.png',fullPage:true});
 });

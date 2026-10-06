@@ -24,6 +24,7 @@ export default function LocalWeather() {
   const [place, setPlace] = useState<Place>({ city: 'Près de toi', timeZone: 'UTC' });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [permissionBlocked, setPermissionBlocked] = useState(false);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'now' | 'week' | 'day'>('now');
   const [selectedDate, setSelectedDate] = useState('');
@@ -38,7 +39,7 @@ export default function LocalWeather() {
   const locate = useCallback(() => {
     if (!navigator.geolocation) { setMessage('La localisation n’est pas disponible dans ce navigateur.'); return; }
     if (locating.current) return;
-    locating.current = true; setBusy(true); setMessage('');
+    locating.current = true; setBusy(true); setMessage(''); setPermissionBlocked(false);
     navigator.geolocation.getCurrentPosition(position => {
       if (!mounted.current) return;
       const controller = new AbortController(); request.current?.abort(); request.current = controller;
@@ -72,7 +73,8 @@ export default function LocalWeather() {
       locating.current = false;
       if (!mounted.current) return;
       setBusy(false); setWeather(null); cached = null;
-      setMessage(error.code === 1 ? 'Autorise la localisation dans ton navigateur pour afficher la météo.' : 'Ta position est momentanément indisponible. Réessaie dans un instant.');
+      setPermissionBlocked(error.code === 1);
+      setMessage(error.code === 1 ? 'La localisation est bloquée pour MANUFEO.' : 'Ta position est momentanément indisponible. Réessaie dans un instant.');
     }, { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 });
   }, []);
 
@@ -130,6 +132,12 @@ export default function LocalWeather() {
         <button type="button" className="rm-weather-icon-button" aria-label="Fermer la météo" onClick={close}><X size={20} /></button>
       </div>
       {message && <div className="rm-weather-message" role="status"><span>{message}</span><button type="button" className="rm-weather-link-button" onClick={locate} disabled={busy}>Réessayer</button></div>}
+      {permissionBlocked && <div className="rm-weather-permission-help">
+        <strong>Autoriser ma position</strong>
+        <p>Sur iPhone : Réglages → Confidentialité et sécurité → Service de localisation. Active ce service, puis autorise l’app utilisée pour ouvrir MANUFEO : Google, Chrome ou Sites web Safari (« Lorsque l’app est active » ou « Demander la prochaine fois »).</p>
+        <p>Dans le navigateur, vérifie aussi l’autorisation de localisation de manufeo.fr dans les réglages du site. Si tu utilises Safari, ouvre le menu de la page → Réglages du site web → Position → Autoriser.</p>
+        <p>Sur Android ou ordinateur : autorise la localisation pour ton navigateur et pour MANUFEO dans les paramètres du site, puis reviens ici et appuie sur Réessayer.</p>
+      </div>}
       {!weather && !message && <p role="status">{busy ? 'Recherche de la météo près de toi…' : 'Active la localisation pour afficher la météo près de toi.'}</p>}
       {weather && view === 'now' && <>
         <div className="rm-weather-current"><Icon size={44} aria-hidden="true" /><div><strong>{weather.temperature}<small> °C</small></strong><span>{label}</span></div><span className="rm-weather-now">Maintenant</span></div>

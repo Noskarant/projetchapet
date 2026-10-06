@@ -36,6 +36,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Keep the tabs above Safari's composited scrolling surface. */
+  .rm-philippe-preview-tabs {
+    position: relative;
+    z-index: 2;
+  }
+
   .rm-philippe-preview-tabs button:active,
   .rm-philippe-preview-actions button:active {
     transform: scale(0.98);

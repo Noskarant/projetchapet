@@ -42,7 +42,7 @@ export function isEmailSeparatorWarning(warning: string) {
 export function normalizeVoiceTranscript(input: string) {
   return normalizeTranscriptEmails(input)
     .replace(/(\d{1,6})\s+(?:virgule|point)\s+(\d{1,3})(?=\D|$)/giu, "$1,$2")
-    .replace(/(?<![\d,.])(\d{1,6})\s*(m(?:ètres?(?:\s+(?:carrés?|linéaires?))?|[²2l])|rouleaux?|euros?|€)\s+(\d{2})(?=\s|[.,;!?]|$)/giu, "$1,$3 $2")
+    .replace(/(?<![\d,.])(\d{1,6})\s*(m(?:ètres?(?:\s+(?:carrés?|linéaires?))?|[²2l])|rouleaux?|euros?|€)\s+(\d{2})(?!\s*(?:€|euros?|HT\b|TTC\b|hors[- ]taxes?))(?=\s|[.,;!?]|$)/giu, "$1,$3 $2")
     .replace(/\b((?:prénom|nom)\s+(?:(?:s['’]écrit|s['’]épelle|épelé)\s*)?:?\s*)((?:[a-z]\s*[,.-]?\s+){2,}[a-z])(?=\s|[.,;!?]|$)/giu,
       (_whole, prefix: string, letters: string) => `${prefix}${letters.replace(/[^a-z]/giu, "").toUpperCase()}`)
     .replace(/\b((?:s['’]épelle|s['’]écrit|lettre\s+par\s+lettre)\s*:?[ \t]*)((?:[a-z]\s*[,.-]?\s+){2,}[a-z])(?=\s|[.,;!?]|$)/giu,
@@ -116,7 +116,7 @@ export function explicitTax(phrase: string) {
 export function spokenPriceType(phrase: string): "ht" | "ttc" | null {
   const value = comparable(phrase);
   if (/(?:\bttc\b|toutes? taxes? comprises?|taxes? comprises?)/u.test(value)) return "ttc";
-  if (/(?:\bht\b|hors taxes?)/u.test(value)) return "ht";
+  if (/(?:\bht\b|hors[- ]taxes?)/u.test(value)) return "ht";
   return null;
 }
 
