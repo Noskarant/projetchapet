@@ -36,7 +36,13 @@ export default defineConfig({
     serviceWorkers: "block",
     storageState: demoStorageState,
   },
-  webServer: {
+  webServer: [{
+    command: "node scripts/e2e-offline-backend.mjs",
+    url: "http://127.0.0.1:54321/e2e-health",
+    // Fail rather than using a real local database for seeded interface tests.
+    reuseExistingServer: false,
+    env: { MANUFEO_LOCAL_HTTP_TEST: "1" },
+  }, {
     command: process.env.CI
       ? "npm run start -- --hostname 127.0.0.1"
       : "npm run dev -- --hostname 127.0.0.1",
@@ -50,7 +56,7 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_local_only",
     },
-  },
+  }],
   projects: [
     {
       name: "desktop-chromium",

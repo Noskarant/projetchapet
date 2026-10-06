@@ -5,6 +5,7 @@ const COMMERCIAL_STATE_KEY = "forgeo-commercial-state-v2";
 test("applique des filtres avancés aux devis", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit");
   await page.goto("/");
+  await expect(page.locator(".manufeo-splash")).toHaveCount(0);
 
   const filterButton = page.getByRole("button", { name: "Filtrer les devis" });
   await expect(filterButton).toBeVisible();
