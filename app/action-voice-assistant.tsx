@@ -1,4 +1,5 @@
 "use client";
+import { microphoneErrorMessage } from "@/lib/microphone-error";
 import { canCreateDirectly } from "@/lib/voice-direct-creation";
 
 import ManufeoMascot from "./manufeo-mascot";
@@ -684,7 +685,7 @@ export default function ActionVoiceAssistant() {
       if (recognitionRef.current !== recognition) return;
       recognitionRef.current = null;
       setVoiceLevel(0);
-      setMessage(event.error ? `Micro interrompu : ${event.error}` : "Micro interrompu.");
+      setMessage(microphoneErrorMessage(event.error, navigator.userAgent) ?? "La dictée a été interrompue. Réessayez ou écrivez votre demande.");
       setStage("ready");
     };
     recognition.onend = () => {
@@ -752,9 +753,9 @@ export default function ActionVoiceAssistant() {
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       if (context) void context.close().catch(() => undefined);
-      const name = error instanceof DOMException ? error.name : "";
-      if (name === "NotAllowedError" || name === "SecurityError") {
-        setMessage("Microphone refusé. Autorisez-le dans les réglages du navigateur.");
+      const help = microphoneErrorMessage(error, navigator.userAgent);
+      if (help) {
+        setMessage(help);
         setStage("ready");
       } else {
         browserDictation();

@@ -1,4 +1,5 @@
 "use client";
+import { microphoneErrorMessage } from "@/lib/microphone-error";
 
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
@@ -413,7 +414,7 @@ export default function MobileAiAssistantV6() {
       if (text) updateTranscript(`${transcriptRef.current} ${text}`.trim());
     };
     recognition.onerror = (event) => {
-      setMessage(event.error ? `Micro interrompu : ${event.error}` : "Micro interrompu.");
+      setMessage(microphoneErrorMessage(event.error, navigator.userAgent) ?? "La dictée a été interrompue. Réessayez ou écrivez votre demande.");
       setStage("ready");
     };
     recognition.onend = () => {
@@ -480,9 +481,9 @@ export default function MobileAiAssistantV6() {
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       if (context) void context.close().catch(() => undefined);
-      const name = error instanceof DOMException ? error.name : "";
-      if (name === "NotAllowedError" || name === "SecurityError") {
-        setMessage("Microphone refusé. Safari : aA → Réglages du site web → Microphone → Autoriser.");
+      const help = microphoneErrorMessage(error, navigator.userAgent);
+      if (help) {
+        setMessage(help);
         setStage("ready");
       } else {
         browserDictation(selected);

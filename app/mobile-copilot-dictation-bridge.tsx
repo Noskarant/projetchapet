@@ -1,4 +1,5 @@
 "use client";
+import { microphoneErrorMessage } from '@/lib/microphone-error';
 
 import { useEffect } from "react";
 
@@ -136,17 +137,21 @@ export default function MobileCopilotDictationBridge() {
     const startRecording = async (button: HTMLButtonElement) => {
       if (session || transcribing) return;
       const originalHtml = button.innerHTML;
+      const showMicrophoneError = (message: string) => {
+        if (!document.contains(button)) return;
+        restoreButton({ button, originalHtml });
+        window.dispatchEvent(new CustomEvent('manufeo:copilot-microphone-error', { detail: { message } }));
+      };
+      window.dispatchEvent(new CustomEvent('manufeo:copilot-microphone-error', { detail: { message: '' } }));
 
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-        setButtonState(button, "Micro non disponible sur ce navigateur", false);
-        window.setTimeout(() => {
-          if (document.contains(button)) restoreButton({ button, originalHtml });
-        }, 2600);
+        showMicrophoneError('Le micro n’est pas disponible sur ce navigateur. Vous pouvez écrire votre demande.');
         return;
       }
 
       setButtonState(button, "Autorisation du micro…", true);
 
+      let openedStream: MediaStream | null = null;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -156,6 +161,7 @@ export default function MobileCopilotDictationBridge() {
             channelCount: 1,
           },
         });
+        openedStream = stream;
         const mimeType = preferredMimeType();
         const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         const chunks: Blob[] = [];
@@ -197,14 +203,9 @@ export default function MobileCopilotDictationBridge() {
           if (session === current && recorder.state !== "inactive") stopRecording();
         }, 120_000);
       } catch (error) {
-        const name = error instanceof DOMException ? error.name : "";
-        const message = name === "NotAllowedError" || name === "SecurityError"
-          ? "Micro refusé — autorisez-le dans Safari puis réessayez"
-          : "Impossible d’ouvrir le micro — réessayez";
-        setButtonState(button, message, false);
-        window.setTimeout(() => {
-          if (document.contains(button)) restoreButton({ button, originalHtml });
-        }, 3000);
+        openedStream?.getTracks().forEach(track => track.stop());
+        showMicrophoneError(microphoneErrorMessage(error, navigator.userAgent)
+          ?? 'Impossible d’ouvrir le micro. Vérifiez son branchement ou écrivez votre demande.');
       }
     };
 

@@ -1,3 +1,5 @@
+import { microphoneErrorMessage } from './microphone-error';
+
 export type HelpRecording = { stop: () => Promise<Blob>; cancel: () => void };
 
 const mimeTypes = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
@@ -110,9 +112,8 @@ export async function startHelpRecording({ signal, onLevel, onEnd, onError }: {
     };
   } catch (error) {
     cancel();
-    if (error instanceof DOMException && ['NotAllowedError', 'SecurityError'].includes(error.name)) {
-      throw new Error('Micro refusé. Autorisez le microphone dans les réglages de Safari ou du navigateur.');
-    }
-    throw error;
+    if (signal.aborted) throw error;
+    throw new Error(microphoneErrorMessage(error, navigator.userAgent)
+      ?? 'Impossible d’ouvrir le micro. Vérifiez son branchement et les réglages de votre navigateur, ou écrivez votre demande.');
   }
 }
