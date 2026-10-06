@@ -952,7 +952,7 @@ export default function ActionVoiceAssistant() {
                 {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
                 {(stage === "ready" || stage === "error") && (transcript.trim() || sources.length > 0 || copiedSource.trim()) && (
-                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{target === 'customer' && (sources.length > 0 || customerImport) ? 'Lire et préparer le client' : sources.length || copiedSource.trim() ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
+                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{target === 'customer' && (sources.length > 0 || copiedSource.trim() || customerImport) ? 'Lire et préparer le client' : sources.length || copiedSource.trim() ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
                 )}
                 {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>

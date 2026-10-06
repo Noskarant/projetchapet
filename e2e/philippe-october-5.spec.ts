@@ -76,6 +76,8 @@ async function fixture(page: Page, width = 390, geo: 'prompt' | 'granted' | 'den
 }
 
 for (const width of [320, 820, 1440]) for (const entity of ['Devis', 'Factures']) test(`${entity} à ${width}px : recherche, gros bouton IA et modification vocale uniforme sans changer les montants`, async ({ page }, testInfo) => {
+  // This covers three screenshots, an edit, a reload and the general assistant.
+  test.setTimeout(60_000);
   const { errors } = await fixture(page, width);
   const weather = page.locator('.rm-header-actions .rm-weather-button');
   await expect(weather).toBeVisible();

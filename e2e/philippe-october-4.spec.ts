@@ -18,6 +18,7 @@ import './app/mobile-commercial-demo.css';
 import Projects from './app/mobile-commercial-projects';
 import AutoPreview from './app/mobile-auto-pdf-preview';
 import './app/mobile-quote-preview.css';
+import './app/mobile-quote-preview-scroll-fix.css';
 import {normalizeModelPlan} from './lib/action-planner';
 import {calculateTotals} from './lib/mobile-prototype';
 import {seedCommercialDemoState,readCommercialDemoState,writeCommercialDemoState} from './lib/mobile-commercial-demo';
@@ -60,6 +61,9 @@ for (const kind of ['ht','ttc'] as const) test(`franchise ${kind} : poste négat
   await expect(totals).toContainText(kind==='ttc'?'2 405,00':'2 392,50');
   await expect(totals).not.toContainText('Montant après franchise');
   await expect(totals).not.toContainText('Part client');
+  const tabs = await preview.locator('.rm-philippe-preview-tabs').boundingBox();
+  const scroll = await preview.locator('.rm-philippe-preview-scroll').boundingBox();
+  expect(scroll!.y).toBeGreaterThanOrEqual(tabs!.y + tabs!.height - 1);
   await page.screenshot({animations: 'disabled',path:testInfo.outputPath('franchise.png')});
   await preview.getByRole('button',{name:'Page complète',exact:true}).click();
   await expect(preview.locator('canvas').first()).toBeVisible();
@@ -111,6 +115,10 @@ async function fixture(page: Page, failExtraction = false, customer = false) {
 
 for (const customer of [false, true]) for (const clipboard of ['autorisé', 'refusé'] as const) test(`copier-coller un mail vers ${customer ? 'client' : 'devis'}, presse-papiers ${clipboard} : préparation sans microphone ni vision`, async ({ page }, testInfo) => {
   const { state, errors } = await fixture(page, false, customer);
+  if (customer && clipboard === 'autorisé') {
+    await page.locator('.ava-header button').first().click();
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('projetchapet:open-ai', { detail: { target: 'customer' } })));
+  }
   const text = 'Mme PIN Anne\npin@example.fr\nNuméro de dossier : F260361820H\nRéférence mission : R2600100705';
   await page.evaluate(({ text, clipboard }) => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: async () => {
