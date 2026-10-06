@@ -145,20 +145,26 @@ test('l’icône reste accessible sur l’accueil et tous les onglets après avo
 
 async function mockHelpMicrophone(page: Page, mode: 'silence' | 'talk' | 'denied' | 'deferred' = 'silence') {
  await page.evaluate(mode=>{
-  const state={mode,started:0,streams:0,stops:0,closed:0,speechStarted:false,release:null as null|(()=>void)};
+  const state={mode,speechSamples:0,streams:0,stops:0,closed:0,speechStarted:false,release:null as null|(()=>void)};
   (window as unknown as {helpVoiceTest:typeof state}).helpVoiceTest=state;
   const stream=()=>{state.streams++;return {getTracks:()=>[{stop:()=>{state.stops++;}}]};};
   class FakeRecorder {
    static isTypeSupported(type:string){return type==='audio/mp4';}
    state='inactive';mimeType:string;ondataavailable:((event:{data:Blob})=>void)|null=null;onstop:(()=>void)|null=null;onerror:(()=>void)|null=null;
    constructor(_stream:unknown,options?:{mimeType:string}){this.mimeType=options?.mimeType||'audio/mp4';}
-   start(){this.state='recording';state.started=performance.now();}
+   start(){this.state='recording';state.speechSamples=0;}
    stop(){this.state='inactive';this.ondataavailable?.({data:new Blob([new Uint8Array(1024)],{type:this.mimeType})});window.setTimeout(()=>this.onstop?.(),0);}
   }
   class FakeAudio {
    state='running';resume(){return Promise.resolve();}close(){this.state='closed';state.closed++;return Promise.resolve();}
    createMediaStreamSource(){return {connect(){},disconnect(){}};}
-   createAnalyser(){return {fftSize:1024,disconnect(){},getFloatTimeDomainData(samples:Float32Array){samples.fill(state.mode==='talk'||performance.now()-state.started<550?.06:0);}};}
+   createAnalyser(){
+    return {fftSize:1024,disconnect(){},getFloatTimeDomainData(samples:Float32Array){
+     // Supply a complete phrase even when WebKit's timers are delayed under CI load.
+     const speaking = state.mode==='talk' || state.speechSamples++<6;
+     samples.fill(speaking ? .06 : 0);
+    }};
+   }
   }
   class FakeSpeech {start(){state.speechStarted=true;}}
   Object.defineProperty(window,'AudioContext',{configurable:true,value:FakeAudio});
