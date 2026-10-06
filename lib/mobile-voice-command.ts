@@ -19,10 +19,10 @@ import {
   type QuoteStatus,
 } from "./mobile-prototype";
 import { parseAgendaVoiceRequest } from "./mobile-agenda-voice";
-import { spokenDiscount } from "./percentage-adjustments";
+import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
 import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 import { polishFrenchTradeDesignation } from './quote-language-polish';
-import { groupedVoiceLineOrder, sharedVoiceUnitPrice } from './voice-document-lines';
+import { groupedVoiceLineOrder, scopedVoiceUnitPrices, sharedVoiceUnitPrice } from './voice-document-lines';
 
 export type VoiceEntityKind = "quote" | "invoice" | "agenda" | "customer";
 
@@ -72,6 +72,7 @@ export type MobileVoiceCommand = {
   line_operations?: VoiceLineOperation[];
   line_order?: string[];
   line_order_only?: boolean;
+  percentage_request?: string;
 };
 
 const normalize = (value: string) => value
@@ -212,7 +213,7 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
     if (command.line_order_only) return { ...workspace, quotes: workspace.quotes.map(quote => quote.id === current.id
       ? { ...current, items: applyLineOrder(current.items, command.line_order) } : quote) };
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
-    const items = applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order);
+    const items = applySpokenPercentageLines(applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order), command.percentage_request || '');
     const quote: MobileQuote = normalizeQuote({
       ...current,
       customerId: customer?.id || current.customerId,
@@ -236,7 +237,7 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
     if (command.line_order_only) return { ...workspace, invoices: workspace.invoices.map(invoice => invoice.id === current.id
       ? { ...current, items: applyLineOrder(current.items, command.line_order) } : invoice) };
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
-    const items = applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order);
+    const items = applySpokenPercentageLines(applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order), command.percentage_request || '');
     const status = invoiceStatus(changes.status) || current.status;
     const invoice: MobileInvoice = normalizeInvoice({
       ...current,
@@ -377,11 +378,18 @@ export function fallbackMobileVoiceCommand(
 
   const document = target.entity === 'quote' || target.entity === 'invoice' ? target.data as MobileQuote | MobileInvoice : null;
   const lineOrder = document ? groupedVoiceLineOrder(text, document.items) : undefined;
-  const orderOnly = Boolean(lineOrder && !/\b(?:ajout\w*|supprim\w*|retir\w*|enlev\w*|remplac\w*|prix|tarif|tva|quantit\w*|montant\w*|client|date|statut|remise|note\w*|titre|objet)\b/u.test(normalizedText));
+  const orderOnly = Boolean(lineOrder && !/\b(?:ajout\w*|supprim\w*|retir\w*|enlev\w*|remplac\w*|prix|tarif|tva|quantit\w*|montant\w*|client|date|statut|remise|rse|majoration|frais|note\w*|titre|objet)\b/u.test(normalizedText));
   const sharedPrice = document ? sharedVoiceUnitPrice(text, document.items.length) : null;
   if (document && sharedPrice && sharedPrice.type === 'ht') {
     document.items.forEach(line => operations.push({ action: 'update', line_id: line.id, prix_unitaire_ht: sharedPrice.amount }));
   }
+  if (document) scopedVoiceUnitPrices(text, document.items).forEach((price, index) => {
+    if (!price) return;
+    const line = document.items[index];
+    if (price.type === 'ttc' && line.taxRate === null) return;
+    const amount = price.type === 'ttc' ? Math.round(price.amount / (1 + line.taxRate! / 100) * 100) / 100 : price.amount;
+    operations.push({ action: 'update', line_id: line.id, prix_unitaire_ht: amount });
+  });
   return {
     entity: target.entity,
     id: target.id,
@@ -390,6 +398,7 @@ export function fallbackMobileVoiceCommand(
     line_operations: operations,
     line_order: lineOrder,
     line_order_only: orderOnly,
+    percentage_request: document ? text : undefined,
   };
 }
 
@@ -411,7 +420,7 @@ export function sanitizeMobileVoiceCommand(value: unknown, fallback: MobileVoice
     ? raw.line_operations.slice(0, 100).filter((operation): operation is VoiceLineOperation => Boolean(operation && typeof operation === "object" && ["add", "update", "delete"].includes(String((operation as Record<string, unknown>).action))))
     : fallback.line_operations;
   const sharedOperations = fallback.line_operations?.filter(operation => operation.line_id && operation.prix_unitaire_ht !== undefined) || [];
-  return { entity, id, summary, changes, line_order: fallback.line_order ?? (Array.isArray(raw.line_order) && raw.line_order.every(id => typeof id === 'string') ? raw.line_order.slice(0, 100) : undefined),
+  return { entity, id, summary, changes, percentage_request: fallback.percentage_request, line_order: fallback.line_order ?? (Array.isArray(raw.line_order) && raw.line_order.every(id => typeof id === 'string') ? raw.line_order.slice(0, 100) : undefined),
     line_operations: [...(lineOperations?.filter(operation =>
     !(operation.action === 'delete' && /\bremise\b/iu.test(operation.match || operation.designation || ''))) || []), ...sharedOperations] };
 }

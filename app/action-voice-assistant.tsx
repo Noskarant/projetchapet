@@ -273,6 +273,25 @@ export default function ActionVoiceAssistant() {
   const [sources, setSources] = useState<QuoteSource[]>([]);
   const [copiedSource, setCopiedSource] = useState('');
   const copiedSourceRef = useRef('');
+  const copiedSourceInput = useRef<HTMLTextAreaElement | null>(null);
+  const [pasteHint, setPasteHint] = useState('');
+  const [pasting, setPasting] = useState(false);
+
+  async function pasteSource() {
+    const generation = sourceGeneration.current;
+    setPasting(true); setPasteHint('');
+    try {
+      const value = await navigator.clipboard.readText();
+      if (generation !== sourceGeneration.current) return;
+      if (!value.trim()) throw new Error('Le presse-papiers ne contient pas de texte.');
+      if (value.length > 10_000) throw new Error('Texte trop long. Copiez uniquement les passages utiles (10 000 caractères maximum).');
+      copiedSourceRef.current = value; setCopiedSource(value);
+    } catch (error) {
+      if (generation !== sourceGeneration.current) return;
+      setPasteHint(error instanceof Error && !['NotAllowedError', 'SecurityError', 'TypeError'].includes(error.name)
+        ? error.message : 'Appuyez longtemps dans le champ puis choisissez Coller. Sur ordinateur : Ctrl+V ou ⌘V.');
+    } finally { setPasting(false); if (generation === sourceGeneration.current) copiedSourceInput.current?.focus(); }
+  }
   const [markupInput, setMarkupInput] = useState('');
   const markupInputRef = useRef('');
   const sourcesRef = useRef<QuoteSource[]>([]);
@@ -339,7 +358,7 @@ export default function ActionVoiceAssistant() {
     sourcesRef.current = [];
     sourceObservationsRef.current = '';
     setSources([]);
-    setCopiedSource(''); copiedSourceRef.current = '';
+    setCopiedSource(''); copiedSourceRef.current = ''; setPasteHint('');
     setMarkupInput(''); markupInputRef.current = '';
     setSourcesBusy(false);
     customerImportRef.current = false; setCustomerImport(false);
@@ -426,7 +445,7 @@ export default function ActionVoiceAssistant() {
     if (next !== targetRef.current) { sourceObservationsRef.current = ''; }
     customerImportRef.current = false; setCustomerImport(false);
     if (next !== 'quote' && next !== 'command') {
-      setCopiedSource(''); copiedSourceRef.current = '';
+      setCopiedSource(''); copiedSourceRef.current = ''; setPasteHint('');
       setMarkupInput(''); markupInputRef.current = '';
     }
     if (next !== 'quote' && next !== 'command' && next !== 'customer') {
@@ -549,8 +568,8 @@ export default function ActionVoiceAssistant() {
   async function prepare(text: string) {
     const selected = targetRef.current;
     const withFiles = sourcesRef.current.length > 0;
-    const copied = selected === 'quote' || selected === 'command' ? copiedSourceRef.current.trim() : '';
-    const clientSources = selected === "customer" && (withFiles || customerImportRef.current);
+    const copied = selected === 'quote' || selected === 'command' || selected === 'customer' ? copiedSourceRef.current.trim() : '';
+    const clientSources = selected === "customer" && (withFiles || Boolean(copied) || customerImportRef.current);
     const withSources = withFiles || clientSources || Boolean(copied);
     if (!selected || (!text.trim() && !withFiles && !copied)) {
       setMessage("Dictez ou écrivez d’abord votre demande.");
@@ -906,12 +925,14 @@ export default function ActionVoiceAssistant() {
                     <span>{source.name}</span>
                     <button type="button" disabled={busy} aria-label={`Retirer ${source.name}`} onClick={() => { const next = sourcesRef.current.filter((_, position) => position !== index); sourcesRef.current = next; sourceObservationsRef.current = ''; setSources(next); }}><X size={16} /></button>
                   </div>)}
+                  <div className="ava-supplier-source">
+                    <strong>Copier-coller un mail, une note ou un document</strong>
+                    <button type="button" className="ava-secondary" disabled={busy || pasting} onClick={() => void pasteSource()}>Coller le texte copié</button>
+                    <label>Texte copié<textarea ref={copiedSourceInput} value={copiedSource} aria-label="Texte copié" placeholder="Collez ici le texte du mail, de la note ou du document…" maxLength={10_000} disabled={busy} onChange={event => { copiedSourceRef.current = event.target.value; setCopiedSource(event.target.value); setPasteHint(''); }} /></label>
+                    {pasteHint && <small role="status">{pasteHint}</small>}
+                    <small>Vos consignes se précisent dans votre demande ci-dessous.</small>
+                  </div>
                   {target !== 'customer' && <>
-                    <details className="ava-supplier-source">
-                      <summary>Copier-coller un devis fournisseur</summary>
-                      <label>Texte du devis fournisseur<textarea value={copiedSource} aria-label="Texte du devis fournisseur" placeholder="Collez les prestations, quantités, prix et TVA du document…" maxLength={10_000} disabled={busy} onChange={event => { copiedSourceRef.current = event.target.value; setCopiedSource(event.target.value); }} /></label>
-                      <small>Le client et vos consignes se précisent dans votre demande ci-dessous.</small>
-                    </details>
                     <label className="ava-supplier-markup">Majoration sur les prix HT (%)
                       <input type="text" inputMode="decimal" aria-label="Majoration sur les prix HT (%)" placeholder="Ex. 30" value={markupInput} disabled={busy} onChange={event => { markupInputRef.current = event.target.value; setMarkupInput(event.target.value); }} />
                       <small>+30 % : 100 € HT devient 130 € HT. Vous pouvez aussi le dicter.</small>
@@ -931,7 +952,7 @@ export default function ActionVoiceAssistant() {
                 {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
                 {(stage === "ready" || stage === "error") && (transcript.trim() || sources.length > 0 || copiedSource.trim()) && (
-                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{target === 'customer' && (sources.length > 0 || customerImport) ? 'Lire et préparer le client' : sources.length || copiedSource.trim() ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
+                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{target === 'customer' && (sources.length > 0 || copiedSource.trim() || customerImport) ? 'Lire et préparer le client' : sources.length || copiedSource.trim() ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
                 )}
                 {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>

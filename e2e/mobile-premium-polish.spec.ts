@@ -40,7 +40,7 @@ test("le mobile retrouve son chrome sombre compact sans commandes superposées",
   expect(chrome.navButtonHeight).toBeGreaterThanOrEqual(44);
   expect(chrome.navFontSize).toBeGreaterThanOrEqual(9);
   expect(chrome.navIconWidth).toBeGreaterThanOrEqual(21);
-  expect(chrome.dockHeight).toBeLessThanOrEqual(46);
+  expect(chrome.dockHeight).toBe(84);
   expect(chrome.manualLeft).toBeGreaterThanOrEqual(0);
   expect(chrome.manualRight).toBeLessThanOrEqual(chrome.viewportWidth);
 

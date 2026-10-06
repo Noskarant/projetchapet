@@ -111,6 +111,16 @@ export function customerDisplayName(customer: MobileCustomer) {
   return [customer.civility, customer.lastName, customer.firstName].filter(Boolean).join(" ").trim() || "Client sans nom";
 }
 
+/** Sort for display without changing workspace order or customer identifiers. */
+export function sortedCustomers(customers: readonly MobileCustomer[]) {
+  const name = (customer: MobileCustomer) => customer.kind === 'Professionnel'
+    ? customer.companyName.trim()
+    : [customer.lastName, customer.firstName].filter(Boolean).join(' ')
+      .replace(/^(?:(?:mme|mlle|mr|m|madame|monsieur|mademoiselle)\.?\s+)+/iu, '').trim();
+  const collator = new Intl.Collator('fr', { sensitivity: 'base', numeric: true });
+  return [...customers].sort((a, b) => collator.compare(name(a), name(b)) || collator.compare(a.id, b.id));
+}
+
 export function nextNumber(existing: Array<{ number: string }>, prefix: "D" | "F" | "A") {
   const year = new Date().getFullYear();
   const max = existing.reduce((current, item) => {

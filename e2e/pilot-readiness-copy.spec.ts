@@ -7,6 +7,7 @@ test("le pilote mobile n’affiche plus l’ancienne identité ni le tutoiement"
   test.skip(testInfo.project.name !== "iphone-webkit", "Contrôle de copie mobile uniquement.");
 
   await page.goto("/");
+  await expect(page.locator(".manufeo-splash")).toHaveCount(0);
   await expect(page.locator(".rm-header")).toBeVisible();
 
   await page.getByLabel("Menu").click();
