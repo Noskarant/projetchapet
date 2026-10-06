@@ -194,6 +194,7 @@ export default function RappidosMobileShellV2() {
     return () => { window.removeEventListener("projetchapet:company-profile-updated", reloadProfile); window.removeEventListener("manufeo:quote-status-change", changeStatus); window.removeEventListener("manufeo:local-workspace-updated", reloadWorkspace); };
   }, []);
   const indicators = businessIndicators(workspace.invoices, companyProfile);
+  const homeInvoiceAmount = Number(workspace.invoices.reduce((sum, item) => sum + item.paidTotal, 0).toFixed(2));
   function setPeriod(value: CompanyProfile["dashboardPeriod"]) {
     const next = writeCompanyProfile(window.localStorage, { ...companyProfile, dashboardPeriod: value });
     setCompanyProfile(next);
@@ -501,7 +502,7 @@ export default function RappidosMobileShellV2() {
             <div className="rm-kpi-grid">
               <button onClick={() => { switchTab("quotes"); setQuoteFilter("En attente"); }}><FileText size={20} /><strong>{workspace.quotes.filter((item) => item.status === "En attente").length}</strong><span>Devis en attente</span></button>
               <button onClick={() => { switchTab("invoices"); setInvoiceFilter("En retard"); }}><AlertTriangle size={20} /><strong>{money(workspace.invoices.filter((item) => item.status === "En retard").reduce((sum, item) => sum + item.total, 0))}</strong><span>Factures en retard</span></button>
-              <button onClick={() => { switchTab("invoices"); setInvoiceFilter("Payée"); }}><CheckCircle2 size={20} /><strong>{money(workspace.invoices.reduce((sum, item) => sum + item.paidTotal, 0))}</strong><span>Facturé</span></button>
+              <button onClick={() => { switchTab("invoices"); setInvoiceFilter("Payée"); }}><CheckCircle2 size={20} /><strong>{money(homeInvoiceAmount)}</strong><span>{homeInvoiceAmount === 0 || homeInvoiceAmount === 1 ? "Facturé" : "Facturés"}</span></button>
               <button onClick={() => window.dispatchEvent(new Event("projetchapet:open-company-profile"))}><BarChart3 size={20} /><strong>{money(indicators.revenue)}</strong><span>Réglages du bilan</span></button>
             </div>
             <div className="rm-home-panel"><div className="rm-panel-title"><div><span>À TRAITER</span><strong>Priorités du jour</strong></div><small>Actions</small></div>
