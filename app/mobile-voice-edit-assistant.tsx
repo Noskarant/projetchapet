@@ -1,4 +1,5 @@
 "use client";
+import { microphoneErrorMessage } from "@/lib/microphone-error";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
@@ -413,9 +414,9 @@ export default function MobileVoiceEditAssistant() {
       const text = Array.from(event.results).map((result) => result[0]?.transcript || "").join(" ").trim();
       if (text) updateTranscript(`${transcriptRef.current} ${text}`.trim());
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       if (epoch !== recordingEpoch.current) return;
-      setMessage("Le micro a été interrompu. Vous pouvez reprendre ou écrire la commande.");
+      setMessage(microphoneErrorMessage(event.error, navigator.userAgent) ?? "Le micro a été interrompu. Vous pouvez reprendre ou écrire la commande.");
       setStage("ready");
     };
     recognition.onend = () => {
@@ -467,9 +468,9 @@ export default function MobileVoiceEditAssistant() {
       stream?.getTracks().forEach((track) => track.stop());
       if (context) void context.close().catch(() => undefined);
       if (epoch !== recordingEpoch.current) return;
-      const name = error instanceof DOMException ? error.name : "";
-      if (name === "NotAllowedError" || name === "SecurityError") {
-        setMessage("Microphone refusé. Autorisez-le dans les réglages Safari du site.");
+      const help = microphoneErrorMessage(error, navigator.userAgent);
+      if (help) {
+        setMessage(help);
         setStage("ready");
       } else {
         browserDictation();

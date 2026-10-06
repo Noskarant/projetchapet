@@ -1,4 +1,5 @@
 "use client";
+import { microphoneErrorMessage } from '@/lib/microphone-error';
 
 import {
   AlertTriangle,
@@ -127,10 +128,16 @@ export default function MobileCopilotAssistant() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
     };
+    const onMicrophoneError = (event: Event) => {
+      const text = (event as CustomEvent<{ message?: string }>).detail?.message;
+      if (typeof text === 'string') setMessage(text);
+    };
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener('manufeo:copilot-microphone-error', onMicrophoneError);
     return () => {
       document.body.style.overflow = previous;
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener('manufeo:copilot-microphone-error', onMicrophoneError);
     };
   }, [open]);
 
@@ -178,9 +185,8 @@ export default function MobileCopilotAssistant() {
     recognition.onerror = (event) => {
       recognitionRef.current = null;
       setRecording(false);
-      setMessage(event.error
-        ? `Dictée interrompue : ${event.error}. Vous pouvez continuer au clavier.`
-        : "Dictée interrompue. Vous pouvez continuer au clavier.");
+      setMessage(microphoneErrorMessage(event.error, navigator.userAgent)
+        ?? 'Dictée interrompue. Vous pouvez continuer au clavier.');
     };
     recognition.onend = () => {
       recognitionRef.current = null;

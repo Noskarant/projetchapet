@@ -1,5 +1,7 @@
 "use client";
 
+import { CUSTOMER_CIVILITIES, normalizeCustomerCivility } from "@/lib/customer-civility";
+
 import {
   Bell,
   Building2,
@@ -177,7 +179,7 @@ function ClientForm({ customer, onClose, onSaved, onCreated, setToast }: { custo
   const [form, setForm] = useState({
     kind: customer?.kind ?? "business",
     company_name: customer?.company_name ?? "",
-    civility: customer?.civility === "Mme" || customer?.civility === "Madame" ? "Madame" : "Monsieur",
+    civility: normalizeCustomerCivility(customer?.civility),
     last_name: customer?.last_name ?? "",
     first_name: customer?.first_name ?? "",
     siret: customer?.siret ?? "",
@@ -230,8 +232,8 @@ function ClientForm({ customer, onClose, onSaved, onCreated, setToast }: { custo
     <Modal title={customer ? "Modifier le client" : "Nouveau client"} subtitle="Les informations seront disponibles dans les devis et factures." onClose={onClose} wide>
       <form className="pc-crud-form" onSubmit={submit}>
         <div className="pc-segmented">
-          <button type="button" className={form.kind === "business" ? "active" : ""} onClick={() => update("kind", "business")}>Professionnel</button>
           <button type="button" className={form.kind === "individual" ? "active" : ""} onClick={() => update("kind", "individual")}>Particulier</button>
+          <button type="button" className={form.kind === "business" ? "active" : ""} onClick={() => update("kind", "business")}>Professionnel</button>
         </div>
         {form.kind === "business" ? (
           <div className="pc-crud-grid">
@@ -241,7 +243,7 @@ function ClientForm({ customer, onClose, onSaved, onCreated, setToast }: { custo
           </div>
         ) : (
           <div className="pc-crud-grid pc-crud-grid-three">
-            <label>Civilité<select value={form.civility} onChange={(event) => update("civility", event.target.value)}><option>Monsieur</option><option>Madame</option></select></label>
+            <label>Civilité<select value={form.civility} onChange={(event) => update("civility", event.target.value)}>{CUSTOMER_CIVILITIES.map(civility => <option key={civility} value={civility}>{civility}</option>)}</select></label>
             <label>Nom<input value={form.last_name} onChange={(event) => update("last_name", event.target.value)} required /></label>
             <label>Prénom<input value={form.first_name} onChange={(event) => update("first_name", event.target.value)} /></label>
           </div>
