@@ -20,7 +20,7 @@
     "lucide-react": "^0.468.0",
     "next": "15.5.25",
     "pdfjs-dist": "6.3.289",
-    "react": "19.1.7",
+    "react": "19.3.0",
     "react-dom": "19.1.7"
   },
   "devDependencies": {
