@@ -113,10 +113,11 @@ export function customerDisplayName(customer: MobileCustomer) {
 
 /** Sort for display without changing workspace order or customer identifiers. */
 export function sortedCustomers(customers: readonly MobileCustomer[]) {
-  const name = (customer: MobileCustomer) => customer.kind === 'Professionnel'
+  const name = (customer: MobileCustomer) => (customer.kind === 'Professionnel'
     ? customer.companyName.trim()
-    : [customer.lastName, customer.firstName].filter(Boolean).join(' ')
-      .replace(/^(?:(?:mme|mlle|mr|m|madame|monsieur|mademoiselle)\.?\s+)+/iu, '').trim();
+    : [customer.lastName, customer.firstName].filter(Boolean).join(' '))
+      .replace(/^(?:(?:mme|mlle|mr|m|madame|monsieur|mademoiselle)\.?\s+(?:et\s+)?)+/iu, '')
+      .replace(/^et\s+(?:mme|madame)\.?\s+/iu, '').trim();
   const collator = new Intl.Collator('fr', { sensitivity: 'base', numeric: true });
   return [...customers].sort((a, b) => collator.compare(name(a), name(b)) || collator.compare(a.id, b.id));
 }

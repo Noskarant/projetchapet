@@ -87,7 +87,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
       .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null && !scopedPrice
     ? sourcePrice : scopedPrice?.amount ?? sharedPrice?.amount ?? (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
-  const taxesInTranscript = [...withoutPaymentAdjustments(withoutSupplierMarkup(transcript)).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
+  const taxesInTranscript = [...withoutPaymentAdjustments(withoutSupplierMarkup(transcript)).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de|au\\s+taux\\s+de)?\\s*[:=]?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
       const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
       const after = transcript.slice(match.index + match[0].length, match.index + match[0].length + 65).split(/[.!?]/u)[0];
@@ -112,7 +112,22 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   // after the first price. Never inherit a rate explicitly limited to a line.
   const unscopedRates = [...new Set(taxesInTranscript.filter(match => !match.scoped).map(match => match.rate))];
   const confirmedTax = unscopedRates.length === 1 ? unscopedRates[0] : null;
-  const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
+  // Source tables often put the TVA header and the row percentage in separate cells.
+  const rowRates = taxEvidence ? [...taxEvidence.matchAll(/\b(0|5[,.]5|10|20)\s*%/gu)].map(match => Number(match[1].replace(',', '.'))) : [];
+  const sourcesStart = transcript.indexOf('Informations issues des sources à vérifier :');
+  const sourceObservations = sourcesStart >= 0 ? transcript.slice(sourcesStart + 'Informations issues des sources à vérifier :'.length) : '';
+  const sourceRowTax = /\bTVA\s*(?:\(\s*%\s*\))?\s*(?:[|;\t\r\n]|$)/imu.test(sourceObservations)
+    && Boolean(groundedEvidence(sourceObservations, taxEvidence))
+    && rowRates.length === 1 && numberOrNull(source.tax_rate) === rowRates[0] ? rowRates[0] : null;
+  const instructionsStart = transcript.indexOf('Instructions de l’artisan :');
+  const artisanRates = [...new Set(taxesInTranscript.filter(match => !match.scoped
+    && instructionsStart >= 0 && match.position >= instructionsStart
+    && sourcesStart > instructionsStart && match.position < sourcesStart).map(match => match.rate))];
+  const artisanTax = artisanRates.length === 1 ? artisanRates[0] : null;
+  const artisanEvidence = instructionsStart >= 0 && sourcesStart > instructionsStart
+    ? groundedEvidence(transcript.slice(instructionsStart, sourcesStart), taxEvidence) : null;
+  const tax = (artisanEvidence ? explicitTax(artisanEvidence) : null) ?? artisanTax
+    ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
   const priceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)

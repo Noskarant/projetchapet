@@ -195,6 +195,11 @@ function enhanceQuoteEditor(editor: HTMLElement) {
       Informations internes
       <textarea class="rm-private-notes-textarea" rows="4" placeholder="Ex. Sous-traitant : Entreprise Martin — devis de 1 850 €\nAccès chantier, marge prévue, rappel personnel…"></textarea>
     </label>
+    <label>
+      Consignes pour les collaborateurs
+      <textarea class="rm-team-instructions-textarea" rows="3" maxlength="5000" placeholder="Ex. Prévoir deux personnes, protéger le sol, travaux sur deux jours…"></textarea>
+      <small>Visibles par l’équipe affectée au chantier et sur son PDF sans prix. Absentes du devis client.</small>
+    </label>
     <label class="rm-private-discount-label">
       Remise globale éventuelle
       <span><input class="rm-private-discount-input" type="number" min="0" max="100" step="0.5" inputmode="decimal" value="0" /> %</span>
@@ -209,10 +214,12 @@ function enhanceQuoteEditor(editor: HTMLElement) {
   const discount = section.querySelector<HTMLInputElement>(
     ".rm-private-discount-input",
   )!;
+  const team = section.querySelector<HTMLTextAreaElement>('.rm-team-instructions-textarea')!;
 
   const load = () => {
     const meta = readQuoteInternalMeta(window.localStorage, numberInput.value.trim());
     notes.value = meta.internalNotes;
+    team.value = meta.teamInstructions || '';
     discount.value = String(meta.discountPercent);
   };
   const save = () => {
@@ -220,6 +227,7 @@ function enhanceQuoteEditor(editor: HTMLElement) {
     const meta = {
       internalNotes: notes.value,
       discountPercent: Number(discount.value),
+      teamInstructions: team.value,
     };
     writeQuoteInternalMeta(window.localStorage, number, meta);
     void savePrivateQuoteMeta(number, meta).catch((error) => {
@@ -231,6 +239,7 @@ function enhanceQuoteEditor(editor: HTMLElement) {
   };
 
   notes.addEventListener("input", save);
+  team.addEventListener('input', save);
   discount.addEventListener("input", save);
   numberInput.addEventListener("change", load);
   load();

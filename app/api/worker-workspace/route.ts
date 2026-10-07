@@ -13,12 +13,21 @@ export async function GET(request:Request){try{
  const context=await workerContext(request);
  if(!context.projectIds.length)return Response.json({projects:[],steps:[],photos:[]});
  const [projects,steps,photos]=await Promise.all([
- context.admin.from('commercial_projects').select('id,name,subtitle,address,status,start_date,next_visit').eq('organization_id',context.organizationId).in('id',context.projectIds),
+ context.admin.from('commercial_projects').select('id,name,subtitle,address,status,start_date,next_visit,quote_id').eq('organization_id',context.organizationId).in('id',context.projectIds),
  context.admin.from('commercial_project_steps').select('project_id,id,label,due_date,done').eq('organization_id',context.organizationId).in('project_id',context.projectIds),
  context.admin.from('commercial_project_photos').select('project_id,id,name,caption,storage_path').eq('organization_id',context.organizationId).in('project_id',context.projectIds)]);
  if(projects.error||steps.error||photos.error)throw new Error('Chantiers indisponibles.');
+ const quoteIds=[...new Set((projects.data||[]).map(project=>project.quote_id).filter((id):id is string=>typeof id==='string'&&/^[0-9a-f-]{36}$/i.test(id)))];
+ const quotes=quoteIds.length?await context.admin.from('quotes').select('id,number').eq('organization_id',context.organizationId).in('id',quoteIds):{data:[],error:null};
+ if(quotes.error)throw new Error('Consignes indisponibles.');
+ const numbers=(quotes.data||[]).map(quote=>quote.number);
+ // Only team instructions for assigned projects leave this privileged API.
+ const meta=numbers.length?await context.admin.from('quote_private_meta').select('quote_number,team_instructions').eq('organization_id',context.organizationId).in('quote_number',numbers):{data:[],error:null};
+ if(meta.error)throw new Error('Consignes indisponibles.');
+ const teamNotes=new Map((meta.data||[]).map(row=>[row.quote_number,row.team_instructions]));
+ const quoteNumbers=new Map((quotes.data||[]).map(row=>[row.id,row.number]));
  const images=[];for(const photo of photos.data||[]){const signed=await context.admin.storage.from('commercial-project-photos').createSignedUrl(photo.storage_path,600);if(signed.data)images.push({project_id:photo.project_id,id:photo.id,caption:photo.caption,url:signed.data.signedUrl});}
- return Response.json({projects:projects.data,steps:steps.data,photos:images});
+ return Response.json({projects:(projects.data||[]).map(({quote_id,...project})=>({...project,teamInstructions:teamNotes.get(quoteNumbers.get(quote_id)||'')||''})),steps:steps.data,photos:images},{headers:{'Cache-Control':'no-store'}});
 }catch(error){return error instanceof OrganizationAuthError ? organizationErrorResponse(error) : errorResponse(error,'Chargement des chantiers indisponible. Réessayez dans un instant.');}}
 export async function POST(request:Request){const limited=rateLimit(request,'worker-update',40);if(limited)return limited;try{
  const context=await workerContext(request);const body=await readJsonBody<{projectId?:unknown;stepId?:unknown;done?:unknown;photo?:unknown;name?:unknown}>(request,6000000);

@@ -22,6 +22,7 @@ import MobileInvoiceSendStateBridge from "./mobile-invoice-send-state-bridge";
 import MobileLegacyQuoteDetailGuard from "./mobile-legacy-quote-detail-guard";
 import MobileLongVoiceBridge from "./mobile-long-voice-bridge";
 import MobilePhilippeQuoteActionsMenu from "./mobile-philippe-quote-actions-menu";
+import DocumentSmsShare from './document-sms-share';
 import MobilePriorityPolish from "./mobile-priority-polish";
 import MobileProjectProfitability from "./mobile-project-profitability";
 import MobileQuotePreviewInteractions from "./mobile-quote-preview-interactions";
@@ -80,6 +81,7 @@ export default function MobilePrototypeGate() {
       <MobileAutoPdfPreview />
       <MobileUnifiedQuoteSheet />
       <MobilePhilippeQuoteActionsMenu />
+      <DocumentSmsShare />
       <MobileQuotePreviewInteractions />
       <MobileAccountingAction />
       <MobileInvoiceSendStateBridge />
