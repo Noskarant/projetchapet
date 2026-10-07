@@ -36,6 +36,7 @@ export type EmailDraft = {
   subject: string;
   message: string;
   withoutPrices: boolean;
+  copyToSelf?: boolean;
 };
 
 const timeFr = (value: string) =>
@@ -434,29 +435,38 @@ export function EmailPanel({
         <div>
           <strong>{draft.document.number}</strong>
           <span>
-            Le PDF joint reprend les lignes, prix, TVA, remise et notes client. Les notes personnelles restent exclues.
+            PDF joint : {draft.document.number}{draft.withoutPrices ? '-sans-prix' : ''}.pdf
           </span>
         </div>
       </div>
 
       <div className="rm-commercial-form">
         <label>
-          Destinataire
+          Destinataires
           <input
             type="email"
+            multiple
+            autoFocus
+            disabled={busy}
             value={draft.recipient}
             onChange={(event) => onChange({ ...draft, recipient: event.target.value })}
           />
-          <small>Adresse modifiable pour cet envoi, sans changer la fiche client.</small>
+          <small>Séparez les adresses par des virgules. La fiche client reste inchangée.</small>
+        </label>
+        <label className="rm-commercial-check">
+          <input type="checkbox" checked={draft.copyToSelf ?? true} disabled={busy}
+            onChange={event => onChange({ ...draft, copyToSelf: event.target.checked })} />
+          <span>Ajoutez-moi en copie cachée<small>À l’adresse de votre compte MANUFEO.</small></span>
         </label>
         <label>
           Objet
-          <input value={draft.subject} onChange={(event) => onChange({ ...draft, subject: event.target.value })} />
+          <input value={draft.subject} disabled={busy} onChange={(event) => onChange({ ...draft, subject: event.target.value })} />
         </label>
         <label>
           Message
           <textarea
-            rows={8}
+            rows={6}
+            disabled={busy}
             value={draft.message}
             onChange={(event) => onChange({ ...draft, message: event.target.value })}
           />
@@ -465,21 +475,17 @@ export function EmailPanel({
           <input
             type="checkbox"
             checked={draft.withoutPrices}
+            disabled={busy}
             onChange={(event) => onChange({ ...draft, withoutPrices: event.target.checked })}
           />
           <span>Joindre la version chantier sans prix</span>
         </label>
       </div>
 
-      <div className="rm-email-security">
-        <ShieldCheck size={18} />
-        <span>Pièce jointe générée au moment de l’envoi avec les dernières informations enregistrées.</span>
-      </div>
-
       {message && <div className="rm-email-feedback" role="status">{message}</div>}
 
       <footer className="rm-commercial-footer">
-        <button className="secondary" type="button" onClick={onCancel}>Annuler</button>
+        <button className="secondary" type="button" disabled={busy} onClick={onCancel}>Annuler</button>
         <button className="primary" type="button" onClick={onSend} disabled={busy}>
           <Send size={18} /> {busy ? "Envoi…" : "Envoyer avec le PDF"}
         </button>

@@ -32,7 +32,7 @@ test.beforeEach(async({page})=>{
   Object.defineProperty(navigator,'share',{configurable:true,value:(data:ShareData)=>{
    // Snapshot activation before reading bytes: the share call must stay inside the click.
    const active=navigator.userActivation?.isActive;
-   return Promise.all(data.files!.map(async file=>({name:file.name,type:file.type,bytes:Array.from(new Uint8Array(await file.arrayBuffer()))}))).then(files=>{(window as any).shares.push({files,active,hasUrl:'url'in data,hasText:'text'in data})});
+   return Promise.all(data.files!.map(async file=>({name:file.name,type:file.type,bytes:Array.from(new Uint8Array(await file.arrayBuffer()))}))).then(files=>{(window as any).shares.push({files,active,hasUrl:'url'in data,hasText:'text'in data,hasTitle:'title'in data})});
   }});
  });
 });
@@ -43,7 +43,9 @@ for(const kind of ['quote','invoice']) for(const without of [false,true]) test(`
  expect(await page.evaluate(()=>(window as any).shares.length)).toBe(0);
  await button.click(); await expect.poll(()=>page.evaluate(()=>(window as any).shares.length)).toBe(1);
  const share=await page.evaluate(()=>(window as any).shares[0]);
- expect(share.files).toHaveLength(1); expect(share.hasUrl).toBe(false); expect(share.hasText).toBe(false);
+ expect(share.files).toHaveLength(1); expect(share.hasUrl).toBe(false); expect(share.hasText).toBe(false); expect(share.hasTitle).toBe(false);
+ await button.click(); await expect.poll(()=>page.evaluate(()=>(window as any).shares.length)).toBe(2);
+ expect(await page.evaluate(()=>(window as any).shares[1].files[0].name)).toBe(share.files[0].name);
  if(share.active!==undefined) expect(share.active).toBe(true);
  const file=share.files[0]; expect(file.name).toMatch(without?/-sans-prix\.pdf$/:/(?<!-sans-prix)\.pdf$/); expect(file.type).toBe('application/pdf');
  expect(Buffer.from(file.bytes).subarray(0,4).toString()).toBe('%PDF');

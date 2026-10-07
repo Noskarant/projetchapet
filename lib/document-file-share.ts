@@ -5,7 +5,8 @@ export async function sharePreparedPdf(blob: Blob, filename: string): Promise<vo
   try {
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       // No PDF generation, upload or other await before opening the native share sheet.
-      await navigator.share({ files: [file], title: file.name.replace(/\.pdf$/i, '') });
+      // A title may become a second "texte" file in iPadOS Files. Share the PDF alone.
+      await navigator.share({ files: [file] });
       return;
     }
     const url = URL.createObjectURL(file);

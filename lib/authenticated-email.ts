@@ -1,11 +1,13 @@
 import { supabase } from "./supabase";
 import type { EmailDocumentKind } from "./email-authorization";
+import { documentEmailRecipients } from './document-email-recipients';
 
 export type AuthenticatedEmailPayload = {
   documentNumber: string;
   documentKind: EmailDocumentKind;
-  to: string;
+  to: string | string[];
   customRecipient?: boolean;
+  copyToSelf?: boolean;
   cc?: string[];
   bcc?: string[];
   subject?: string;
@@ -29,9 +31,7 @@ export async function documentEmailErrorMessage(response: Response) {
 }
 
 export async function sendAuthenticatedDocumentEmail(payload: AuthenticatedEmailPayload) {
-  if (!isClientEmailAddress(payload.to)) {
-    throw new Error("L’adresse e-mail du destinataire est invalide. Corrigez-la avant l’envoi.");
-  }
+  const recipients = documentEmailRecipients(payload.to);
 
   const { data, error } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -43,7 +43,7 @@ export async function sendAuthenticatedDocumentEmail(payload: AuthenticatedEmail
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, to: recipients.length === 1 ? recipients[0] : recipients }),
   });
 
   if (!response.ok) throw new Error(await documentEmailErrorMessage(response));

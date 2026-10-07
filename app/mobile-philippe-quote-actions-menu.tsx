@@ -169,7 +169,6 @@ function syncPrimaryStatusButton(preview: HTMLElement, button: HTMLButtonElement
 export default function MobilePhilippeQuoteActionsMenu() {
   const [activeNumber, setActiveNumber] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [sendChoiceOpen, setSendChoiceOpen] = useState(false);
   const [shareReady, setShareReady] = useState(false);
 
   useEffect(() => {
@@ -180,7 +179,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
 
       switch (action) {
         case "send":
-          setSendChoiceOpen(true);
+          window.dispatchEvent(new CustomEvent('manufeo:send-quote', { detail: { number: currentPreview() ? currentQuoteNumber(currentPreview()!) : '', withoutPrices: false } }));
           return;
         case "share":
           currentPreview()?.querySelector<HTMLButtonElement>('[data-document-file-share]')?.click();
@@ -353,7 +352,6 @@ export default function MobilePhilippeQuoteActionsMenu() {
 
   return (
     <>
-      {sendChoiceOpen && activeNumber && <div className="rm-unified-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Envoyer le devis" onMouseDown={(event) => { if (event.target === event.currentTarget) setSendChoiceOpen(false); }}><section className="rm-unified-sheet"><header><div><small>DEVIS {activeNumber}</small><strong>Envoyer le devis</strong></div><button type="button" onClick={() => setSendChoiceOpen(false)} aria-label="Fermer">×</button></header><div className="rm-unified-sheet-list">{([false, true] as const).map((withoutPrices) => <button key={String(withoutPrices)} type="button" onClick={() => { setSendChoiceOpen(false); window.dispatchEvent(new CustomEvent("manufeo:send-quote", { detail: { number: activeNumber, withoutPrices } })); }}><span aria-hidden="true">✉</span><span>{withoutPrices ? "Sans les prix" : "Avec les prix"}</span></button>)}</div></section></div>}
       <style>{`
         @media all {
           body.rm-philippe-quote-actions-enabled .rm-philippe-preview-header { position: relative; }

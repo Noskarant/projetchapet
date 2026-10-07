@@ -23,6 +23,10 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
+export function plainDocumentEmailHtml(message: string) {
+  return `<div style="font-family:Arial,sans-serif;white-space:pre-line">${escapeHtml(message).replaceAll('\n', '<br>')}</div>`;
+}
+
 export function documentEmailTextFromHtml(input: string) {
   const withoutNonText = input
     .replace(/<!--[\s\S]*?-->/g, "")

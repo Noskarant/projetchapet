@@ -20,6 +20,7 @@ import {
 } from "@/lib/email-authorization";
 import { resendProviderErrorMessage, resolveManufeoSender } from "@/lib/resend-email";
 import { supabasePublicConfig } from "@/lib/supabase-config";
+import { documentEmailRecipients } from '@/lib/document-email-recipients';
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,7 @@ type EmailBody = {
   html?: unknown;
   attachments?: unknown;
   customRecipient?: unknown;
+  copyToSelf?: unknown;
 };
 
 function cleanEmails(value: unknown) {
@@ -113,6 +115,7 @@ async function authorizeRecipients(
   documentKind: EmailDocumentKind,
   requestedRecipients: string[],
   customRecipient: boolean,
+  toRecipients: string[],
 ) {
   const token = bearerToken(request);
   const client = authenticatedSupabase(token);
@@ -168,7 +171,7 @@ async function authorizeRecipients(
       const document = documents.length === 1 ? documents[0] : null;
       const customer = document ? customers?.find(row => row.id === document.customer_id) : null;
       if (documentKind === "quote" && document?.id && ["draft", "sent"].includes(document.status)
-        && uniqueValidEmails(customer?.emails ?? []).includes(requestedRecipients[0].toLowerCase())) {
+        && toRecipients.some(email => uniqueValidEmails(customer?.emails ?? []).includes(email))) {
         sentQuote = { id: document.id, organization_id: document.organization_id, sent_at: document.sent_at };
       }
       uniqueValidEmails((customers ?? []).flatMap((row) => Array.isArray(row.emails) ? row.emails : []))
@@ -193,7 +196,7 @@ async function authorizeRecipients(
   if (!recipientsAreAuthorized(requestedRecipients, [...allowed], customRecipient)) {
     throw new ApiInputError("Ce destinataire n’est pas rattaché à ce document ou à votre comptabilité.", 403);
   }
-  return { client, sentQuote };
+  return { client, sentQuote, senderEmail: userData.user.email };
 }
 
 export async function GET() {
@@ -212,12 +215,20 @@ export async function POST(request: Request) {
     const body = await readJsonBody<EmailBody>(request, 11_500_000);
     const documentNumber = requireString(body.documentNumber, "Numéro du document", 80);
     const documentKind = cleanDocumentKind(body.documentKind);
-    const to = requireString(body.to, "Destinataire", 254).toLowerCase();
-    if (!isEmail(to)) throw new ApiInputError("Adresse du destinataire invalide.");
+    let to: string[];
+    try { to = documentEmailRecipients(body.to); }
+    catch (error) { throw new ApiInputError(error instanceof Error ? error.message : 'Adresse du destinataire invalide.'); }
     const cc = cleanEmails(body.cc);
-    const bcc = cleanEmails(body.bcc);
+    let bcc = cleanEmails(body.bcc);
 
-    const authorization = await authorizeRecipients(request, documentNumber, documentKind, [to, ...cc, ...bcc], body.customRecipient === true);
+    const authorization = await authorizeRecipients(request, documentNumber, documentKind, [...to, ...cc, ...bcc], body.customRecipient === true, to);
+    if (body.copyToSelf === true) {
+      if (!authorization.senderEmail || !isEmail(authorization.senderEmail)) {
+        throw new ApiInputError('L’adresse de votre compte est indisponible pour la copie cachée. Décochez cette option ou vérifiez votre compte.');
+      }
+      bcc = [...new Set([...bcc, authorization.senderEmail.toLowerCase()])];
+    }
+    bcc = bcc.filter(email => !to.includes(email) && !cc.includes(email));
 
     const subject = optionalString(body.subject, 998) || "Votre document";
     const incomingHtml = optionalString(body.html, 10_000_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";
@@ -239,7 +250,7 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(20_000),
       body: JSON.stringify({
         from,
-        to: [to],
+        to,
         cc,
         bcc,
         subject,

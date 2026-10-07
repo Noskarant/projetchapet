@@ -20,6 +20,7 @@ import {
 } from "@/lib/commercial-cloud";
 import { blobToBase64 } from "@/lib/document-tools";
 import { sendAuthenticatedDocumentEmail } from "@/lib/authenticated-email";
+import { plainDocumentEmailHtml } from '@/lib/document-email-template';
 import {
   COMMERCIAL_DEMO_STORAGE_KEY,
   appendActivity,
@@ -444,6 +445,7 @@ export default function MobileCommercialDemo() {
       subject: `${isMobileQuote(found.document) ? "Votre devis" : "Votre facture"} ${found.document.number}`,
       message: `Bonjour,\n\nVeuillez trouver votre ${documentLabel} ${found.document.number} en pièce jointe.\n\nJe reste à votre disposition pour toute question.\n\nCordialement,\n${commercial.company.displayName}`,
       withoutPrices: false,
+      copyToSelf: true,
     });
     setOverlay("email");
   }, [commercial.company.displayName, notify]);
@@ -646,6 +648,7 @@ export default function MobileCommercialDemo() {
   };
 
   const sendEmail = async () => {
+    if (emailBusy) return;
     if (!email || !email.recipient.trim()) {
       notify("Renseignez l’adresse e-mail du destinataire.");
       return;
@@ -657,6 +660,10 @@ export default function MobileCommercialDemo() {
     }
 
     const customer = findCustomer(currentWorkspace, email.document.customerId);
+    if (!email.withoutPrices && email.document.items.some(item => item.quantity === null || item.unitPrice === null || item.taxRate === null)) {
+      notify('Complétez les quantités et tarifs avant d’envoyer le document avec les prix.');
+      return;
+    }
     const quoteMeta = isMobileQuote(email.document)
       ? readQuoteInternalMeta(window.localStorage, email.document.number)
       : undefined;
@@ -670,40 +677,25 @@ export default function MobileCommercialDemo() {
         quoteMeta,
         withoutPrices: email.withoutPrices,
       });
-      const response = await fetch("/api/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: email.recipient.trim(),
-          customRecipient: true,
-          subject: email.subject,
-          html: `<div style="font-family:Arial,sans-serif;white-space:pre-line">${email.message.replaceAll("\n", "<br>")}</div>`,
-          attachments: [
-            {
-              filename: documentFileName(email.document, email.withoutPrices),
-              content: await blobToBase64(blob),
-            },
-          ],
-        }),
+      await sendAuthenticatedDocumentEmail({
+        documentNumber: email.document.number,
+        documentKind: isMobileQuote(email.document) ? 'quote' : 'invoice',
+        to: email.recipient.trim(),
+        customRecipient: true,
+        copyToSelf: email.copyToSelf ?? true,
+        subject: email.subject,
+        html: plainDocumentEmailHtml(email.message),
+        attachments: [{
+          filename: documentFileName(email.document, email.withoutPrices),
+          content: await blobToBase64(blob),
+        }],
       });
-
-      if (!response.ok) {
-        downloadBlob(blob, documentFileName(email.document, email.withoutPrices));
-        window.location.href = `mailto:${encodeURIComponent(email.recipient)}?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(`${email.message}\n\nLe PDF a été téléchargé : ajoutez-le en pièce jointe.`)}`;
-        notify("PDF téléchargé et application Mail ouverte.");
-        logActivity({
-          kind: "email",
-          message: `${email.document.number} préparé pour un envoi manuel à ${email.recipient}.`,
-          documentNumber: email.document.number,
-        });
-      } else {
-        notify(`Document envoyé à ${email.recipient}.`);
-        logActivity({
-          kind: "email",
-          message: `${email.document.number} envoyé à ${email.recipient}.`,
-          documentNumber: email.document.number,
-        });
-      }
+      notify(`Document envoyé à ${email.recipient}.`);
+      logActivity({
+        kind: "email",
+        message: `${email.document.number} envoyé à ${email.recipient}.`,
+        documentNumber: email.document.number,
+      });
 
       setEmail(null);
       setOverlay(null);
@@ -715,37 +707,24 @@ export default function MobileCommercialDemo() {
   };
 
   useEffect(() => {
-    const sendDirectly = async (event: Event) => {
+    const openQuoteEmail = (event: Event) => {
       const { number, withoutPrices } = (event as CustomEvent<{ number: string; withoutPrices: boolean }>).detail || {};
       const currentWorkspace = readWorkspace();
       const quote = currentWorkspace?.quotes.find((item) => item.number === number);
       const customer = quote && currentWorkspace ? findCustomer(currentWorkspace, quote.customerId) : null;
-      const recipient = customer?.emails.find(Boolean)?.trim();
-      if (!quote || !recipient) { notify("Ajoutez l’adresse e-mail du client dans sa fiche pour envoyer ce devis."); return; }
-      if (quote.items.some((item) => !withoutPrices && (item.quantity === null || item.unitPrice === null || item.taxRate === null))) {
-        notify("Complétez les quantités et tarifs avant d’envoyer le devis avec les prix."); return;
-      }
+      if (!quote || !currentWorkspace) { notify('Document introuvable.'); return; }
       if (emailBusy) return;
-      setEmailBusy(true);
-      try {
-        const blob = await buildBusinessDocumentPdf({
-          document: quote, customer, company: commercial.company,
-          quoteMeta: readQuoteInternalMeta(window.localStorage, quote.number), withoutPrices,
-        });
-        await sendAuthenticatedDocumentEmail({
-          documentNumber: quote.number, documentKind: "quote", to: recipient,
-          subject: `Votre devis ${quote.number}`,
-          html: `<p>Bonjour,</p><p>Veuillez trouver votre devis ${quote.number.replaceAll("&", "&amp;").replaceAll("<", "&lt;")} en pièce jointe.</p><p>Cordialement,<br>${commercial.company.displayName.replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</p>`,
-          attachments: [{ filename: documentFileName(quote, withoutPrices), content: await blobToBase64(blob) }],
-        });
-        notify(`Devis envoyé à ${recipient}.`);
-        logActivity({ kind: "email", message: `${quote.number} envoyé à ${recipient}.`, documentNumber: quote.number });
-      } catch (error) { notify(error instanceof Error ? error.message : "Envoi du devis impossible."); }
-      finally { setEmailBusy(false); }
+      setWorkspace(currentWorkspace);
+      setToast('');
+      setEmail({ document: quote, recipient: customer?.emails.find(Boolean)?.trim() || '',
+        subject: `Votre devis ${quote.number}`,
+        message: `Bonjour,\n\nVeuillez trouver votre devis ${quote.number} en pièce jointe.\n\nCordialement,\n${commercial.company.displayName}`,
+        withoutPrices: Boolean(withoutPrices), copyToSelf: true });
+      setOverlay('email');
     };
-    window.addEventListener("manufeo:send-quote", sendDirectly);
-    return () => window.removeEventListener("manufeo:send-quote", sendDirectly);
-  }, [commercial.company, emailBusy, logActivity, notify]);
+    window.addEventListener("manufeo:send-quote", openQuoteEmail);
+    return () => window.removeEventListener("manufeo:send-quote", openQuoteEmail);
+  }, [commercial.company, emailBusy, notify]);
 
   const saveCompany = () => {
     const company = {
@@ -802,15 +781,16 @@ export default function MobileCommercialDemo() {
     <>
       {overlay && (
         <div
-          className="rm-commercial-backdrop"
+          className={`rm-commercial-backdrop${overlay === 'email' ? ' rm-document-email-backdrop' : ''}`}
           role="dialog"
           aria-modal="true"
-          aria-label={overlayTitle(overlay)}
+          aria-label={overlay === 'email' && email ? `Envoyer ${isMobileQuote(email.document) ? 'le devis' : 'la facture'}` : overlayTitle(overlay)}
         >
           <section className={`rm-commercial-panel rm-commercial-${overlay}`}>
             <header className="rm-commercial-header">
               <button
                 type="button"
+                disabled={overlay === 'email' && emailBusy}
                 onClick={() => {
                   setOverlay(null);
                   setEmail(null);
@@ -820,10 +800,10 @@ export default function MobileCommercialDemo() {
                 <X size={22} />
               </button>
               <div>
-                <small>PROJET CHAPET</small>
-                <h2>{overlayTitle(overlay)}</h2>
+                <small>{overlay === 'email' ? commercial.company.displayName : 'PROJET CHAPET'}</small>
+                <h2>{overlay === 'email' && email ? `Envoyer ${isMobileQuote(email.document) ? 'le devis' : 'la facture'}` : overlayTitle(overlay)}</h2>
               </div>
-              <span className="rm-commercial-live"><i /> Démo locale</span>
+              {overlay !== 'email' && <span className="rm-commercial-live"><i /> Démo locale</span>}
             </header>
 
             {overlay === "filters" && (

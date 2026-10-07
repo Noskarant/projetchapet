@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import {
   documentEmailErrorMessage,
-  isClientEmailAddress,
 } from "@/lib/authenticated-email";
+import { documentEmailRecipients } from '@/lib/document-email-recipients';
 import { supabase } from "@/lib/supabase";
 
 function documentNumberFromPayload(payload: Record<string, unknown>) {
@@ -47,10 +47,7 @@ export default function AuthenticatedEmailFetchBridge() {
         throw new Error("La demande d’envoi MANUFEO est invalide. Rechargez l’application puis réessayez.");
       }
 
-      const recipient = typeof payload.to === "string" ? payload.to.trim() : "";
-      if (!isClientEmailAddress(recipient)) {
-        throw new Error("L’adresse e-mail du destinataire est invalide. Corrigez-la avant l’envoi.");
-      }
+      const recipients = documentEmailRecipients(payload.to);
 
       const documentNumber = documentNumberFromPayload(payload);
       if (!documentNumber) {
@@ -72,7 +69,7 @@ export default function AuthenticatedEmailFetchBridge() {
         headers,
         body: JSON.stringify({
           ...payload,
-          to: recipient,
+          to: recipients.length === 1 ? recipients[0] : recipients,
           documentNumber: payload.documentNumber || documentNumber,
           documentKind: payload.documentKind || documentKindFromNumber(documentNumber),
         }),
