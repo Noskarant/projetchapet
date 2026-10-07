@@ -34,7 +34,7 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - name: Compare unchanged main browser behavior
         run: npx playwright test --workers=4 --retries=0
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: unchanged-main-browser-results
