@@ -71,7 +71,7 @@ Les tests navigateur utilisent une base locale simulée et de fausses sessions. 
 | Pièces jointes externes | Les formats et tailles sont contrôlés et les buckets sont privés. Aucun antivirus/CDR n’est installé : les documents Office ou PDF externes restent des contenus à traiter comme non fiables. |
 | Isolation des environnements | La clé de service inspectée est réservée à la production. Les previews ne doivent pas recevoir de données client ni de credentials de production pour reproduire les tests. Les appels payants échouent si la vérification serveur manque. |
 | Fournisseurs réels et appareils | Confirmer les parcours avec les fournisseurs hors sandbox, les connexions OAuth réelles, et des iPhone/iPad/Android physiques. La simulation WebKit ne constitue pas une validation des applications natives. |
-| Protection du dépôt | Les workflows examinés utilisent des actions principales figées sur des SHA et des permissions de lecture. Les règles de branche et l’état des alertes de sécurité GitHub n’ont pas été attestés avec les outils disponibles. Vérifier les protections de main et l’accès des mainteneurs. |
+| Protection du dépôt | Les workflows examinés utilisent des actions principales figées sur des SHA et des permissions de lecture. Le contrôle API indique `main` non protégée et aucun ruleset, y compris hérité. Activer les contrôles CI obligatoires avant fusion et empêcher les réécritures/suppressions de main. L’état des alertes de sécurité GitHub et l’accès des autres mainteneurs restent à vérifier. |
 
 ## Changements de comportement à connaître
 
