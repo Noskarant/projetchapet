@@ -1,4 +1,4 @@
-const CACHE_NAME = "manufeo-shell-v2";
+const CACHE_NAME = "manufeo-shell-v3";
 const CORE_ASSETS = ["/", "/manifest.webmanifest", "/icon-192.webp", "/icon-512.webp", "/manufeo-mark.webp"];
 
 self.addEventListener("install", (event) => {
@@ -19,12 +19,14 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET") return;
+  if (request.method !== "GET" || request.headers.has("authorization")) return;
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
+    // Never retain recovery links, OAuth codes or account routes in the app shell.
+    if (url.pathname !== "/" || url.search) return;
     event.respondWith(
       fetch(request)
         .then((response) => {

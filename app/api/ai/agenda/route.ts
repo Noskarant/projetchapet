@@ -1,3 +1,4 @@
+import { authorizeAiRequest } from "@/lib/ai-authorization";
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import { normalizeAgendaVoiceData, parseAgendaVoiceRequest } from "@/lib/mobile-agenda-voice";
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
   if (limited) return limited;
 
   try {
+    await authorizeAiRequest(request, false);
     const body = await readJsonBody<{ transcript?: unknown }>(request, 20_000);
     if (typeof body.transcript !== "string") throw new ApiInputError("La dictée est invalide.");
     const transcript = body.transcript.trim();
@@ -57,6 +59,7 @@ export async function POST(request: Request) {
 
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(30_000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,

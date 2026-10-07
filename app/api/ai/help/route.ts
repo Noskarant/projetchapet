@@ -1,3 +1,4 @@
+import { consumeAiQuota } from "@/lib/ai-authorization";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody, requireString } from '@/lib/api-guard';
 import { authenticateRequest, requireOrganization } from '@/lib/server-auth';
 import { answerManufeoQuestion } from '@/lib/assistant-help-server';
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
     const body=await readJsonBody<{organizationId?:unknown;question?:unknown;history?:unknown}>(request,30_000);
     const organizationId=requireString(body.organizationId,'Entreprise',80);
     requireOrganization(context,organizationId);
+    await consumeAiQuota(context.user.id, organizationId);
     const question=requireString(body.question,'Question',2000);
     const history: HelpMessage[]=[];
     if (body.history !== undefined && !Array.isArray(body.history)) throw new ApiInputError('Conversation invalide.');

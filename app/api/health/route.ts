@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabasePublicConfig } from "@/lib/supabase";
+import { supabasePublicConfig } from "@/lib/supabase-config";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,7 @@ export async function GET() {
         apikey: supabasePublicConfig.publishableKey,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
     });
 
     return NextResponse.json(

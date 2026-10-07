@@ -1,5 +1,6 @@
+import { authorizeAiRequest } from "@/lib/ai-authorization";
 import { NextResponse } from "next/server";
-import { ApiInputError, errorResponse, rateLimit } from "@/lib/api-guard";
+import { ApiInputError, errorResponse, rateLimit, readBodyBytes } from "@/lib/api-guard";
 import { transcriptionQuality } from "@/lib/transcription-quality";
 import { trimPcmWavSilence } from "@/lib/long-voice-audio";
 
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
   if (limited) return limited;
 
   try {
+    await authorizeAiRequest(request, false);
     const declaredLength = Number(request.headers.get("content-length") || 0);
     if (declaredLength > MAX_AUDIO_BYTES + 1024 * 1024) {
       throw new ApiInputError("Le segment audio dépasse 24 Mo. Relancez la dictée.", 413);
@@ -113,8 +115,10 @@ export async function POST(request: Request) {
 
     let input: FormData;
     try {
-      input = await request.formData();
+      const bytes = await readBodyBytes(request, MAX_AUDIO_BYTES + 1024 * 1024);
+      input = await new Response(bytes as BodyInit, { headers: { "Content-Type": request.headers.get("content-type") || "" } }).formData();
     } catch (error) {
+      if (error instanceof ApiInputError) throw error;
       if (isPatternError(error)) {
         throw new ApiInputError("Safari n’a pas pu préparer l’enregistrement audio. Relancez la dictée.", 400);
       }

@@ -1,6 +1,7 @@
+import { authenticatedRoute } from "./helpers/authenticated-route";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POST as parseStrictPost } from "../app/api/ai/parse-strict/route";
+import { POST as parseStrictPostHandler } from "../app/api/ai/parse-strict/route";
 
 const QUENTIN_DUBOIS_FIXTURE = `Fais-moi un devis pour Quentin Dubois.
 Dans le salon, il faut protéger le sol et les meubles, préparer les murs puis faire deux couches de peinture.
@@ -203,3 +204,5 @@ test("tolère les variantes de transcription qui avaient laissé 2 portes et la 
     else process.env.DEEPSEEK_API_KEY = previousApiKey;
   }
 });
+
+const parseStrictPost = authenticatedRoute(parseStrictPostHandler, true);

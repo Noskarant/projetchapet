@@ -1,4 +1,6 @@
 "use client";
+
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
 import { microphoneErrorMessage } from "@/lib/microphone-error";
 
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
@@ -341,7 +343,7 @@ export default function MobileAiAssistantV6() {
 
     try {
       const isAgenda = selected === "agenda";
-      const response = await fetch(isAgenda ? "/api/ai/agenda" : "/api/ai/parse", {
+      const response = await authenticatedAiFetch(isAgenda ? "/api/ai/agenda" : "/api/ai/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isAgenda
@@ -379,7 +381,7 @@ export default function MobileAiAssistantV6() {
     try {
       const form = new FormData();
       form.append("file", new File([blob], "dictee.wav", { type: "audio/wav" }));
-      const response = await fetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal });
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Transcription impossible.");
       const text = String(result.text ?? "").trim();

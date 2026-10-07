@@ -1,5 +1,36 @@
 import { expect, test } from "@playwright/test";
 
+test("une nouvelle entreprise vide ne reçoit pas le cache de l’ancien compte", async ({ page }) => {
+  const saved: Array<Record<string, unknown>> = [];
+  await page.addInitScript(() => {
+    localStorage.setItem('sb-127-auth-token', JSON.stringify({ access_token: 'fixture.eyJzZXNzaW9uX2lkIjoiMzMzMzMzMzMtMzMzMy00MzMzLTgzMzMtMzMzMzMzMzMzMzMzIn0.signature', refresh_token: 'local-fixture-refresh', expires_at: 4102444800, user: { id: '22222222-2222-4222-8222-222222222222', email: 'fixture@audit.invalid' } }));
+    localStorage.setItem('forgeo:pilot-cloud-sync:v1', JSON.stringify({ organizationId: 'old-org', dirty: true, signature: 'old' }));
+    localStorage.setItem('projetchapet:company-profile:v1', JSON.stringify({ legalName: 'Secret entreprise A', startupSoundEnabled: false }));
+    localStorage.setItem('projetchapet-mobile-quote-meta-v1', JSON.stringify({ privateNote: 'Secret entreprise A' }));
+  });
+  // Entire fake backend is intercepted; no real user or database is used.
+  await page.route('http://127.0.0.1:54321/**', async route => {
+    const url = route.request().url();
+    if (url.includes('ensure_personal_organization')) return route.fulfill({ json: '11111111-1111-4111-8111-111111111111' });
+    if (url.includes('/organization_members')) return route.fulfill({ json: { role: 'owner' } });
+    if (url.includes('/organizations')) return route.fulfill({ json: { id: '11111111-1111-4111-8111-111111111111', name: 'Entreprise B' } });
+    if (url.includes('/pilot_workspace_snapshots')) {
+      if (route.request().method() === 'POST') {
+        saved.push(route.request().postDataJSON());
+        return route.fulfill({ json: { updated_at: new Date().toISOString() } });
+      }
+      return route.fulfill({ json: null });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.route('**/api/**', route => route.fulfill({ json: {} }));
+  await page.goto('/');
+  await expect.poll(() => saved.length).toBeGreaterThan(0);
+  expect(JSON.stringify(saved[0])).not.toContain('Secret entreprise A');
+  expect(saved[0].organization_id).toBe('11111111-1111-4111-8111-111111111111');
+  expect(await page.evaluate(() => localStorage.getItem('projetchapet-mobile-quote-meta-v1'))).toBeNull();
+});
+
 test("affiche la landing et ouvre les parcours connexion et création de compte sans bypass", async ({
   page,
 }) => {

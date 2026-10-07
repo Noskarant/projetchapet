@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { isEmail } from "@/lib/api-guard";
+import { isEmail, readJsonBody } from "@/lib/api-guard";
 import { organizationErrorResponse, requireOrganization, requireRole } from "@/lib/server-organization";
 
 export const runtime = "nodejs";
@@ -51,7 +51,9 @@ async function documentSnapshot(admin: SupabaseClient, organizationId: string, k
 
 export async function GET(request: Request) {
   try {
-    const { admin, organizationId } = await requireOrganization(request);
+    const context = await requireOrganization(request);
+    requireRole(context.role, ["owner", "admin", "office", "manager", "accountant"]);
+    const { admin, organizationId } = context;
     const { data, error } = await admin
       .from("document_signatures")
       .select("id,document_kind,document_number,signer_name,signer_email,consent_text,document_hash,signed_at,signed_by_user")
@@ -69,13 +71,13 @@ export async function POST(request: Request) {
   try {
     const context = await requireOrganization(request);
     requireRole(context.role, ["owner", "admin", "office", "manager"]);
-    const body = await request.json() as {
+    const body = await readJsonBody<{
       documentKind?: unknown;
       documentNumber?: unknown;
       signerName?: unknown;
       signerEmail?: unknown;
       consent?: unknown;
-    };
+    }>(request, 8_000);
     const kind = body.documentKind === "quote" || body.documentKind === "invoice" ? body.documentKind : null;
     const number = String(body.documentNumber ?? "").trim();
     const signerName = String(body.signerName ?? "").trim();

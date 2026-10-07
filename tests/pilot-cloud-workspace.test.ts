@@ -146,3 +146,33 @@ test("la déconnexion efface uniquement le cache sensible du pilote", () => {
   assert.equal(storage.getItem(PILOT_SYNC_STATE_KEY), null);
   assert.equal(storage.getItem("forgeo:keep-me"), "ok");
 });
+
+test("une entreprise vide ne peut pas importer le cache privé d’une autre entreprise", () => {
+  for (const dirty of [false, true]) {
+    const storage = new MemoryStorage();
+    storage.setItem(COMPANY_PROFILE_STORAGE_KEY, JSON.stringify({ legalName: "Entreprise privée A" }));
+    storage.setItem(QUOTE_META_STORAGE_KEY, JSON.stringify({ privateNote: "Confidentiel" }));
+    storage.setItem("forgeo-commercial-state-v2", "données de A");
+    (dirty ? markPilotSnapshotDirty : markPilotSnapshotSynced)(storage, "org-a", "old");
+    const snapshot = readPilotLocalSnapshot(storage, "org-b");
+    assert.notEqual(snapshot.companyProfile.legalName, "Entreprise privée A");
+    assert.deepEqual(snapshot.workspace.quotes, []);
+    assert.equal(storage.getItem(QUOTE_META_STORAGE_KEY), null);
+    assert.equal(storage.getItem("forgeo-commercial-state-v2"), null);
+    assert.equal(readPilotSyncState(storage), null);
+  }
+});
+
+test("un travail non synchronisé reste disponible à la reconnexion dans la même entreprise", () => {
+  const storage = new MemoryStorage();
+  storage.setItem(COMPANY_PROFILE_STORAGE_KEY, JSON.stringify({ legalName: "Entreprise A" }));
+  markPilotSnapshotDirty(storage, "org-a", "pending");
+  assert.equal(readPilotLocalSnapshot(storage, "org-a").companyProfile.legalName, "Entreprise A");
+  assert.equal(shouldPreferLocalPilotSnapshot(readPilotSyncState(storage), "org-a"), true);
+});
+
+test("la première connexion peut toujours reprendre un brouillon local non encore rattaché", () => {
+  const storage = new MemoryStorage();
+  storage.setItem(COMPANY_PROFILE_STORAGE_KEY, JSON.stringify({ legalName: "Premier atelier" }));
+  assert.equal(readPilotLocalSnapshot(storage, "first-org").companyProfile.legalName, "Premier atelier");
+});

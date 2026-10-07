@@ -7,6 +7,11 @@ const demoStorageState = {
     {
       origin: "http://127.0.0.1:3000",
       localStorage: [
+        { name: "sb-127-auth-token", value: JSON.stringify({
+          access_token: `fixture.${Buffer.from(JSON.stringify({ session_id: "33333333-3333-4333-8333-333333333333" })).toString("base64url")}.signature`,
+          refresh_token: "local-fixture-refresh", expires_at: 4102444800,
+          user: { id: "22222222-2222-4222-8222-222222222222", email: "fixture@audit.invalid" },
+        }) },
         {
           name: "projetchapet-mobile-workspace-v3",
           value: JSON.stringify(seedMobileWorkspace()),
@@ -51,6 +56,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       MANUFEO_LOCAL_HTTP_TEST: "1",
+      SUPABASE_SERVICE_ROLE_KEY: "e2e-service-role-local-only",
       NEXT_PUBLIC_FORGEO_AUTH_BYPASS: "1",
       NEXT_PUBLIC_COMMERCIAL_CLOUD_ENABLED: "0",
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",

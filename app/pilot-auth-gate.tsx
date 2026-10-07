@@ -135,7 +135,7 @@ function RequiredPilotAuth({ children }: { children: ReactNode }) {
           if (cloud) writePilotLocalSnapshot(window.localStorage, cloud);
           setOrganization(nextOrganization); setWorkspaceReady(true); setSyncStatus("saved"); return;
         }
-        const localSnapshot = readPilotLocalSnapshot(window.localStorage);
+        const localSnapshot = readPilotLocalSnapshot(window.localStorage, nextOrganization.id);
         const syncState = readPilotSyncState(window.localStorage);
         const cloudSnapshot = await loadPilotCloudSnapshot(nextOrganization.id);
         if (run !== bootstrapRun.current) return;

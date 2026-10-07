@@ -6,9 +6,12 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self)" },
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
-  { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'" + (process.env.MANUFEO_LOCAL_HTTP_TEST === "1" ? "" : "; upgrade-insecure-requests") },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
 ];
+
+if (process.env.VERCEL_ENV === "production" && (process.env.NEXT_PUBLIC_FORGEO_AUTH_BYPASS === "1" || process.env.MANUFEO_LOCAL_HTTP_TEST === "1")) {
+  throw new Error("Les modes de test ne doivent jamais être activés en production.");
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

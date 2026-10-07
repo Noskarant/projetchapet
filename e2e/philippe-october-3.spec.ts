@@ -30,7 +30,9 @@ const invoiceId = '55555555-5555-4555-8555-555555555555';
 const storageKey = 'projetchapet-mobile-workspace-v3';
 const metaKey = 'projetchapet-mobile-quote-meta-v1';
 
-async function fixture(page: Page, failedSave = false, staleTax = false) {
+async function fixture(page: Page, failedSave = false, staleTax = false, holdSave = false) {
+  let releaseSave = () => {};
+  const saveBarrier = new Promise<void>(resolve => { releaseSave = resolve; });
   const customer = { id: customerId, organization_id: org, kind: 'individual', first_name: 'Henri', last_name: 'Perbet', civility: 'M.', company_name: null, emails: [], phones: [], addresses: [{ line1: '54 avenue de Montesquieu', city: 'Vosges', postal_code: '' }], created_at: '2026-10-03', updated_at: '2026-10-03' };
   const item = { position: 0, label: 'Portail extérieur : préparation, peinture et antirouille', description: '', quantity: 1, unit: 'unité', unit_price: 1700, tax_rate: 10, total: 1700 };
   const quote = { id: quoteId, organization_id: org, customer_id: customerId, customer, number: 'DEV-2026-099', title: 'Portail extérieur', status: 'draft', issue_date: '2026-10-03', expiry_date: '2026-11-03', subtotal: 1700, tax_total: 170, total: 1870, notes: 'Remise globale de 2 % sur ce chantier. Franchise de 150 euros TTC.', items: [item] };
@@ -39,7 +41,7 @@ async function fixture(page: Page, failedSave = false, staleTax = false) {
   const mobileDocument = { id: quoteId, number: quote.number, title: quote.title, customerId, customerName: 'M. Perbet Henri', issueDate: quote.issue_date, expiryDate: quote.expiry_date, status: 'En attente' as const, items: [{ id: 'line-1', label: item.label, description: '', quantity: 1, unit: 'unité', unitPrice: 1700, taxRate: 10 }], notes: quote.notes, subtotal: 1700, taxTotal: 170, total: 1870 };
   const workspace: MobileWorkspace = { customers: [mobileCustomer], quotes: [mobileDocument], invoices: [{ ...mobileDocument, id: invoiceId, number: invoice.number, status: 'Brouillon', dueDate: invoice.due_date, paidTotal: 0, accountantSent: false, notes: '' }], agenda: [] };
   if (staleTax) { workspace.quotes[0].items[0].taxRate = null; workspace.quotes[0].taxTotal = 0; workspace.quotes[0].total = 1700; }
-  const state = { discount: 2, saved: false, failures: failedSave ? 1 : 0, payments: 0, executions: 0, actions: [] as Array<Record<string, unknown>>, quote, invoice };
+  const state = { discount: 2, saved: false, releaseSave, failures: failedSave ? 1 : 0, payments: 0, executions: 0, actions: [] as Array<Record<string, unknown>>, quote, invoice };
   await page.addInitScript(({ workspace, storageKey, metaKey }) => {
     if (!localStorage.getItem(storageKey)) {
       localStorage.setItem(storageKey, JSON.stringify(workspace));
@@ -53,6 +55,7 @@ async function fixture(page: Page, failedSave = false, staleTax = false) {
     if (url.includes('save_quote_document')) {
       // Longer than the former 650ms reload: success must await the server.
       await new Promise(resolve => setTimeout(resolve, 1800));
+      if (holdSave) await saveBarrier;
       if (state.failures-- > 0) return route.fulfill({ status: 503, json: { message: 'Sauvegarde momentanément indisponible.' } });
       const body = request.postDataJSON();
       state.quote.notes = body.p_notes; state.quote.items = body.p_items; state.saved = true;
@@ -98,7 +101,7 @@ async function fixture(page: Page, failedSave = false, staleTax = false) {
 }
 
 for (const failure of [false, true]) test(`remise vocale : sauvegarde ${failure ? 'en panne puis reprise' : 'lente'}, aucun succès avant persistance et zéro après rechargement`, async ({ page }) => {
-  const state = await fixture(page, failure);
+  const state = await fixture(page, failure, false, true);
   await page.locator('.rm-document-card', { hasText: 'DEV-2026-099' }).click();
   const sheet = page.getByRole('dialog', { name: 'Fiche du devis' });
   await sheet.getByRole('button', { name: 'Actions du devis' }).click();
@@ -112,6 +115,7 @@ for (const failure of [false, true]) test(`remise vocale : sauvegarde ${failure 
   await page.waitForTimeout(750);
   expect(state.saved).toBe(false);
   await expect(editor).toBeVisible();
+  state.releaseSave();
   if (failure) {
     await expect(editor.getByRole('button', { name: 'Appliquer', exact: true })).toBeVisible();
     await expect(editor).toContainText('Sauvegarde impossible');

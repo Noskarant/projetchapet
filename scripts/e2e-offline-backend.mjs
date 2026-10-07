@@ -19,5 +19,16 @@ createServer((request, response) => {
     response.end(JSON.stringify({ fixture: 'offline-backend' }));
     return;
   }
+  // Authentication is simulated only by this loopback backend; business data
+  // remains unavailable so interface tests keep exercising the local fallback.
+  if (request.url?.startsWith('/auth/v1/user')) {
+    response.end(JSON.stringify({ id: '22222222-2222-4222-8222-222222222222', email: 'fixture@audit.invalid' })); return;
+  }
+  if (request.url?.startsWith('/rest/v1/organization_members')) {
+    response.end(JSON.stringify([{ organization_id: '11111111-1111-4111-8111-111111111111', role: 'owner' }])); return;
+  }
+  if (request.url?.startsWith('/rest/v1/rpc/manufeo_session_active') || request.url?.startsWith('/rest/v1/rpc/manufeo_consume_ai_quota')) {
+    response.end('true'); return;
+  }
   response.writeHead(400).end(JSON.stringify({ code: 'E2E_BACKEND_UNAVAILABLE', message: 'Backend local indisponible pour ce test d’interface' }));
 }).listen(54321, '127.0.0.1');

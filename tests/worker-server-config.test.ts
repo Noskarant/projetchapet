@@ -29,7 +29,7 @@ test('les API terrain conservent les statuts 401 et 503 au lieu d’un faux 500'
   const { GET, POST } = await import('../app/api/worker-workspace/route');
   const original = process.env.SUPABASE_SERVICE_ROLE_KEY;
   try {
-    for (const [key, expected] of [[undefined, 503], ['local-test-key', 401]] as const) {
+    for (const [key, expected] of [[undefined, 401], ['local-test-key', 401]] as const) {
       if (key === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
       else process.env.SUPABASE_SERVICE_ROLE_KEY = key;
       for (const handler of [GET, POST]) {
@@ -38,6 +38,9 @@ test('les API terrain conservent les statuts 401 et 503 au lieu d’un faux 500'
         assert.equal(response.headers.get('cache-control'), 'no-store');
       }
     }
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const unavailable = await GET(new Request('https://manufeo.test/api/worker-workspace', { headers: { Authorization: 'Bearer fixture' } }));
+    assert.equal(unavailable.status, 503);
   } finally {
     if (original === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     else process.env.SUPABASE_SERVICE_ROLE_KEY = original;

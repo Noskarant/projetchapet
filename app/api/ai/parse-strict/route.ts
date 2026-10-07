@@ -1,3 +1,4 @@
+import { authorizeAiRequest } from "@/lib/ai-authorization";
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import { robustArtisanDictation } from "@/lib/robust-artisan-dictation";
@@ -332,6 +333,7 @@ export async function POST(request: Request) {
   if (limited) return limited;
 
   try {
+    await authorizeAiRequest(request, true);
     const body = await readJsonBody<{
       transcript?: unknown;
       target?: unknown;

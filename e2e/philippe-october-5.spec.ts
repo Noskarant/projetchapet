@@ -31,6 +31,7 @@ async function fixture(page: Page, width = 390, geo: 'prompt' | 'granted' | 'den
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   const state = { weather: 0, locations: 0 };
   await page.addInitScript(({ workspace, geo }) => {
+    localStorage.setItem('sb-backend-auth-token', JSON.stringify({access_token:'test-token',refresh_token:'test-refresh',expires_at:Math.floor(Date.now()/1000)+3600,user:{id:'22222222-2222-4222-8222-222222222222'}}));
     localStorage.setItem('projetchapet:company-profile:v1', JSON.stringify({ startupSoundEnabled: false }));
     if (!localStorage.getItem('projetchapet-mobile-workspace-v3')) localStorage.setItem('projetchapet-mobile-workspace-v3', JSON.stringify(workspace));
     Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: geo }) } });

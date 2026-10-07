@@ -1,3 +1,4 @@
+import { authorizeAiRequest } from "@/lib/ai-authorization";
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import { robustArtisanDictation } from "@/lib/robust-artisan-dictation";
@@ -266,6 +267,7 @@ export async function POST(request: Request) {
   if (limited) return limited;
 
   try {
+    await authorizeAiRequest(request, true);
     const body = await readJsonBody<{ kind?: unknown; transcript?: unknown; target?: unknown }>(request, 20_000);
     const kind: ParseKind = body.kind === "customer" ? "customer" : "document";
     const target = ["customer", "quote", "invoice", "current"].includes(String(body.target)) ? String(body.target) : "quote";
@@ -285,6 +287,7 @@ export async function POST(request: Request) {
     const prompt = systemPrompt(kind, target);
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(30_000),
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",

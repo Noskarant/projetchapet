@@ -50,7 +50,10 @@ export function normalizePilotSnapshot(workspace: unknown, companyProfile: unkno
   };
 }
 
-export function readPilotLocalSnapshot(storage: PilotStorage): PilotLocalSnapshot {
+export function readPilotLocalSnapshot(storage: PilotStorage, organizationId?: string): PilotLocalSnapshot {
+  // A new/empty cloud workspace must never import another company's cache.
+  const previous = organizationId ? readPilotSyncState(storage) : null;
+  if (previous && previous.organizationId !== organizationId) clearPilotLocalSnapshot(storage);
   return normalizePilotSnapshot(
     parseJson(storage.getItem(MOBILE_WORKSPACE_STORAGE_KEY)),
     parseJson(storage.getItem(COMPANY_PROFILE_STORAGE_KEY)),

@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import {
@@ -201,7 +203,7 @@ export default function MobileAiAssistant() {
     setStage("analysing");
     setMessage("");
     try {
-      const response = await fetch("/api/ai/parse", {
+      const response = await authenticatedAiFetch("/api/ai/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -227,7 +229,7 @@ export default function MobileAiAssistant() {
       const extension = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
       const form = new FormData();
       form.append("file", new File([blob], `dictee.${extension}`, { type: blob.type || "audio/webm" }));
-      const response = await fetch("/api/transcribe", { method: "POST", body: form });
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Transcription impossible.");
       const text = String(result.text ?? "").trim();

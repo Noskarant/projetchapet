@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Download, FileSignature, FileText, Loader2, LogIn, LogOut, Mail, Mic, ReceiptText, Send, ShieldCheck, Sparkles, UserRound, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -437,7 +439,7 @@ function VoiceAssistantPanel({ onClose, notify }: { onClose: () => void; notify:
     if (!transcript.trim()) return notify("Dictez ou écrivez les informations à analyser.");
     setBusy(true);
     try {
-      const response = await fetch("/api/ai/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, transcript }) });
+      const response = await authenticatedAiFetch("/api/ai/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, transcript }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Analyse impossible.");
       await fillCurrentForm(result.data, kind);

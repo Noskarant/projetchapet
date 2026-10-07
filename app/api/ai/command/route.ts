@@ -1,3 +1,4 @@
+import { authorizeAiRequest } from "@/lib/ai-authorization";
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readJsonBody } from "@/lib/api-guard";
 import {
@@ -119,6 +120,7 @@ export async function POST(request: Request) {
   if (limited) return limited;
 
   try {
+    await authorizeAiRequest(request, true);
     const body = await readJsonBody<CommandBody>(request, 180_000);
     const transcript = typeof body.transcript === "string" ? body.transcript.trim() : "";
     if (!transcript) throw new ApiInputError("La commande vocale est vide.");
@@ -140,6 +142,7 @@ export async function POST(request: Request) {
     try {
       const response = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
+        signal: AbortSignal.timeout(30_000),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,

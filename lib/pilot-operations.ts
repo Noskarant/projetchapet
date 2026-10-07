@@ -21,7 +21,7 @@ export const ROLE_DESCRIPTIONS: Record<OrganizationRole, string> = {
 };
 
 export function isOrganizationRole(value: unknown): value is OrganizationRole {
-  return typeof value === "string" && value in ROLE_LABELS;
+  return typeof value === "string" && Object.hasOwn(ROLE_LABELS, value);
 }
 
 export function isInvitableRole(value: unknown): value is Exclude<OrganizationRole, "owner"> {

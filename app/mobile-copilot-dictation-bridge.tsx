@@ -1,4 +1,6 @@
 "use client";
+
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
 import { microphoneErrorMessage } from '@/lib/microphone-error';
 
 import { useEffect } from "react";
@@ -93,7 +95,7 @@ export default function MobileCopilotDictationBridge() {
         const form = new FormData();
         const type = blob.type || current.recorder.mimeType || "audio/mp4";
         form.append("file", new File([blob], filenameFor(type), { type }));
-        const response = await fetch("/api/transcribe", {
+        const response = await authenticatedAiFetch("/api/transcribe", {
           method: "POST",
           body: form,
           signal: controller.signal,
