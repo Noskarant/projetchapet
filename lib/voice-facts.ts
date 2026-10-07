@@ -108,7 +108,7 @@ export function explicitPrice(phrase: string) {
 }
 
 export function explicitTax(phrase: string) {
-  const match = phrase.match(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'iu'));
+  const match = phrase.match(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de|au\\s+taux\\s+de)?\\s*[:=]?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'iu'));
   const rate = match ? spokenFinancialNumber(match[1]) : null;
   return rate !== null && [0,5.5,10,20].includes(rate) ? rate : null;
 }

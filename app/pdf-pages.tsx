@@ -10,12 +10,13 @@ export default function PdfPages({ url, title }: { url: string; title: string })
   const scaleRef = useRef(1);
   const [scale, setScale] = useState(1);
   const [fitWidth, setFitWidth] = useState(0);
+  const [pageAspect, setPageAspect] = useState(Math.SQRT2);
   const [error, setError] = useState(false);
   const [count, setCount] = useState(0);
   const zoom = useCallback((value: number, center?: { x: number; y: number }) => {
     const root = viewer.current;
     if (!root) return;
-    const next = Math.min(3, Math.max(1, value));
+    const next = Math.min(3, Math.max(.25, value));
     const previous = scaleRef.current;
     const rect = root.getBoundingClientRect();
     const x = center ? center.x - rect.left : root.clientWidth / 2;
@@ -84,6 +85,7 @@ export default function PdfPages({ url, title }: { url: string; title: string })
         const page = await document.getPage(number);
         if (cancelled) return;
         const viewport = page.getViewport({ scale: 1.5 });
+        if (number === 1) setPageAspect(viewport.height / viewport.width);
         const canvas = window.document.createElement("canvas");
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
@@ -98,13 +100,14 @@ export default function PdfPages({ url, title }: { url: string; title: string })
   }, [url, title]);
   return <section ref={viewer} className="manufeo-pdf-viewer" aria-label={title} data-pdf-scale={scale.toFixed(2)}>
     <div className="manufeo-pdf-tools" role="group" aria-label="Zoom du PDF">
-      <button type="button" aria-label="Réduire le PDF" disabled={scale <= 1} onClick={() => zoom(scaleRef.current - .25)}>−</button>
+      <button type="button" aria-label="Réduire le PDF" disabled={scale <= .25} onClick={() => zoom(scaleRef.current - .25)}>−</button>
       <button type="button" aria-label="Adapter le PDF à l’écran" onClick={() => zoom(1)}>{Math.round(scale * 100)} %</button>
+      <button type="button" aria-label="Afficher la page entière" onClick={() => { const height = viewer.current?.clientHeight || 0; if (fitWidth) zoom(Math.min(1, Math.max(.25, (height - 110) / (fitWidth * pageAspect)))); }}>Page entière</button>
       <button type="button" aria-label="Agrandir le PDF" disabled={scale >= 3} onClick={() => zoom(scaleRef.current + .25)}>+</button>
     </div>
     <p role="status">{error ? "L’aperçu n’a pas pu être affiché." : count ? `${count} page${count > 1 ? "s" : ""} — faites défiler pour tout consulter` : "Chargement du PDF…"}
       {error && <> <a href={url} target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a></>}
     </p>
-    <div ref={container} className="manufeo-pdf-pages" style={{ width: scale === 1 ? "100%" : fitWidth * scale + 24 }} />
+    <div ref={container} className="manufeo-pdf-pages" style={{ width: fitWidth ? fitWidth * scale + 24 : '100%' }} />
   </section>;
 }

@@ -87,7 +87,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
       .some((match) => explicitPrice(match[0]) === sourcePrice);
   const spokenPrice = alreadyConverted && sourcePrice !== null && !scopedPrice
     ? sourcePrice : scopedPrice?.amount ?? sharedPrice?.amount ?? (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
-  const taxesInTranscript = [...withoutPaymentAdjustments(withoutSupplierMarkup(transcript)).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de)?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
+  const taxesInTranscript = [...withoutPaymentAdjustments(withoutSupplierMarkup(transcript)).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de|au\\s+taux\\s+de)?\\s*[:=]?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
       const lineScope = /\b(?:(?:uniquement|seulement|exclusivement)\s+)?(?:pour|sur)\s+(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu;
       const after = transcript.slice(match.index + match[0].length, match.index + match[0].length + 65).split(/[.!?]/u)[0];
@@ -112,7 +112,13 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   // after the first price. Never inherit a rate explicitly limited to a line.
   const unscopedRates = [...new Set(taxesInTranscript.filter(match => !match.scoped).map(match => match.rate))];
   const confirmedTax = unscopedRates.length === 1 ? unscopedRates[0] : null;
-  const tax = (taxEvidence ? explicitTax(taxEvidence) : null) ?? priorTax ?? initialTax ?? confirmedTax;
+  // Source tables often put the TVA header and the row percentage in separate cells.
+  const rowRates = taxEvidence ? [...taxEvidence.matchAll(/\b(0|5[,.]5|10|20)\s*%/gu)].map(match => Number(match[1].replace(',', '.'))) : [];
+  const sourceRowTax = transcript.includes('Informations issues des sources à vérifier :') && /\bTVA\b/iu.test(transcript)
+    && rowRates.length === 1 && numberOrNull(source.tax_rate) === rowRates[0] ? rowRates[0] : null;
+  const artisanInstructions = transcript.split('Informations issues des sources à vérifier :')[0].split('Instructions de l’artisan :')[1];
+  const artisanTax = artisanInstructions ? explicitTax(artisanInstructions) : null;
+  const tax = artisanTax ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
   const priceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)

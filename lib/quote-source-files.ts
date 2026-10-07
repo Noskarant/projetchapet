@@ -1,4 +1,5 @@
 import { MAX_QUOTE_SOURCES, MAX_SOURCE_TEXT, type QuoteSource } from './quote-sources';
+import { readPdfTextContent } from './pdf-text-content';
 
 function imageFromUrl(url: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -32,7 +33,7 @@ export async function readQuoteSourceFiles(files: File[]): Promise<QuoteSource[]
         if (sources.length + pdf.numPages > MAX_QUOTE_SOURCES) throw new Error('Maximum 6 pages au total. Exportez uniquement les pages utiles du PDF.');
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
           const page = await pdf.getPage(pageNumber);
-          const content = await page.getTextContent();
+          const content = await readPdfTextContent(page);
           const text = content.items.filter(item => 'str' in item).map(item => 'str' in item ? `${item.str}${item.hasEOL ? '\n' : ' '}` : '').join('').trim();
           const base = page.getViewport({ scale: 1 });
           const viewport = page.getViewport({ scale: Math.min(2, 1600 / Math.max(base.width, base.height)) });

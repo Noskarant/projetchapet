@@ -282,11 +282,12 @@ export default function ActionVoiceAssistant() {
     const generation = sourceGeneration.current;
     setPasting(true); setPasteHint('');
     try {
+      if (!navigator.clipboard?.readText) throw new DOMException('Collage manuel requis.', 'NotAllowedError');
       const value = await navigator.clipboard.readText();
       if (generation !== sourceGeneration.current) return;
       if (!value.trim()) throw new Error('Le presse-papiers ne contient pas de texte.');
       if (value.length > 10_000) throw new Error('Texte trop long. Copiez uniquement les passages utiles (10 000 caractères maximum).');
-      copiedSourceRef.current = value; setCopiedSource(value);
+      copiedSourceRef.current = value; setCopiedSource(value); sourceObservationsRef.current = ''; setMessage('');
     } catch (error) {
       if (generation !== sourceGeneration.current) return;
       setPasteHint(error instanceof Error && !['NotAllowedError', 'SecurityError', 'TypeError'].includes(error.name)
@@ -661,7 +662,7 @@ export default function ActionVoiceAssistant() {
       if (next.reduce((sum, source) => sum + (source.text?.length || 0), 0) > 10_000) throw new Error('Documents trop longs. Joignez uniquement les pages utiles.');
       sourcesRef.current = next; sourceObservationsRef.current = '';
       setSources(next);
-    } catch (error) { if (sourceGeneration.current === generation) setMessage(error instanceof Error ? error.message : 'Import impossible.'); }
+    } catch (error) { if (sourceGeneration.current === generation) setMessage(error instanceof Error && !['TypeError', 'ReferenceError'].includes(error.name) ? error.message : 'Ce fichier n’a pas pu être lu. Réessayez avec un PDF, une photo JPEG/PNG ou collez son texte dans le champ ci-dessous.'); }
     finally { if (sourceGeneration.current === generation) setSourcesBusy(false); }
   }
 

@@ -7,6 +7,7 @@ export const QUOTE_META_STORAGE_KEY = "projetchapet-mobile-quote-meta-v1";
 export type QuoteInternalMeta = {
   discountPercent: number;
   internalNotes: string;
+  teamInstructions?: string;
 };
 
 export type QuotePreviewTotals = {
@@ -112,6 +113,7 @@ function parseMetaMap(raw: string | null): Record<string, QuoteInternalMeta> {
           discountPercent: normalizeDiscountPercent(value?.discountPercent),
           internalNotes:
             typeof value?.internalNotes === "string" ? value.internalNotes : "",
+          ...(typeof value?.teamInstructions === 'string' && value.teamInstructions ? { teamInstructions: value.teamInstructions.slice(0, 5000) } : {}),
         },
       ]),
     );
@@ -130,6 +132,7 @@ export function normalizeQuoteMetaMap(value: unknown): Record<string, QuoteInter
       return [number, {
         discountPercent: normalizeDiscountPercent(meta.discountPercent),
         internalNotes: typeof meta.internalNotes === "string" ? meta.internalNotes.slice(0, 5_000) : "",
+        ...(typeof meta.teamInstructions === 'string' && meta.teamInstructions ? { teamInstructions: meta.teamInstructions.slice(0, 5000) } : {}),
       }];
     }));
 }
@@ -158,6 +161,7 @@ export function writeQuoteInternalMeta(
   map[key] = {
     discountPercent: normalizeDiscountPercent(meta.discountPercent),
     internalNotes: meta.internalNotes.trimStart(),
+    ...(meta.teamInstructions ? { teamInstructions: meta.teamInstructions.slice(0, 5000).trimStart() } : {}),
   };
   storage.setItem(QUOTE_META_STORAGE_KEY, JSON.stringify(map));
 }

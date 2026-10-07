@@ -180,7 +180,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
           setSendChoiceOpen(true);
           return;
         case "share":
-          runUnderlyingQuoteAction(/^envoyer pdf$/);
+          window.dispatchEvent(new CustomEvent('manufeo:share-document-sms', { detail: { number: currentPreview() ? currentQuoteNumber(currentPreview()!) : '', kind: 'quote' } }));
           return;
         case "primary-status": {
           const status = currentPreview()

@@ -397,6 +397,17 @@ export async function buildBusinessDocumentPdf({
     y += 14;
   }
 
+  if (withoutPrices && quoteMeta.teamInstructions?.trim()) {
+    ensureSpace(16);
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5);
+    pdf.text('CONSIGNES ÉQUIPE', margin, y); y += 6;
+    for (const line of lines(quoteMeta.teamInstructions, 174)) {
+      ensureSpace(5); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
+      pdf.text(line, margin, y); y += 4;
+    }
+    y += 8;
+  }
+
   if (document.notes.trim()) {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8);

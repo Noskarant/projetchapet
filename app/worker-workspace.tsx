@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { artisanRequest } from '@/lib/artisan-records';
 
 type Workspace = {
-  projects: Array<{ id: string; name: string; subtitle: string; address: string; status: string }>;
+  projects: Array<{ id: string; name: string; subtitle: string; address: string; status: string; teamInstructions?: string }>;
   steps: Array<{ id: string; project_id: string; label: string; done: boolean }>;
   photos: Array<{ id: string; project_id: string; caption: string; url: string }>;
 };
@@ -91,6 +91,7 @@ export default function WorkerWorkspace({ organizationName, accountEmail, onAcco
     {loaded && !loading && !error && !workspace.projects.length && <p>Aucun chantier affecté. Demandez à votre responsable de vous ajouter à l’équipe du chantier.</p>}
     {workspace.projects.map(project => <section key={project.id}>
       <h2>{project.name}</h2><p>{project.address}</p><p>{project.subtitle}</p><strong>{project.status}</strong>
+      {project.teamInstructions && <div aria-label="Consignes de l’équipe"><h3>Consignes de l’équipe</h3><p style={{whiteSpace:'pre-wrap',lineHeight:1.5}}>{project.teamInstructions}</p></div>}
       <div>{workspace.steps.filter(step => step.project_id === project.id).map(step => <label key={step.id}>
         <input type="checkbox" disabled={busy || loading} checked={step.done} onChange={event => void update({ projectId: project.id, stepId: step.id, done: event.target.checked })} />
         {step.label}{step.done ? ' · Terminé' : ''}

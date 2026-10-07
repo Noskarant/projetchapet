@@ -72,6 +72,7 @@ export function FilterPanel({
       <div className="rm-commercial-form">
         <label>
           Client
+          <small>Par ordre alphabétique du nom ou de l’entreprise</small>
           <select
             value={draft.customerId}
             onChange={(event) => onChange({ ...draft, customerId: event.target.value })}
