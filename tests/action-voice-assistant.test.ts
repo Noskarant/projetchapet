@@ -65,7 +65,7 @@ test("chaque type vocal démarre depuis un aperçu animé de la boule", () => {
   for (const id of ["command", "quote", "invoice", "customer", "agenda"]) {
     assert.equal(source.includes(`id: "${id}"`), true);
   }
-  assert.equal(source.includes("<VoicePreviewButton onStart={() => void startRecording()} />"), true);
+  assert.match(source, /<VoicePreviewButton onStart=\{\(\) => void startRecording\(\)\}/);
   assert.equal(source.includes("<VoiceStartingVisualizer onClose={close} />"), true);
   assert.equal(experience.includes('data-testid="voice-preview-button"'), true);
   assert.equal(experience.includes("Appuyez pour parler"), true);

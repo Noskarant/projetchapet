@@ -17,13 +17,14 @@ type VoiceListeningVisualizerProps = {
 type VoicePreviewButtonProps = {
   onStart: () => void;
   disabled?: boolean;
+  append?: boolean;
 };
 
 type VoiceOverlayProps = {
   onClose: () => void;
 };
 
-export function VoicePreviewButton({ onStart, disabled = false }: VoicePreviewButtonProps) {
+export function VoicePreviewButton({ onStart, disabled = false, append = false }: VoicePreviewButtonProps) {
   return (
     <button
       type="button"
@@ -31,14 +32,14 @@ export function VoicePreviewButton({ onStart, disabled = false }: VoicePreviewBu
       data-testid="voice-preview-button"
       onClick={onStart}
       disabled={disabled}
-      aria-label="Démarrer la dictée vocale"
+      aria-label={append ? "Ajouter des consignes vocales" : "Démarrer la dictée vocale"}
     >
       <span className="ava-voice-preview-stage">
         <span className="ava-mascot-stage"><ManufeoMascot mood="hello" /></span>
       </span>
       <span className="ava-voice-preview-copy">
-        <strong>Appuyez pour parler</strong>
-        <small>MANUFEO vous écoute et prépare ensuite votre demande.</small>
+        <strong>{append ? "Ajouter des consignes vocales" : "Appuyez pour parler"}</strong>
+        <small>{append ? "Vos documents et vos consignes précédentes sont conservés." : "MANUFEO vous écoute et prépare ensuite votre demande."}</small>
       </span>
     </button>
   );

@@ -1,4 +1,5 @@
 import { insuranceDocumentNotes } from "./document-insurance";
+import { restoreSourcePhone } from './phone-display';
 import { spokenAmountPattern } from "./spoken-financial-number";
 import { applyDeductibleLine, deductibleLineNotes, isDeductibleLine, spokenDeductibleAdjustment, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
@@ -143,7 +144,12 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const columnType = [...new Set(columnTypes)].length === 1 ? columnTypes[0] : null;
   const priceType = scopedPrice?.type ?? sharedPrice?.type ?? spokenPriceType(priceEvidence) ?? columnType ?? roomPriceType
     ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(priceTranscript) ?? "unknown");
-  const normalizedTax = tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax : null;
+  const importDefault = transcript.startsWith('Prépare un brouillon de devis à partir des éléments suivants.')
+    && transcript.slice(0, instructionsStart).includes('TVA par défaut à l’import : 10 %');
+  const sourceTableHasRates = /\bTVA\s*(?:\(\s*%\s*\))?\s*(?:[|;\t\r\n]|$)/imu.test(sourceObservations)
+    && /\d+(?:[,.]\d+)?\s*%/u.test(sourceObservations);
+  const normalizedTax = tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax
+    : tax === null && importDefault && !taxesInTranscript.length && !sourceTableHasRates ? 10 : null;
   const needsTtcConversion = priceType === "ttc" && (!alreadyConverted || sourcePrice === null || scopedPrice?.type === 'ttc');
   const ttcWithoutTax = priceType === "ttc" && normalizedTax === null;
   const unitPrice = ttcWithoutTax || priceType === "ambiguous" ? null : needsTtcConversion
@@ -200,7 +206,7 @@ function normalizeCustomerPayload(source: RecordLike, transcript = "") {
     siret: text(source.siret, 24).replace(/\D/g, "") || null,
     vat_number: text(source.vat_number, 30).replace(/\s/g, "").toUpperCase() || null,
     emails,
-    phones,
+    phones: phones.map(phone => restoreSourcePhone(phone, transcript)),
     addresses: addresses.filter((address) => address.line1 || address.city),
     notes: insuranceDocumentNotes(text(source.notes, 2000), source.insurance, transcript) || null,
   };

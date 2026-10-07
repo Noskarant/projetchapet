@@ -37,5 +37,5 @@ test('sans en-tête probant, le modèle ne peut pas inventer HT ni une TVA nulle
   const transcript=quoteSourceRequest('Client Test.','Prestation 580,00 €. Total TTC 580,00 €.');
   const action=normalizeModelPlan({actions:[{intent_type:'prepare_quote',payload:{customer_hint:'Test',items:[{label:'Prestation A',quantity:1,unit_price:580,price_type:'ht',price_evidence:'580,00 €',tax_rate:0}]}}]},transcript)[0];
   const line=(action.payload.items as Array<Record<string,unknown>>)[0];
-  assert.equal(line.tax_rate,null); assert.notEqual(line.price_type,'ht');
+  assert.equal(line.tax_rate,10); assert.notEqual(line.price_type,'ht');
 });

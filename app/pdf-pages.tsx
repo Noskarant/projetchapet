@@ -26,10 +26,10 @@ export default function PdfPages({ url, title }: { url: string; title: string })
       clearPdfPrint();
     };
   }, []);
-  const zoom = useCallback((value: number, center?: { x: number; y: number }) => {
+  const zoom = useCallback((value: number, center?: { x: number; y: number }, resetPosition = false) => {
     const root = viewer.current;
     if (!root) return;
-    const next = Math.min(3, Math.max(.25, value));
+    const next = Math.min(3, Math.max(.1, value));
     const previous = scaleRef.current;
     const rect = root.getBoundingClientRect();
     const x = center ? center.x - rect.left : root.clientWidth / 2;
@@ -38,7 +38,7 @@ export default function PdfPages({ url, title }: { url: string; title: string })
     const top = (root.scrollTop + y) * next / previous - y;
     scaleRef.current = next;
     setScale(next);
-    requestAnimationFrame(() => { root.scrollLeft = left; root.scrollTop = top; });
+    requestAnimationFrame(() => { root.scrollLeft = resetPosition ? 0 : left; root.scrollTop = resetPosition ? 0 : top; });
   }, []);
   useEffect(() => {
     const root = viewer.current;
@@ -115,9 +115,15 @@ export default function PdfPages({ url, title }: { url: string; title: string })
   }, [url, title]);
   return <section ref={viewer} className="manufeo-pdf-viewer" aria-label={title} data-pdf-scale={scale.toFixed(2)} data-pdf-ready={ready}>
     <div className="manufeo-pdf-tools" role="group" aria-label="Zoom du PDF">
-      <button type="button" aria-label="Réduire le PDF" disabled={scale <= .25} onClick={() => zoom(scaleRef.current - .25)}>−</button>
-      <button type="button" aria-label="Adapter le PDF à l’écran" onClick={() => zoom(1)}>{Math.round(scale * 100)} %</button>
-      <button type="button" aria-label="Afficher la page entière" onClick={() => { const height = viewer.current?.clientHeight || 0; if (fitWidth) zoom(Math.min(1, Math.max(.25, (height - 110) / (fitWidth * pageAspect)))); }}>Page entière</button>
+      <button type="button" aria-label="Réduire le PDF" disabled={scale <= .1} onClick={() => zoom(scaleRef.current - .25)}>−</button>
+      <button type="button" aria-label="Adapter le PDF à l’écran" onClick={() => zoom(1, undefined, true)}>{Math.round(scale * 100)} %</button>
+      <button type="button" aria-label="Afficher la page entière" onClick={() => {
+        const root = viewer.current;
+        if (!root || !fitWidth) return;
+        const reserved = (root.querySelector<HTMLElement>('.manufeo-pdf-tools')?.offsetHeight || 0)
+          + (root.querySelector<HTMLElement>(':scope > p')?.offsetHeight || 0) + 24;
+        zoom(Math.min(1, (root.clientHeight - reserved) / (fitWidth * pageAspect)), undefined, true);
+      }}>Page entière</button>
       <button type="button" aria-label="Agrandir le PDF" disabled={scale >= 3} onClick={() => zoom(scaleRef.current + .25)}>+</button>
       <button type="button" disabled={!ready || error} onClick={() => void printPdfPages()}>Imprimer</button>
     </div>

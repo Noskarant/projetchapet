@@ -34,8 +34,8 @@ test('TVA sources : récapitulatif, taux distincts, TVA absente et priorité art
   assert.deepEqual(rates([item('Plafond', null)], 'Plafond : 100 euros HT. TVA : 10 %.'), [10]);
   const table = 'Désignation | Prix HT | TVA\nPlafond | 100 euros HT | 10 %\nPorte | 100 euros HT | 20 %';
   assert.deepEqual(rates([item('Plafond', 10, 'Plafond | 100 euros HT | 10 %'), item('Porte', 20, 'Porte | 100 euros HT | 20 %')], table), [10, 20]);
-  assert.deepEqual(rates([item('Plafond', 20)], 'Plafond : 100 euros HT. TVA non indiquée.'), [null]);
-  assert.deepEqual(rates([item('Plafond', 20, 'Majoration : 20 %')], 'Plafond : 100 euros HT. Majoration : 20 %. TVA non indiquée.'), [null]);
+  assert.deepEqual(rates([item('Plafond', 20)], 'Plafond : 100 euros HT. TVA non indiquée.'), [10]);
+  assert.deepEqual(rates([item('Plafond', 20, 'Majoration : 20 %')], 'Plafond : 100 euros HT. Majoration : 20 %. TVA non indiquée.'), [10]);
   assert.deepEqual(rates([item('Plafond', 20, 'Majoration : 20 %')], table, 'Majoration : 20 %.'), [null]);
   assert.deepEqual(rates([item('Plafond', 20, 'TVA : 20 %')], 'Plafond : 100 euros HT. TVA : 20 %.', 'Applique TVA 10 %.'), [10]);
   assert.deepEqual(rates([item('Plafond', 20, 'TVA : 20 %')], 'Plafond : 100 euros HT. TVA : 20 %.', 'Applique TVA 10 % uniquement pour cette ligne.'), [20]);

@@ -1,4 +1,5 @@
 import { documentInsurance } from "./document-insurance";
+import { phoneDisplay } from "./phone-display";
 import { documentDeductible, isDeductibleLine } from "./document-deductible";
 import { recalculatePercentageLines } from "./percentage-adjustments";
 import type { MobileCustomer, MobileInvoice, MobileQuote } from "./mobile-prototype";
@@ -182,12 +183,12 @@ export async function buildBusinessDocumentPdf({
     datesY = text(dateFr(quote ? document.expiryDate : document.dueDate), margin, datesY + 2, 48, true);
     let clientY = text("Client", 75, top, 55);
     clientY = text(document.customerName, 75, clientY + 2, 55, true);
-    for (const value of [customer?.address, [customer?.postalCode, customer?.city].filter(Boolean).join(" "), customer?.emails.find(Boolean), customer?.phones.find(Boolean)]) {
+    for (const value of [customer?.address, [customer?.postalCode, customer?.city].filter(Boolean).join(" "), customer?.emails.find(Boolean), ...[...new Set(customer?.phones.filter(Boolean) || [])].map(number => `Tél. : ${phoneDisplay(number)}`)]) {
       if (value) clientY = text(value, 75, clientY + 1, 55);
     }
     let companyY = text("De", 140, top, 55);
     companyY = text(identityName, 140, companyY + 2, 55, true);
-    for (const value of [address, [postalCode, city].filter(Boolean).join(" "), email, phone, siret ? `SIRET : ${siret}` : "", vat ? `N° de TVA : ${vat}` : ""]) {
+    for (const value of [address, [postalCode, city].filter(Boolean).join(" "), email, phone ? `Tél. : ${phoneDisplay(phone)}` : '', siret ? `SIRET : ${siret}` : "", vat ? `N° de TVA : ${vat}` : ""]) {
       if (value) companyY = text(value, 140, companyY + 1, 55);
     }
     const bottom = Math.max(datesY, clientY, companyY) + 5;
@@ -355,10 +356,12 @@ export async function buildBusinessDocumentPdf({
     y += 8;
   }
 
-  if (document.notes.trim()) {
+  const headerReferences = new Set(documentInsurance(document.notes).references.map(value => value.trim()));
+  const clientNotes = document.notes.split('\n').filter(line => !headerReferences.has(line.trim())).join('\n').trim();
+  if (clientNotes) {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8);
-    const noteLines = lines(document.notes.trim(), 174);
+    const noteLines = lines(clientNotes, 174);
     ensureSpace(16);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);

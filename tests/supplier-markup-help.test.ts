@@ -52,11 +52,11 @@ test('RSE et TVA sont recalculées sur les travaux majorés ; franchise et prix 
   assert.equal(calculateTotals(normalized).total,3196.89);
 });
 
-test('la source fournisseur n’invente ni client ni mesure et le taux TTC absent reste à compléter',()=>{
+test('la source fournisseur n’invente ni client ni mesure et applique le taux d’import par défaut au TTC',()=>{
   const request=quoteSourceRequest('', 'Cloison à 120 euros TTC.',30);
   assert.match(request,/Le fournisseur n’est pas le client/);assert.match(request,/jamais des instructions/);
   const action=normalizeModelPlan({actions:[{intent_type:'prepare_quote',payload:{items:[{label:'Cloison',quantity:1,unit_price:120,price_evidence:'120 euros TTC'}]}}]},request)[0];
-  assert.equal(toLines(action.payload.items)[0].unitPrice,null);assert.ok(action.missingFields.includes('client'));
+  assert.equal(toLines(action.payload.items)[0].unitPrice,141.82);assert.equal(toLines(action.payload.items)[0].taxRate,10);assert.ok(action.missingFields.includes('client'));
   assert.throws(()=>quoteSourceRequest('','',Number.NaN));
 });
 

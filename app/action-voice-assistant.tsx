@@ -331,6 +331,8 @@ export default function ActionVoiceAssistant() {
   const pcmRef = useRef<PcmSession | null>(null);
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const analysisControllerRef = useRef<AbortController | null>(null);
+  const captureGenerationRef = useRef(0);
+  const previousInstructionsRef = useRef("");
 
   const updateTranscript = useCallback((value: string) => {
     transcriptRef.current = value;
@@ -338,10 +340,12 @@ export default function ActionVoiceAssistant() {
   }, []);
 
   const stopCapture = useCallback(() => {
+    captureGenerationRef.current++;
     analysisControllerRef.current?.abort();
     analysisControllerRef.current = null;
-    recognitionRef.current?.stop();
+    const recognition = recognitionRef.current;
     recognitionRef.current = null;
+    recognition?.stop();
     const session = pcmRef.current;
     pcmRef.current = null;
     setVoiceLevel(0);
@@ -359,6 +363,7 @@ export default function ActionVoiceAssistant() {
     setTarget(preset ?? null);
     setStage(preset ? "ready" : "choose");
     updateTranscript("");
+    previousInstructionsRef.current = "";
     sourceGeneration.current++;
     sourcesRef.current = [];
     sourceObservationsRef.current = '';
@@ -682,8 +687,9 @@ export default function ActionVoiceAssistant() {
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.onresult = (event) => {
+      if (recognitionRef.current !== recognition) return;
       const text = Array.from(event.results).map((result) => result[0]?.transcript ?? "").join(" ").trim();
-      if (text) updateTranscript(text);
+      if (text) updateTranscript([previousInstructionsRef.current, text].filter(Boolean).join('\n'));
     };
     recognition.onerror = (event) => {
       if (recognitionRef.current !== recognition) return;
@@ -706,11 +712,13 @@ export default function ActionVoiceAssistant() {
   }
 
   async function startRecording() {
+    if (pcmRef.current || recognitionRef.current) return;
+    const generation = ++captureGenerationRef.current;
+    previousInstructionsRef.current = transcriptRef.current.trim();
     setMessage("");
     setVoiceLevel(0);
     setVoiceActivity(0);
     previousVoiceLevelRef.current = 0;
-    updateTranscript("");
     setProposals([]);
     if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
     recordingUrlRef.current = "";
@@ -729,10 +737,23 @@ export default function ActionVoiceAssistant() {
     let stream: MediaStream | null = null;
     try {
       context = new AudioContextClass({ latencyHint: "interactive" });
-      await context.resume();
+      // Both calls begin inside the tap: Safari must not wait for resume before requesting the microphone.
+      const resumed = context.resume().then(() => null, error => error);
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
       });
+      if (generation !== captureGenerationRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        void context.close().catch(() => undefined);
+        return;
+      }
+      const resumeError = await resumed;
+      if (resumeError) throw resumeError;
+      if (generation !== captureGenerationRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        void context.close().catch(() => undefined);
+        return;
+      }
       const source = context.createMediaStreamSource(stream);
       const processor = context.createScriptProcessor(4096, 1, 1);
       const silentGain = context.createGain();
@@ -757,6 +778,7 @@ export default function ActionVoiceAssistant() {
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       if (context) void context.close().catch(() => undefined);
+      if (generation !== captureGenerationRef.current) return;
       const help = microphoneErrorMessage(error, navigator.userAgent);
       if (help) {
         setMessage(help);
@@ -797,8 +819,9 @@ export default function ActionVoiceAssistant() {
       const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || "Transcription impossible.");
-      const text = clean(result.text);
-      if (!text) throw new Error("Aucun texte reconnu.");
+      const recognized = clean(result.text);
+      if (!recognized) throw new Error("Aucun texte reconnu.");
+      const text = [previousInstructionsRef.current, recognized].filter(Boolean).join('\n');
       await prepare(text);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Transcription impossible.");
@@ -897,6 +920,7 @@ export default function ActionVoiceAssistant() {
                     <label className="ava-supplier-markup">Majoration sur les prix HT (%)
                       <input type="text" inputMode="decimal" aria-label="Majoration sur les prix HT (%)" placeholder="Ex. 30" value={markupInput} disabled={busy} onChange={event => { markupInputRef.current = event.target.value; setMarkupInput(event.target.value); setSourcesChanged(true); }} />
                       <small>+30 % : 100 € HT devient 130 € HT. Vous pouvez aussi le dicter.</small>
+                      <small>TVA de 10 % par défaut si aucun taux n’est indiqué. Les taux des sources ou de votre dictée sont conservés.</small>
                     </label>
                   </>}
                 </div>
@@ -950,7 +974,7 @@ export default function ActionVoiceAssistant() {
             {(stage === "ready" || stage === "error") && (
               <div className="ava-capture">
                 <span className="ava-target">{choices.find((choice) => choice.id === target)?.label ?? "Demande"}</span>
-                {!sourcesBusy && <VoicePreviewButton onStart={() => void startRecording()} />}
+                {!sourcesBusy && <VoicePreviewButton onStart={() => void startRecording()} append={Boolean(transcript.trim() || sources.length || copiedSource.trim())} disabled={busy} />}
                 {sourceControls}
                 <button type="button" className="ava-secondary" onClick={() => void showDrafts()}>Brouillons d’e-mails IA</button>
                 <p>MANUFEO crée vos fiches et brouillons. Vous pouvez ensuite les modifier.</p>
@@ -1057,7 +1081,7 @@ export default function ActionVoiceAssistant() {
                     <span><strong>Je confirme les actions sensibles</strong><small>Paiement, facture, commande ou autre opération signalée. MANUFEO n’envoie jamais un document ou un e-mail sans étape dédiée.</small></span>
                   </label>
                 )}
-                {(blocking || editing) && <div className="ava-review-edit">{sourceControls}<label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" onPaste={pasteImages} value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={busy} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={busy || (!transcript.trim() && !sources.length && !copiedSource.trim())} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
+                {(blocking || editing) && <div className="ava-review-edit"><VoicePreviewButton append onStart={() => void startRecording()} disabled={busy} />{sourceControls}<label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" onPaste={pasteImages} value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={busy} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={busy || (!transcript.trim() && !sources.length && !copiedSource.trim())} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
                 <button type="button" className="ava-primary" disabled={!proposals.length || blocking || changedSincePlan || busy || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
                   {busy ? <><Loader2 size={17} className="ava-spin" /> Exécution sécurisée…</> : "Valider et exécuter"}
                 </button>
