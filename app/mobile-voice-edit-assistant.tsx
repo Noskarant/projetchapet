@@ -27,6 +27,7 @@ import { readQuoteInternalMeta, writeQuoteInternalMeta } from '@/lib/mobile-quot
 import { loadPrivateQuoteMeta, savePrivateQuoteMeta } from '@/lib/quote-private-cloud';
 import { flushMobileWorkspace } from '@/lib/mobile-workspace-flush';
 import { isDatabaseId } from '@/lib/mobile-desktop-sync';
+import { spokenDeductibleAdjustment } from '@/lib/document-deductible';
 
 type TargetData = MobileQuote | MobileInvoice | MobileAgendaEntry | MobileCustomer;
 type VoiceTarget = {
@@ -219,6 +220,8 @@ function changeSummary(command: MobileVoiceCommand) {
     labels.push(`${verb} : ${operation.designation || operation.match || "ligne"}`);
   }
   if (command.line_order?.length) labels.push('Regrouper les prestations dans l’ordre demandé, en conservant leurs montants.');
+  const deductible = spokenDeductibleAdjustment(command.deductible_request || '');
+  if (deductible) labels.push(`Déduire la franchise : ${deductible.amount.toFixed(2).replace('.', ',')} €${deductible.priceType ? ` ${deductible.priceType.toUpperCase()}` : ' (HT ou TTC à préciser)'}.`);
   return labels.length ? labels : ["Aucune modification certaine détectée."];
 }
 

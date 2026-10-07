@@ -23,6 +23,7 @@ import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustm
 import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 import { polishFrenchTradeDesignation } from './quote-language-polish';
 import { groupedVoiceLineOrder, scopedVoiceUnitPrices, sharedVoiceUnitPrice } from './voice-document-lines';
+import { applyDeductibleLine, deductibleLineNotes, isDeductibleLine, spokenDeductibleAdjustment } from './document-deductible';
 
 export type VoiceEntityKind = "quote" | "invoice" | "agenda" | "customer";
 
@@ -73,6 +74,7 @@ export type MobileVoiceCommand = {
   line_order?: string[];
   line_order_only?: boolean;
   percentage_request?: string;
+  deductible_request?: string;
 };
 
 const normalize = (value: string) => value
@@ -213,15 +215,16 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
     if (command.line_order_only) return { ...workspace, quotes: workspace.quotes.map(quote => quote.id === current.id
       ? { ...current, items: applyLineOrder(current.items, command.line_order) } : quote) };
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
-    const items = applySpokenPercentageLines(applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order), command.percentage_request || '');
+    const items = applyDeductibleLine(applySpokenPercentageLines(applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order), command.percentage_request || ''), command.deductible_request || '');
+    const notes = command.deductible_request ? deductibleLineNotes(String(changes.notes ?? current.notes)) : String(changes.notes ?? current.notes);
     const quote: MobileQuote = normalizeQuote({
       ...current,
       customerId: customer?.id || current.customerId,
       customerName: customer ? customerDisplayName(customer) : current.customerName,
       title: changes.title === undefined ? current.title : String(changes.title),
       notes: changes.discount_percent === 0
-        ? String(changes.notes ?? current.notes).replace(/\bRemise\s+(?:globale\s+)?(?:de\s+)?\d+(?:[,.]\d+)?\s*%[^.\n]*(?:\.|\n|$)/giu, '').trim()
-        : changes.notes === undefined ? current.notes : String(changes.notes),
+        ? notes.replace(/\bRemise\s+(?:globale\s+)?(?:de\s+)?\d+(?:[,.]\d+)?\s*%[^.\n]*(?:\.|\n|$)/giu, '').trim()
+        : notes,
       status: quoteStatus(changes.status) || current.status,
       issueDate: validDate(changes.issue_date) || current.issueDate,
       expiryDate: validDate(changes.expiry_date) || current.expiryDate,
@@ -237,14 +240,14 @@ export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: Mob
     if (command.line_order_only) return { ...workspace, invoices: workspace.invoices.map(invoice => invoice.id === current.id
       ? { ...current, items: applyLineOrder(current.items, command.line_order) } : invoice) };
     const customer = findCustomer(workspace, changes.customer_id, changes.customer_name);
-    const items = applySpokenPercentageLines(applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order), command.percentage_request || '');
+    const items = applyDeductibleLine(applySpokenPercentageLines(applyLineOrder(applyLineOperations(current.items, command.line_operations), command.line_order), command.percentage_request || ''), command.deductible_request || '');
     const status = invoiceStatus(changes.status) || current.status;
     const invoice: MobileInvoice = normalizeInvoice({
       ...current,
       customerId: customer?.id || current.customerId,
       customerName: customer ? customerDisplayName(customer) : current.customerName,
       title: changes.title === undefined ? current.title : String(changes.title),
-      notes: changes.notes === undefined ? current.notes : String(changes.notes),
+      notes: command.deductible_request ? deductibleLineNotes(String(changes.notes ?? current.notes)) : String(changes.notes ?? current.notes),
       status,
       issueDate: validDate(changes.issue_date) || current.issueDate,
       dueDate: validDate(changes.due_date) || current.dueDate,
@@ -377,8 +380,10 @@ export function fallbackMobileVoiceCommand(
   }
 
   const document = target.entity === 'quote' || target.entity === 'invoice' ? target.data as MobileQuote | MobileInvoice : null;
+  const deductibleRequested = /\bdedui\w*\b/u.test(normalizedText)
+    && !/\b(?:ne\s+dedui\w*\s+pas|ne\s+pas\s+dedui\w*|sans\s+dedui\w*)\b/u.test(normalizedText);
   const lineOrder = document ? groupedVoiceLineOrder(text, document.items) : undefined;
-  const orderOnly = Boolean(lineOrder && !/\b(?:ajout\w*|supprim\w*|retir\w*|enlev\w*|remplac\w*|prix|tarif|tva|quantit\w*|montant\w*|client|date|statut|remise|rse|majoration|frais|note\w*|titre|objet)\b/u.test(normalizedText));
+  const orderOnly = Boolean(lineOrder && !/\b(?:ajout\w*|supprim\w*|retir\w*|enlev\w*|remplac\w*|dedui\w*|franchise|prix|tarif|tva|quantit\w*|montant\w*|client|date|statut|remise|rse|majoration|frais|note\w*|titre|objet)\b/u.test(normalizedText));
   const sharedPrice = document ? sharedVoiceUnitPrice(text, document.items.length) : null;
   if (document && sharedPrice && sharedPrice.type === 'ht') {
     document.items.forEach(line => operations.push({ action: 'update', line_id: line.id, prix_unitaire_ht: sharedPrice.amount }));
@@ -399,6 +404,7 @@ export function fallbackMobileVoiceCommand(
     line_order: lineOrder,
     line_order_only: orderOnly,
     percentage_request: document ? text : undefined,
+    deductible_request: document && deductibleRequested && spokenDeductibleAdjustment(text) ? text : undefined,
   };
 }
 
@@ -420,7 +426,8 @@ export function sanitizeMobileVoiceCommand(value: unknown, fallback: MobileVoice
     ? raw.line_operations.slice(0, 100).filter((operation): operation is VoiceLineOperation => Boolean(operation && typeof operation === "object" && ["add", "update", "delete"].includes(String((operation as Record<string, unknown>).action))))
     : fallback.line_operations;
   const sharedOperations = fallback.line_operations?.filter(operation => operation.line_id && operation.prix_unitaire_ht !== undefined) || [];
-  return { entity, id, summary, changes, percentage_request: fallback.percentage_request, line_order: fallback.line_order ?? (Array.isArray(raw.line_order) && raw.line_order.every(id => typeof id === 'string') ? raw.line_order.slice(0, 100) : undefined),
+  return { entity, id, summary, changes, percentage_request: fallback.percentage_request, deductible_request: fallback.deductible_request, line_order: fallback.line_order ?? (Array.isArray(raw.line_order) && raw.line_order.every(id => typeof id === 'string') ? raw.line_order.slice(0, 100) : undefined),
     line_operations: [...(lineOperations?.filter(operation =>
-    !(operation.action === 'delete' && /\bremise\b/iu.test(operation.match || operation.designation || ''))) || []), ...sharedOperations] };
+    !(operation.action === 'delete' && /\bremise\b/iu.test(operation.match || operation.designation || ''))
+    && !(fallback.deductible_request && isDeductibleLine({label: operation.designation || operation.match || ''}))) || []), ...sharedOperations] };
 }

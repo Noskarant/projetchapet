@@ -33,13 +33,14 @@ export function applyDeductibleLine(items: LineItem[], transcript: string): Line
   const amountHT = type === 'ht' ? adjustment.amount : type === 'ttc' && taxRate !== null
     ? Math.round(adjustment.amount / (1 + taxRate / 100) * 100) / 100 : null;
   const format = (amount: number) => amount.toFixed(2).replace('.', ',');
-  return [...base, { id: 'franchise', label: 'Franchise à déduire',
+  return [...base, { id: items.find(isDeductibleLine)?.id || 'franchise', label: 'Franchise à déduire',
     description: `Franchise à déduire : ${format(adjustment.amount)} €${type ? ` ${type.toUpperCase()}` : ' (HT ou TTC à préciser)'}.${type === 'ttc' && taxRate !== null ? ` Conversion en HT avec TVA ${taxRate} %.` : ''}`,
     quantity: 1, unit: 'forfait', unitPrice: amountHT === null ? null : -amountHT, taxRate }];
 }
 
 export function deductibleLineNotes(notes: string) {
-  return notes.replace(/^Franchise (?:à déduire du montant TTC|à récupérer auprès du client|mentionnée[^:]*)\s*:.*$/gimu, '').trim();
+  return notes.replace(/^Franchise (?:à déduire du montant TTC|à récupérer auprès du client|mentionnée[^:]*)\s*:.*$/gimu, '')
+    .replace(new RegExp(`\\bFranchise\\s*[:：]\\s*${spokenAmountPattern}\\s*(?:€|euros?)\\s*${priceTypePattern}\\s+[àa]\\s+d[ée]duire[.]?`, 'giu'), '').trim();
 }
 
 export function documentLinePrice(value: unknown, label: string): number | null {

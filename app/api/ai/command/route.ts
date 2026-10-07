@@ -60,6 +60,7 @@ RÈGLES ABSOLUES
 - Corrige les fautes d'orthographe des désignations dictées, sans changer leur sens ni les termes métier (piquage, purge, ratissage, enduissage des supports).
 - Une suppression de ligne exige une demande explicite.
 - La remise globale d'un devis est changes.discount_percent (0 à 100). Enlever la remise signifie discount_percent: 0, jamais supprimer une prestation.
+- Une franchise dictée est calculée par MANUFEO comme une déduction fixe séparée, après la remise et la RSE. Ne crée ni ne modifie sa ligne toi-même et ne la laisse pas seulement dans les notes. Conserve son montant et sa mention HT/TTC dans le résumé ; le serveur applique la déduction à partir de la dictée originale.
 - N'invente jamais un prix, une quantité, une TVA, une date, un statut ou un client.
 - Les dates sont au format YYYY-MM-DD et les heures au format HH:MM.
 - L'entité doit rester « ${entity} » et l'id doit rester celui reçu.
