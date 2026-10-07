@@ -5,7 +5,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const response = await fetch(`${supabasePublicConfig.url}/rest/v1/`, {
+    // The REST schema endpoint requires a secret key; it is not a public health probe.
+    const response = await fetch(`${supabasePublicConfig.url}/auth/v1/health`, {
       headers: {
         apikey: supabasePublicConfig.publishableKey,
       },
@@ -18,9 +19,10 @@ export async function GET() {
         status: response.ok ? "ok" : "degraded",
         supabaseConfigured: true,
         supabaseReachable: response.ok,
+        probe: "auth",
         timestamp: new Date().toISOString(),
       },
-      { status: response.ok ? 200 : 503 },
+      { status: response.ok ? 200 : 503, headers: { "Cache-Control": "no-store" } },
     );
   } catch {
     return NextResponse.json(
@@ -28,9 +30,10 @@ export async function GET() {
         status: "degraded",
         supabaseConfigured: true,
         supabaseReachable: false,
+        probe: "auth",
         timestamp: new Date().toISOString(),
       },
-      { status: 503 },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

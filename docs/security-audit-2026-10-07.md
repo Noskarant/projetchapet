@@ -41,6 +41,7 @@ La configuration Auth conserve une alerte sur les mots de passe compromis. Certa
 - Sources envoyées à l’IA limitées aux données inline validées ; pas d’URL d’image arbitraire à faire charger au fournisseur. Les appels réseau sensibles utilisent des destinations fixes et des délais maximum.
 - Les sorties affichées utilisent React ou des fragments HTML fixes dans les emplacements inspectés. Aucun texte client non échappé n’a été identifié dans les insertions HTML examinées. La CSP ajoute une protection sans remplacer l’échappement.
 - Le service worker exclut les API et les requêtes avec Authorization. Il ne conserve plus les navigations de récupération de mot de passe, les codes OAuth ou les URL avec paramètres dans le cache de l’accueil.
+- Le contrôle public de santé utilise `/auth/v1/health` avec la clé publique, sans lecture de données ni clé de service. L’ancien contrôle de schéma REST recevait un refus « Secret API key required » et signalait une panne à tort. La sonde indique explicitement `probe: auth` ; elle ne remplace pas les tests des permissions SQL, des sauvegardes ou des opérations métier.
 - Les demandes mutantes depuis une origine étrangère sont refusées, y compris si un en-tête prétend « same-origin ». Le Host public est utilisé pour éviter les faux refus liés à la normalisation interne de Next ; les sessions restent vérifiées par les API.
 - Les contrôles de signatures, d’envoi, de confirmation humaine, de destinataire et d’idempotence des actions ont été examinés. Les tests de messagerie utilisent des fournisseurs simulés.
 
@@ -70,7 +71,7 @@ Les tests navigateur utilisent une base locale simulée et de fausses sessions. 
 | Pièces jointes externes | Les formats et tailles sont contrôlés et les buckets sont privés. Aucun antivirus/CDR n’est installé : les documents Office ou PDF externes restent des contenus à traiter comme non fiables. |
 | Isolation des environnements | La clé de service inspectée est réservée à la production. Les previews ne doivent pas recevoir de données client ni de credentials de production pour reproduire les tests. Les appels payants échouent si la vérification serveur manque. |
 | Fournisseurs réels et appareils | Confirmer les parcours avec les fournisseurs hors sandbox, les connexions OAuth réelles, et des iPhone/iPad/Android physiques. La simulation WebKit ne constitue pas une validation des applications natives. |
-| Protection du dépôt | Les workflows examinés utilisent des actions principales figées sur des SHA et des permissions de lecture. Les règles de branche et l’état des alertes de sécurité GitHub n’ont pas été attestés avec les outils disponibles. Vérifier les protections de main et l’accès des mainteneurs. |
+| Protection du dépôt | Les workflows examinés utilisent des actions principales figées sur des SHA et des permissions de lecture. Le contrôle API indique `main` non protégée et aucun ruleset, y compris hérité. Activer les contrôles CI obligatoires avant fusion et empêcher les réécritures/suppressions de main. L’état des alertes de sécurité GitHub et l’accès des autres mainteneurs restent à vérifier. |
 
 ## Changements de comportement à connaître
 
