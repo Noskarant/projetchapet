@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Expand, Loader2, Mail, Share2, X } from "lucide-react";
 import { fetchWorkspace, customerName, type Invoice, type Quote } from "@/lib/project-chapet";
 import { blobToBase64, buildDocumentPdf, downloadDocumentPdf } from "@/lib/document-tools";
+import { sharePreparedPdf } from "@/lib/document-file-share";
 
 type BusinessDocument = Quote | Invoice;
 
 type PreviewState = {
   document: BusinessDocument;
   url: string;
+  blob: Blob;
 };
 
 function isQuote(document: BusinessDocument): document is Quote {
@@ -67,7 +69,7 @@ export default function DocumentPreviewBridge() {
 
         const closeButton = modal.querySelector<HTMLButtonElement>("header button");
         closeButton?.click();
-        setPreview({ document: businessDocument, url });
+        setPreview({ document: businessDocument, url, blob });
       } catch {
         handledRef.current = "";
       } finally {
@@ -134,15 +136,7 @@ export default function DocumentPreviewBridge() {
               </div>
             <div className="pc-pdf-preview-actions">
                 <button className="pc-secondary" onClick={() => setFullScreen(true)}><Expand size={16} /> Plein écran</button>
-                <button className="pc-secondary" onClick={async () => {
-                  if (!preview) return;
-                  const blob = await buildDocumentPdf(preview.document);
-                  const file = new File([blob], `${preview.document.number}.pdf`, { type: "application/pdf" });
-                  try {
-                    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) await navigator.share({ files: [file] });
-                    else await downloadDocumentPdf(preview.document);
-                  } catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) await downloadDocumentPdf(preview.document); }
-                }}><Share2 size={16} /> Partager / Fichiers</button>
+                <button className="pc-secondary" onClick={() => void sharePreparedPdf(preview.blob, `${preview.document.number}.pdf`)}><Share2 size={16} /> Partager / Fichiers</button>
                 <button className="pc-secondary" onClick={() => void downloadDocumentPdf(preview.document)}>
                   <Download size={16} /> Télécharger
                 </button>

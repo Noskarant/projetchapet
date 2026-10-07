@@ -17,6 +17,7 @@ type QuoteAction =
   | "duplicate"
   | "pdf"
   | "share"
+  | "share-sms"
   | "download"
   | "print"
   | "invoice"
@@ -169,6 +170,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
   const [activeNumber, setActiveNumber] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sendChoiceOpen, setSendChoiceOpen] = useState(false);
+  const [shareReady, setShareReady] = useState(false);
 
   useEffect(() => {
     const onOpen = () => setMenuOpen(true);
@@ -181,6 +183,9 @@ export default function MobilePhilippeQuoteActionsMenu() {
           setSendChoiceOpen(true);
           return;
         case "share":
+          currentPreview()?.querySelector<HTMLButtonElement>('[data-document-file-share]')?.click();
+          return;
+        case "share-sms":
           window.dispatchEvent(new CustomEvent('manufeo:share-document-sms', { detail: { number: currentPreview() ? currentQuoteNumber(currentPreview()!) : '', kind: 'quote' } }));
           return;
         case "primary-status": {
@@ -263,6 +268,8 @@ export default function MobilePhilippeQuoteActionsMenu() {
 
       const number = currentQuoteNumber(preview);
       if (!number) return;
+      const shareButton = preview.querySelector<HTMLButtonElement>('[data-document-file-share]');
+      setShareReady(Boolean(shareButton && !shareButton.disabled));
 
       document.body.classList.add("rm-philippe-quote-actions-enabled");
       setActiveNumber((current) => (current === number ? current : number));
@@ -330,7 +337,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
 
     enhance();
     const observer = new MutationObserver(scheduleEnhance);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled'] });
     window.addEventListener(SYNC_MENU_EVENT, scheduleEnhance);
     document.addEventListener("click", onDocumentClick, true);
 
@@ -414,6 +421,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
             border-radius: 10px; background: rgba(255,255,255,.08); font-size: 16px;
           }
           .rm-philippe-actions-list button.danger { color: #ffb3bd; }
+          .rm-philippe-actions-list button:disabled { opacity: .5; }
         }
       `}</style>
 
@@ -457,8 +465,12 @@ export default function MobilePhilippeQuoteActionsMenu() {
               <button onClick={() => run("pdf")}>
                 <span aria-hidden="true">◉</span><span>Ouvrir le PDF</span>
               </button>
-              <button onClick={() => run("share")}>
+              <button onClick={() => run("share")} disabled={!shareReady}>
                 <span aria-hidden="true">↗</span><span>Partager le devis</span>
+              </button>
+              <small style={{ color: '#9eabc1' }}>Sur iPhone ou iPad : Enregistrer dans Fichiers → iCloud Drive. Choisissez ou créez votre dossier dans Fichiers.</small>
+              <button onClick={() => run("share-sms")}>
+                <span aria-hidden="true">✉</span><span>Partager par SMS</span>
               </button>
               <button onClick={() => run("download")}>
                 <span aria-hidden="true">↓</span><span>Télécharger le PDF</span>

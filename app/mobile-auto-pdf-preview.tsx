@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildBusinessDocumentPdf } from "@/lib/mobile-document-pdf";
+import { sharePreparedPdf } from "@/lib/document-file-share";
 import PdfPages from "./pdf-pages";
 import { loadPrivateQuoteMeta, savePrivateQuoteMeta } from "@/lib/quote-private-cloud";
 import {
@@ -646,13 +647,9 @@ export default function MobileAutoPdfPreview() {
           >
             <Download size={18} /> Télécharger
           </button>
-          <button disabled={!preview.pdfBlob} onClick={async () => {
+          <button data-document-file-share disabled={!preview.pdfBlob || busy} onClick={() => {
             if (!preview.pdfBlob) return;
-            const file = new File([preview.pdfBlob], `${preview.quote.number}.pdf`, { type: "application/pdf" });
-            try {
-              if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) await navigator.share({ files: [file], title: preview.quote.number });
-              else downloadBlob(preview.pdfBlob, file.name);
-            } catch (error) { if (!(error instanceof DOMException && error.name === "AbortError")) downloadBlob(preview.pdfBlob, file.name); }
+            void sharePreparedPdf(preview.pdfBlob, `${preview.quote.number}.pdf`);
           }}><Share2 size={18} /> Partager / Fichiers</button>
         </footer>
       </section>
