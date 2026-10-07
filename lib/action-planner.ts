@@ -124,7 +124,10 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     && instructionsStart >= 0 && match.position >= instructionsStart
     && sourcesStart > instructionsStart && match.position < sourcesStart).map(match => match.rate))];
   const artisanTax = artisanRates.length === 1 ? artisanRates[0] : null;
-  const tax = artisanTax ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
+  const artisanEvidence = instructionsStart >= 0 && sourcesStart > instructionsStart
+    ? groundedEvidence(transcript.slice(instructionsStart, sourcesStart), taxEvidence) : null;
+  const tax = (artisanEvidence ? explicitTax(artisanEvidence) : null) ?? artisanTax
+    ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
   const priceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)
