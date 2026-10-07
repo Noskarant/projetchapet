@@ -19,7 +19,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^0.468.0",
     "next": "15.5.25",
-    "pdfjs-dist": "6.3.289",
+    "pdfjs-dist": "6.4.299",
     "react": "19.1.7",
     "react-dom": "19.1.7"
   },
