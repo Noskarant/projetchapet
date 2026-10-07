@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import { Check, FileText, Loader2, Mic, ReceiptText, Square, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -113,7 +115,7 @@ export default function MobileQuickAi() {
 
   async function analyse(text: string) {
     setStage("working");
-    const response = await fetch("/api/ai/parse", {
+    const response = await authenticatedAiFetch("/api/ai/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind: target === "customer" ? "customer" : "document", transcript: text, target }),
@@ -143,7 +145,7 @@ export default function MobileQuickAi() {
           setStage("working");
           const form = new FormData();
           form.append("file", new File([blob], "dictee.webm", { type: blob.type }));
-          const response = await fetch("/api/transcribe", { method: "POST", body: form });
+          const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || "Transcription impossible.");
           const text = String(result.text || "").trim();

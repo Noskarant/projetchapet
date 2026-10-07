@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { organizationErrorResponse, requireOrganization, requireRole } from "@/lib/server-organization";
 import { supplierOrderTotal } from "@/lib/pilot-operations";
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   try {
     const context = await requireOrganization(request);
     requireRole(context.role, ["owner", "admin", "office", "manager"]);
-    const body = await request.json() as { orderId?: unknown; confirmed?: unknown };
+    const body = await readJsonBody<{ orderId?: unknown; confirmed?: unknown }>(request, 4_000);
     const orderId = String(body.orderId ?? "");
     if (!orderId || body.confirmed !== true) {
       return NextResponse.json({ error: "Confirmation humaine obligatoire avant l’envoi." }, { status: 400 });

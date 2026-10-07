@@ -1,3 +1,4 @@
+import { authenticatedRoute } from "./helpers/authenticated-route";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -9,7 +10,7 @@ import {
 } from "../lib/strict-voice-document";
 import { robustArtisanDictation } from "../lib/robust-artisan-dictation";
 import { calculateTotals, type LineItem } from "../lib/mobile-prototype";
-import { POST as parseStrictPost } from "../app/api/ai/parse-strict/route";
+import { POST as parseStrictPostHandler } from "../app/api/ai/parse-strict/route";
 
 const QUENTIN_DUBOIS_FIXTURE = `Fais-moi un devis pour Quentin Dubois.
 Dans le salon, il faut protéger le sol et les meubles, préparer les murs puis faire deux couches de peinture.
@@ -370,3 +371,5 @@ test("route stricte ne remplace pas une exception TVA explicite", async () => {
     else process.env.DEEPSEEK_API_KEY = previousApiKey;
   }
 });
+
+const parseStrictPost = authenticatedRoute(parseStrictPostHandler, true);

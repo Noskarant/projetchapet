@@ -1,4 +1,6 @@
 "use client";
+
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
 import { microphoneErrorMessage } from "@/lib/microphone-error";
 import { canCreateDirectly } from "@/lib/voice-direct-creation";
 
@@ -249,7 +251,7 @@ function placeholder(target: VoiceActionTarget | null) {
 
 async function parseSingleTarget(target: Exclude<VoiceActionTarget, "command">, transcript: string, signal: AbortSignal) {
   const agenda = target === "agenda";
-  const response = await fetch(agenda ? "/api/ai/agenda" : "/api/ai/parse", {
+  const response = await authenticatedAiFetch(agenda ? "/api/ai/agenda" : "/api/ai/parse", {
     method: "POST",
     signal,
     headers: { "Content-Type": "application/json" },
@@ -791,7 +793,7 @@ export default function ActionVoiceAssistant() {
       setRecordingUrl(recordingUrlRef.current);
       const form = new FormData();
       form.append("file", new File([blob], "dictee.wav", { type: "audio/wav" }));
-      const response = await fetch("/api/transcribe", { method: "POST", body: form });
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || "Transcription impossible.");
       const text = clean(result.text);

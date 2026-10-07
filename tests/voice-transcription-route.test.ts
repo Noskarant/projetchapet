@@ -1,6 +1,7 @@
+import { authenticatedRoute } from "./helpers/authenticated-route";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POST } from "../app/api/transcribe/route";
+import { POST as POSTHandler } from "../app/api/transcribe/route";
 
 test("la dictée de devis utilise le modèle de transcription précis et guide les décimales", async () => {
   const priorKey = process.env.GROQ_API_KEY;
@@ -46,3 +47,5 @@ test("accepte le MIME avec codec renvoyé par MediaRecorder Safari", async () =>
     else process.env.GROQ_API_KEY = priorKey;
   }
 });
+
+const POST = authenticatedRoute(POSTHandler, true);

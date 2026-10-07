@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { ApiInputError, errorResponse, isEmail } from "@/lib/api-guard";
+import { ApiInputError, errorResponse, readJsonBody, isEmail } from "@/lib/api-guard";
 import {
   INVITABLE_ROLES,
   ROLE_LABELS,
@@ -173,11 +173,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await authenticateRequest(request);
-    const body = await request.json() as { email?: unknown; role?: unknown; organizationId?: unknown };
+    const body = await readJsonBody<{ email?: unknown; role?: unknown; organizationId?: unknown }>(request, 4_000);
     const team = resolveTeamContext(context, requestedOrganizationId(request, body), ["owner", "admin"]);
     const email = String(body.email ?? "").trim().toLowerCase();
     if (!isEmail(email)) return NextResponse.json({ error: "Adresse e-mail invalide." }, { status: 400 });
     if (!isInvitableRole(body.role)) return NextResponse.json({ error: "Rôle invalide." }, { status: 400 });
+    if (body.role === "admin" && team.role !== "owner") return NextResponse.json({ error: "Seul le propriétaire peut nommer un administrateur." }, { status: 403 });
 
     const { data: organization } = await context.client.from("organizations").select("name").eq("id", team.organizationId).single();
     const { data: existing, error: existingError } = await context.client
@@ -226,11 +227,12 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const context = await authenticateRequest(request);
-    const body = await request.json() as { userId?: unknown; role?: unknown; organizationId?: unknown };
+    const body = await readJsonBody<{ userId?: unknown; role?: unknown; organizationId?: unknown }>(request, 4_000);
     const team = resolveTeamContext(context, requestedOrganizationId(request, body), ["owner", "admin"]);
     const userId = String(body.userId ?? "");
     if (!userId || userId === context.user.id) return NextResponse.json({ error: "Modification de votre propre rôle interdite ici." }, { status: 400 });
     if (!isInvitableRole(body.role)) return NextResponse.json({ error: "Rôle invalide." }, { status: 400 });
+    if (body.role === "admin" && team.role !== "owner") return NextResponse.json({ error: "Seul le propriétaire peut nommer un administrateur." }, { status: 403 });
 
     const { data: target } = await context.client.from("organization_members").select("role").eq("organization_id", team.organizationId).eq("user_id", userId).maybeSingle();
     if (!target) return NextResponse.json({ error: "Membre introuvable." }, { status: 404 });
@@ -248,7 +250,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const context = await authenticateRequest(request);
-    const body = await request.json() as { userId?: unknown; invitationId?: unknown; organizationId?: unknown };
+    const body = await readJsonBody<{ userId?: unknown; invitationId?: unknown; organizationId?: unknown }>(request, 4_000);
     const team = resolveTeamContext(context, requestedOrganizationId(request, body), ["owner", "admin"]);
     const invitationId = String(body.invitationId ?? "");
     if (invitationId) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import { Check, FileText, Loader2, Mic, ReceiptText, Square, UserRound, X } from "lucide-react";
@@ -246,7 +248,7 @@ export default function MobileAiAssistantV5() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/ai/parse", {
+      const response = await authenticatedAiFetch("/api/ai/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: selected === "customer" ? "customer" : "document", transcript: text, target: selected }),
@@ -280,7 +282,7 @@ export default function MobileAiAssistantV5() {
     try {
       const form = new FormData();
       form.append("file", new File([blob], "dictee.wav", { type: "audio/wav" }));
-      const response = await fetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal });
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Transcription impossible.");
       const text = String(result.text ?? "").trim();

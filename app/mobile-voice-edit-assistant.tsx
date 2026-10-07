@@ -1,4 +1,6 @@
 "use client";
+
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
 import { microphoneErrorMessage } from "@/lib/microphone-error";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -317,7 +319,7 @@ export default function MobileVoiceEditAssistant() {
     setMessage("");
     try {
       const workspace = readWorkspace();
-      const response = await fetch("/api/ai/command", {
+      const response = await authenticatedAiFetch("/api/ai/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -353,7 +355,7 @@ export default function MobileVoiceEditAssistant() {
     try {
       const form = new FormData();
       form.append("file", new File([blob], "modification-vocale.wav", { type: "audio/wav" }));
-      const response = await fetch("/api/transcribe", { method: "POST", body: form });
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form });
       const result = await response.json().catch(() => ({}));
       if (epoch !== recordingEpoch.current) return;
       if (!response.ok) throw new Error(result.error || "Transcription impossible.");
@@ -376,7 +378,7 @@ export default function MobileVoiceEditAssistant() {
     setMessage("");
     try {
       const workspace = readWorkspace();
-      const response = await fetch("/api/ai/command", {
+      const response = await authenticatedAiFetch("/api/ai/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript: text, target: { entity: target.entity, id: target.id, data: target.data }, workspace }),

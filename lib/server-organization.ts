@@ -1,3 +1,4 @@
+import { ApiInputError } from "./api-guard";
 import { assertActiveSession } from "./session-security";
 import { createClient } from "@supabase/supabase-js";
 import type { OrganizationRole } from "./pilot-operations";
@@ -29,8 +30,8 @@ function bearerToken(request: Request) {
 }
 
 export async function requireOrganization(request: Request) {
-  const admin = createServiceSupabase();
   const token = bearerToken(request);
+  const admin = createServiceSupabase();
   const { data: authData, error: authError } = await admin.auth.getUser(token);
   if (authError || !authData.user) throw new OrganizationAuthError("Session expirée.", 401);
 
@@ -62,8 +63,9 @@ export function requireRole(role: OrganizationRole, allowed: OrganizationRole[])
 }
 
 export function organizationErrorResponse(error: unknown) {
-  const status = error instanceof OrganizationAuthError ? error.status : 500;
-  const message = error instanceof Error ? error.message : "Erreur serveur.";
+  const expected = error instanceof OrganizationAuthError || error instanceof ApiInputError;
+  const status = expected ? error.status : 500;
+  const message = expected ? error.message : "Opération indisponible. Réessayez dans un instant.";
   return Response.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 

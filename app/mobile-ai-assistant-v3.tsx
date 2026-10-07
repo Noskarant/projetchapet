@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import { Check, FileText, Loader2, Mic, ReceiptText, Square, UserRound, X } from "lucide-react";
@@ -154,7 +156,7 @@ export default function MobileAiAssistantV3() {
     setStage("analysing");
     setMessage("");
     try {
-      const response = await fetch("/api/ai/parse", {
+      const response = await authenticatedAiFetch("/api/ai/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: selected === "customer" ? "customer" : "document", transcript: text, target: selected }),
@@ -182,7 +184,7 @@ export default function MobileAiAssistantV3() {
       form.append("file", new File([blob], "dictee.wav", { type: "audio/wav" }));
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 55000);
-      const response = await fetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal });
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal });
       window.clearTimeout(timeout);
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Transcription impossible.");

@@ -43,19 +43,53 @@ export function rateLimit(request: Request, route: string, limit: number, window
     for (const [bucketKey, bucket] of rateBuckets) {
       if (bucket.resetAt <= now) rateBuckets.delete(bucketKey);
     }
+    // Bound process memory even when clients keep inventing identifiers.
+    while (rateBuckets.size > 2_000) {
+      const oldest = rateBuckets.keys().next().value;
+      if (oldest === undefined) break;
+      rateBuckets.delete(oldest);
+    }
   }
 
   return null;
+}
+
+/** Stop reading at the limit, including requests without Content-Length. */
+export async function readBodyBytes(request: Request, maxBytes: number): Promise<Uint8Array> {
+  const declared = request.headers.get("content-length");
+  if (declared && (!/^\d+$/.test(declared) || Number(declared) > maxBytes)) {
+    throw new ApiInputError("Requête trop volumineuse.", 413);
+  }
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new ApiInputError("Requête trop volumineuse.", 413);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const result = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
+  return result;
 }
 
 export async function readJsonBody<T>(request: Request, maxBytes: number): Promise<T> {
   const declaredLength = Number(request.headers.get("content-length") || 0);
   if (declaredLength > maxBytes) throw new ApiInputError("Requête trop volumineuse.", 413);
 
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > maxBytes) {
-    throw new ApiInputError("Requête trop volumineuse.", 413);
-  }
+  const bytes = await readBodyBytes(request, maxBytes);
+  const text = new TextDecoder().decode(bytes);
 
   try {
     return JSON.parse(text) as T;

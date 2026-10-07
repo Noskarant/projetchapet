@@ -1,8 +1,9 @@
+import { authenticatedRoute } from "./helpers/authenticated-route";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { POST as sendEmail } from '../app/api/email/route';
-import { POST as extractSources } from '../app/api/ai/quote-sources/route';
+import { POST as sendEmailHandler } from '../app/api/email/route';
+import { POST as extractSourcesHandler } from '../app/api/ai/quote-sources/route';
 import { readQuoteSources } from '../lib/quote-source-reader';
 import { validateQuoteSources } from '../lib/quote-source-validation';
 import { quoteSourceRequest } from '../lib/quote-sources';
@@ -126,3 +127,6 @@ test('PDF FAC-2026-004 : aucun libellé dans la colonne quantité, descriptions 
     await writeFile('tmp/pdfs/philippe-invoice-layout.pdf', Buffer.from(await blob.arrayBuffer()));
   } finally { await task.destroy(); }
 });
+
+const sendEmail = authenticatedRoute(sendEmailHandler, false);
+const extractSources = authenticatedRoute(extractSourcesHandler, false);

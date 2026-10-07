@@ -1,3 +1,5 @@
+import { readJsonBody } from "@/lib/api-guard";
+import { assertProjectAccess, assignedProjectIds } from "@/lib/server-project-access";
 import { NextResponse } from "next/server";
 import {
   MAX_ACTIVITY_BODY_LENGTH,
@@ -69,6 +71,7 @@ async function fetchItem(
     .maybeSingle();
   if (error) throw new OrganizationAuthError("Impossible de charger l’élément.", 503);
   if (!data) throw new OrganizationAuthError("Élément introuvable.", 404);
+  await assertProjectAccess(context, String(data.project_id));
   return data;
 }
 
@@ -86,7 +89,17 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .limit(250);
 
-    if (requestedProject) query = query.eq("project_id", normalizeProjectId(requestedProject));
+    if (requestedProject) {
+      const projectId = normalizeProjectId(requestedProject);
+      await assertProjectAccess(context, projectId);
+      query = query.eq("project_id", projectId);
+    } else if (context.role === "worker") {
+      const ids = await assignedProjectIds(context);
+      if (!ids.length) return NextResponse.json({ items: [] });
+      query = query.in("project_id", ids);
+    } else if (!["owner", "admin", "office", "manager"].includes(context.role)) {
+      throw new OrganizationAuthError("Droits insuffisants.", 403);
+    }
 
     const { data: items, error } = await query;
     if (error) throw new OrganizationAuthError("Impossible de charger le journal chantier.", 503);
@@ -146,8 +159,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await requireOrganization(request);
-    const input = await request.json() as Record<string, unknown>;
+    const input = await readJsonBody<Record<string, unknown>>(request, 30_000);
     const projectId = normalizeProjectId(input.projectId);
+    await assertProjectAccess(context, projectId);
     const body = normalizeActivityBody(input.body);
     if (!body) {
       throw new OrganizationAuthError(`Le texte doit contenir entre 1 et ${MAX_ACTIVITY_BODY_LENGTH} caractères.`, 400);
@@ -188,7 +202,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const context = await requireOrganization(request);
-    const input = await request.json() as Record<string, unknown>;
+    const input = await readJsonBody<Record<string, unknown>>(request, 30_000);
     const id = requireUuid(input.id, "Élément");
     const existing = await fetchItem(context, id);
     const mentions = normalizeMentionIds(existing.mentions);
@@ -259,7 +273,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const context = await requireOrganization(request);
-    const input = await request.json() as Record<string, unknown>;
+    const input = await readJsonBody<Record<string, unknown>>(request, 30_000);
     const id = requireUuid(input.id, "Élément");
     const existing = await fetchItem(context, id);
     if (!canManageActivityContent(context.role, context.user.id, String(existing.created_by))) {

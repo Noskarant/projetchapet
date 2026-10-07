@@ -14,7 +14,9 @@ const AVAILABLE_TRADES = [
 ];
 
 test("le copilote conserve la peinture par défaut et détecte le tapissier en compatibilité", async ({ request }) => {
+  const headers = { Authorization: `Bearer fixture.${Buffer.from(JSON.stringify({session_id:'33333333-3333-4333-8333-333333333333'})).toString('base64url')}.signature` };
   const painting = await request.post("/api/copilot/proposal", {
+    headers,
     data: {
       description: "Peinture de 45 m² de murs et 20 m² de plafonds avec deux portes.",
     },
@@ -25,6 +27,7 @@ test("le copilote conserve la peinture par défaut et détecte le tapissier en c
   expect(paintingBody.proposal.interpretation.trade).toBe("interior_painting");
 
   const upholstery = await request.post("/api/copilot/proposal", {
+    headers,
     data: {
       description: "Deux fauteuils Voltaire, dégarnissage complet, garniture traditionnelle, le client fournit le tissu, je change la passementerie et je les lui ramène.",
     },
@@ -39,7 +42,9 @@ test("le copilote conserve la peinture par défaut et détecte le tapissier en c
 });
 
 test("un métier encore planifié est refusé au lieu d’utiliser silencieusement un autre pack", async ({ request }) => {
+  const headers = { Authorization: `Bearer fixture.${Buffer.from(JSON.stringify({session_id:'33333333-3333-4333-8333-333333333333'})).toString('base64url')}.signature` };
   const response = await request.post("/api/copilot/proposal", {
+    headers,
     data: {
       trade: "facadier",
       description: "Ravalement complet de 85 m² de façade avec reprise des fissures.",

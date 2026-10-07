@@ -29,7 +29,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck
@@ -80,7 +80,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          output="$(timeout 120s npm audit --omit=dev --audit-level=high 2>&1)"
+          output="$(timeout 120s npm audit --audit-level=high 2>&1)"
           status=$?
           set -e
 
@@ -91,8 +91,8 @@ jobs:
           fi
 
           if [ "$status" -eq 124 ] || printf '%s\n' "$output" | grep -Eqi '5[0-9][0-9] (Service Unavailable|Internal Server Error|Bad Gateway|Gateway Timeout)|ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up'; then
-            echo "::warning::npm audit indisponible (erreur réseau/service). Les tests restent valides, mais aucun résultat de vulnérabilité n’a pu être obtenu."
-            exit 0
+            echo "::error::npm audit indisponible : la sécurité des dépendances ne peut pas être validée. Relancer ce contrôle."
+            exit 1
           fi
 
           exit "$status"

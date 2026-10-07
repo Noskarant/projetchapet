@@ -1,3 +1,5 @@
+import { readJsonBody, readBodyBytes } from "@/lib/api-guard";
+import { assertProjectAccess } from "@/lib/server-project-access";
 import { NextResponse } from "next/server";
 import {
   MAX_ACTIVITY_ATTACHMENTS,
@@ -36,6 +38,7 @@ async function loadNote(
     .maybeSingle();
   if (error) throw new OrganizationAuthError("Impossible de vérifier l’élément.", 503);
   if (!data) throw new OrganizationAuthError("Élément introuvable.", 404);
+  await assertProjectAccess(context, String(data.project_id));
   return data;
 }
 
@@ -46,7 +49,8 @@ function safePathPart(value: string) {
 export async function POST(request: Request) {
   try {
     const context = await requireOrganization(request);
-    const form = await request.formData();
+    const requestBytes = await readBodyBytes(request, MAX_ACTIVITY_ATTACHMENT_BYTES + 1024 * 1024);
+    const form = await new Response(requestBytes as BodyInit, { headers: { "Content-Type": request.headers.get("content-type") || "" } }).formData();
     const noteId = requireUuid(form.get("noteId"), "Élément");
     const file = form.get("file");
     if (!(file instanceof File)) throw new OrganizationAuthError("Fichier manquant.", 400);
@@ -127,7 +131,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const context = await requireOrganization(request);
-    const input = await request.json() as Record<string, unknown>;
+    const input = await readJsonBody<Record<string, unknown>>(request, 4_000);
     const id = requireUuid(input.id, "Pièce jointe");
 
     const { data: attachment, error } = await context.admin

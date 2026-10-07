@@ -1,3 +1,4 @@
+import { authenticatedRoute } from "./helpers/authenticated-route";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { insuranceDocumentNotes, documentInsurance } from '../lib/document-insurance';
@@ -8,7 +9,7 @@ import { restrictSourcePlan } from '../lib/source-plan';
 import { buildBusinessDocumentPdf } from '../lib/mobile-document-pdf';
 import { seedMobileWorkspace, calculateTotals, convertQuoteToInvoice } from '../lib/mobile-prototype';
 import { addProjectPhoto, seedCommercialDemoState, type CommercialProject } from '../lib/mobile-commercial-demo';
-import { POST as sendReport } from '../app/api/projects/photo-report/route';
+import { POST as sendReportHandler } from '../app/api/projects/photo-report/route';
 import { applyCommercialSyncResult, commercialCloudSignature } from '../lib/commercial-cloud';
 
 const org = '11111111-1111-4111-8111-111111111111';
@@ -123,3 +124,5 @@ test('envoi dossier : contrôle entreprise/chantier/photos avant tout e-mail et 
     providerFails = true; assert.equal((await call()).status, 503); assert.equal(keys[2], keys[0]);
   } finally { globalThis.fetch = originalFetch; if (oldKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = oldKey; }
 });
+
+const sendReport = authenticatedRoute(sendReportHandler, false);

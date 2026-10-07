@@ -33,6 +33,9 @@ import "./manufeo-legal-public.css";
 import "./tablet-app.css";
 import "./artisan-readability.css";
 
+// A fresh nonce must be attached to every HTML response.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "MANUFEO — l’assistant métier des artisans du bâtiment",
   description:

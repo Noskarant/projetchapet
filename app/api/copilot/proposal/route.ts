@@ -1,3 +1,4 @@
+import { authorizeAiRequest } from "@/lib/ai-authorization";
 import { NextResponse } from "next/server";
 import {
   ApiInputError,
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
   if (limited) return limited;
 
   try {
+    await authorizeAiRequest(request, true);
     const body = await readJsonBody<ProposalBody>(request, 80_000);
     const description = requireString(body.description, "La description du chantier", 20_000);
     const hasExplicitTrade = typeof body.trade === "string" && body.trade.trim().length > 0;

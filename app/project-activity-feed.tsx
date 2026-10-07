@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import {
   Check,
   Circle,
@@ -320,7 +322,7 @@ export default function ProjectActivityFeed({ currentUserId, role, projects, mem
       const token = await accessToken();
       const form = new FormData();
       form.append("file", file, file.name);
-      const response = await fetch("/api/transcribe", {
+      const response = await authenticatedAiFetch("/api/transcribe", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,

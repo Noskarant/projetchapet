@@ -199,7 +199,7 @@ async function finalizeProposal(client: SupabaseClient, proposal: ProposalRow, r
 }
 
 async function failProposal(client: SupabaseClient, proposal: ProposalRow, error: unknown) {
-  const message = error instanceof Error ? error.message : "Exécution impossible.";
+  const message = error instanceof ApiInputError ? error.message : "Exécution impossible. Réessayez dans un instant.";
   await client
     .from("action_proposals")
     .update({

@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
 import { Check, FileText, Loader2, Mic, ReceiptText, Square, UserRound, X } from "lucide-react";
@@ -98,7 +100,7 @@ export default function MobileAiAssistantV4() {
     if (!text.trim()) { setMessage("Aucun texte reconnu. Vous pouvez écrire la demande ci-dessous."); setStage("ready"); return; }
     setStage("analysing"); setMessage("");
     try {
-      const response = await fetch("/api/ai/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: selected === "customer" ? "customer" : "document", transcript: text, target: selected }) });
+      const response = await authenticatedAiFetch("/api/ai/parse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: selected === "customer" ? "customer" : "document", transcript: text, target: selected }) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "Analyse impossible.");
       setParsed(result.data as ParsedResult); setProvider(String(result.provider ?? "")); setStage("review");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Analyse impossible."); setStage("error"); }
@@ -109,7 +111,7 @@ export default function MobileAiAssistantV4() {
     try {
       const form = new FormData(); form.append("file", new File([blob], "dictee.wav", { type: "audio/wav" }));
       const controller = new AbortController(); const timeout = window.setTimeout(() => controller.abort(), 55000);
-      const response = await fetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal }); window.clearTimeout(timeout);
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal }); window.clearTimeout(timeout);
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "Transcription impossible.");
       const text = String(result.text ?? "").trim(); if (!text) throw new Error("Aucun texte reconnu. Parlez plus près du téléphone.");
       updateTranscript(text); setProvider(`${String(result.provider ?? "Groq Whisper")} · ${duration.toFixed(1)} s`); await analyse(text, selected);

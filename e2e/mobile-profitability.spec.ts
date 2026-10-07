@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("le suivi de rentabilité calcule les coûts saisis sans modifier les devis", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-webkit", "Fonction mobile uniquement.");
   const records: Array<Record<string, unknown>> = [];
+  await page.route("**/rest/v1/rpc/ensure_personal_organization", route => route.fulfill({ json: "11111111-1111-4111-8111-111111111111" }));
   await page.route("**/rest/v1/artisan_workflow_records**", async route => {
     if (route.request().method() === "POST") {
       records.push(route.request().postDataJSON());

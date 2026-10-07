@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import {
   AlertTriangle,
   Check,
@@ -570,7 +572,7 @@ export default function AiChain() {
       const extension = blob.type.includes("ogg") ? "ogg" : "webm";
       const form = new FormData();
       form.append("file", new File([blob], `dictée.${extension}`, { type: blob.type }));
-      const response = await fetch("/api/transcribe", { method: "POST", body: form });
+      const response = await authenticatedAiFetch("/api/transcribe", { method: "POST", body: form });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Transcription impossible.");
       const text = String(result.text ?? "").trim();
@@ -593,7 +595,7 @@ export default function AiChain() {
     setStage("analysing");
     setParsed(null);
     try {
-      const response = await fetch("/api/ai/parse", {
+      const response = await authenticatedAiFetch("/api/ai/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

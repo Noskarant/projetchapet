@@ -1,4 +1,6 @@
 "use client";
+
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
 import { microphoneErrorMessage } from '@/lib/microphone-error';
 
 import {
@@ -215,7 +217,7 @@ export default function MobileCopilotAssistant() {
     setGenericConfirmed(false);
 
     try {
-      const response = await fetch("/api/copilot/proposal", {
+      const response = await authenticatedAiFetch("/api/copilot/proposal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description: text }),

@@ -1,6 +1,7 @@
+import { authenticatedRoute } from "./helpers/authenticated-route";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POST } from "../app/api/ai/parse/route";
+import { POST as POSTHandler } from "../app/api/ai/parse/route";
 import { plannedActionFromParsed } from "../lib/action-planner";
 
 const transcript = "Crée un client particulier, nom Dupont, prénom Jean, email jean point dupont arobase mon tiret atelier point fr, téléphone 0612345678.";
@@ -56,3 +57,5 @@ test("création client sans IA : conserve l'arobase et ne duplique pas l'adresse
     if (priorKey !== undefined) process.env.DEEPSEEK_API_KEY = priorKey;
   }
 });
+
+const POST = authenticatedRoute(POSTHandler, true);

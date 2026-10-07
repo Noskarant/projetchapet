@@ -1,3 +1,4 @@
+import { consumeAiQuota } from "@/lib/ai-authorization";
 import { restrictSourcePlan } from "@/lib/source-plan";
 import { resolveVoicePlanCustomers } from "@/lib/voice-plan-customers";
 import { orderVoicePlan } from "@/lib/voice-plan-order";
@@ -369,6 +370,7 @@ export async function POST(request: Request) {
 
     const context = await authenticateRequest(request);
     requireOrganization(context, organizationId, ["owner", "admin", "office", "manager"]);
+    await consumeAiQuota(context.user.id, organizationId);
     const target = cleanTarget(body.target);
 
     let planned = target === "command" || target === "supplier"

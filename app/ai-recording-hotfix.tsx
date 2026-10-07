@@ -1,5 +1,7 @@
 "use client";
 
+import { authenticatedAiFetch } from "@/lib/authenticated-ai-fetch";
+
 import { useEffect } from "react";
 
 function setTextareaValue(textarea: HTMLTextAreaElement, value: string) {
@@ -61,7 +63,7 @@ export default function AiRecordingHotfix() {
         activeButton.textContent = "Transcription en cours…";
       }
 
-      const response = await fetch("/api/transcribe", {
+      const response = await authenticatedAiFetch("/api/transcribe", {
         method: "POST",
         body: form,
       });
