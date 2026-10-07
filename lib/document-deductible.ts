@@ -11,7 +11,9 @@ export function isDeductibleLine(line: Pick<LineItem, 'label'>) {
 
 export function spokenDeductibleAdjustment(transcript: string) {
   const instructions = transcript.split('Informations issues des sources à vérifier')[0];
-  const match = [...instructions.matchAll(franchisePattern)].at(-1) ?? [...transcript.matchAll(franchisePattern)].at(-1);
+  const matches = [...instructions.matchAll(franchisePattern)];
+  const match = matches.at(-1) ?? [...transcript.matchAll(franchisePattern)]
+    .filter(candidate => /(?:à|a)\s+d[ée]duire/iu.test(candidate[0])).at(-1);
   if (!match) return null;
   const amount = spokenFinancialNumber(match[3]);
   if (amount === null || amount > 1_000_000) return null;

@@ -146,6 +146,14 @@ export async function POST(request: Request) {
       .eq("proposal_id", proposalId).eq("organization_id", organizationId).eq("status", "sending")
       .select("proposal_id").maybeSingle();
     if (saveError || !saved) throw new Error("Confirmation de l’envoi impossible.");
+    if (attachment?.quoteId) {
+      // This attachment was checked against the recipient before sending.
+      const { data: quote } = await context.client.from("quotes").select("sent_at").eq("id", attachment.quoteId).eq("organization_id", organizationId).maybeSingle();
+      const { error: quoteError } = await context.client.from("quotes")
+        .update({ status: "sent", sent_at: quote?.sent_at || sentAt }).eq("id", attachment.quoteId)
+        .eq("organization_id", organizationId).in("status", ["draft", "sent"]);
+      if (quoteError) console.error("[MANUFEO] Date d’envoi du devis non enregistrée", quoteError.code);
+    }
     return NextResponse.json({
       sent: true,
       sentAt,

@@ -131,6 +131,7 @@ async function authorizeRecipients(
   const allowed = new Set<string>();
   const snapshotAccountingByOrganization = new Map<string, string[]>();
   let documentFound = false;
+  let sentQuote: { id: string; organization_id: string; sent_at: string | null } | null = null;
 
   const { data: snapshots, error: snapshotError } = await client
     .from("pilot_workspace_snapshots")
@@ -150,7 +151,7 @@ async function authorizeRecipients(
   const documentTable = documentKind === "quote" ? "quotes" : "invoices";
   const { data: documents, error: documentError } = await client
     .from(documentTable)
-    .select("organization_id, customer_id, number")
+    .select("id, organization_id, customer_id, number, status, sent_at")
     .eq("number", documentNumber)
     .in("organization_id", organizationIds);
   if (documentError) throw new Error("Document inaccessible");
@@ -164,6 +165,12 @@ async function authorizeRecipients(
         .select("id, emails")
         .in("id", customerIds);
       if (customerError) throw new Error("Client inaccessible");
+      const document = documents.length === 1 ? documents[0] : null;
+      const customer = document ? customers?.find(row => row.id === document.customer_id) : null;
+      if (documentKind === "quote" && document?.id && ["draft", "sent"].includes(document.status)
+        && uniqueValidEmails(customer?.emails ?? []).includes(requestedRecipients[0].toLowerCase())) {
+        sentQuote = { id: document.id, organization_id: document.organization_id, sent_at: document.sent_at };
+      }
       uniqueValidEmails((customers ?? []).flatMap((row) => Array.isArray(row.emails) ? row.emails : []))
         .forEach((email) => allowed.add(email));
     }
@@ -186,6 +193,7 @@ async function authorizeRecipients(
   if (!recipientsAreAuthorized(requestedRecipients, [...allowed], customRecipient)) {
     throw new ApiInputError("Ce destinataire n’est pas rattaché à ce document ou à votre comptabilité.", 403);
   }
+  return { client, sentQuote };
 }
 
 export async function GET() {
@@ -209,7 +217,7 @@ export async function POST(request: Request) {
     const cc = cleanEmails(body.cc);
     const bcc = cleanEmails(body.bcc);
 
-    await authorizeRecipients(request, documentNumber, documentKind, [to, ...cc, ...bcc], body.customRecipient === true);
+    const authorization = await authorizeRecipients(request, documentNumber, documentKind, [to, ...cc, ...bcc], body.customRecipient === true);
 
     const subject = optionalString(body.subject, 998) || "Votre document";
     const incomingHtml = optionalString(body.html, 10_000_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";
@@ -246,7 +254,18 @@ export async function POST(request: Request) {
       if (safeProviderMessage) throw new ApiInputError(safeProviderMessage, 503);
       throw new Error(`Resend API : ${response.status}`);
     }
-    return NextResponse.json({ configured: true, id: data.id });
+    if (typeof data.id !== "string" || !data.id) throw new Error("Confirmation du fournisseur manquante.");
+    let quoteSentRecorded = false;
+    const quote = authorization.sentQuote;
+    if (quote && !attachments.some(attachment => /sans[-_ ]prix/iu.test(attachment.filename))) {
+      const result = await authorization.client.from("quotes")
+        .update({ status: "sent", sent_at: quote.sent_at || new Date().toISOString() })
+        .eq("id", quote.id).eq("organization_id", quote.organization_id).in("status", ["draft", "sent"])
+        .select("id").maybeSingle();
+      quoteSentRecorded = !result.error && Boolean(result.data);
+      if (result.error) console.error("[MANUFEO] Date d’envoi du devis non enregistrée", result.error.code);
+    }
+    return NextResponse.json({ configured: true, id: data.id, quoteSentRecorded });
   } catch (error) {
     return errorResponse(error, "Envoi impossible.");
   }

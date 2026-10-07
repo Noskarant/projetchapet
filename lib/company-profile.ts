@@ -11,6 +11,7 @@ export type CompanyProfile = {
   monthlyAccountingEnabled?: boolean;
   automaticPdpEnabled?: boolean;
   automaticAccountantCopyEnabled?: boolean;
+  automaticQuoteReminderEnabled?: boolean;
   startupSoundEnabled?: boolean;
   dashboardPeriod?: "exercise" | "month" | "rolling3" | "rolling6" | "custom";
   dashboardFrom?: string;
@@ -44,6 +45,7 @@ export function defaultCompanyProfile(): CompanyProfile {
     monthlyAccountingEnabled: false,
     automaticPdpEnabled: false,
     automaticAccountantCopyEnabled: false,
+    automaticQuoteReminderEnabled: false,
     startupSoundEnabled: true,
     dashboardPeriod: "exercise",
     dashboardFrom: "",
@@ -90,6 +92,7 @@ export function normalizeCompanyProfile(value: unknown): CompanyProfile {
     monthlyAccountingEnabled: raw.monthlyAccountingEnabled === true,
     automaticPdpEnabled: raw.automaticPdpEnabled === true,
     automaticAccountantCopyEnabled: raw.automaticAccountantCopyEnabled === true,
+    automaticQuoteReminderEnabled: raw.automaticQuoteReminderEnabled === true,
     startupSoundEnabled: raw.startupSoundEnabled !== false,
     dashboardPeriod: (["exercise", "month", "rolling3", "rolling6", "custom"].includes(String(raw.dashboardPeriod)) ? raw.dashboardPeriod : "exercise") as CompanyProfile["dashboardPeriod"],
     dashboardFrom: text(raw.dashboardFrom, 10),

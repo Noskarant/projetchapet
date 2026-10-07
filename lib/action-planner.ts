@@ -132,7 +132,16 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)
     && /(?:\bht\b|hors[- ]taxes?)/iu.test(priceTranscript);
-  const priceType = scopedPrice?.type ?? sharedPrice?.type ?? spokenPriceType(priceEvidence) ?? roomPriceType
+  // Ground a cell against its unit-price header; totals elsewhere in the source
+  // do not change that column from HT to TTC.
+  const columnTypes = [...sourceObservations.matchAll(/prix\s+unitaire\s*(?:\(\s*)?(HT|TTC)\b/giu)]
+    .flatMap(match => {
+      const block = sourceObservations.slice(match.index + match[0].length).split(/\btotal\s+(?:HT|TTC)|\n\s*\n/iu)[0];
+      return priceEvidence && groundedEvidence(block, priceEvidence)
+        && explicitPrice(priceEvidence) === sourcePrice ? [match[1].toLowerCase()] : [];
+    });
+  const columnType = [...new Set(columnTypes)].length === 1 ? columnTypes[0] : null;
+  const priceType = scopedPrice?.type ?? sharedPrice?.type ?? spokenPriceType(priceEvidence) ?? columnType ?? roomPriceType
     ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(priceTranscript) ?? "unknown");
   const normalizedTax = tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax : null;
   const needsTtcConversion = priceType === "ttc" && (!alreadyConverted || sourcePrice === null || scopedPrice?.type === 'ttc');

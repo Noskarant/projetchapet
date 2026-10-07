@@ -163,6 +163,8 @@ export default function CompanyProfileSettings() {
 
           <section className="cps-card">
             <strong>Message envoyé aux clients</strong>
+            <label><span><input type="checkbox" checked={profile.automaticQuoteReminderEnabled === true} onChange={event => setProfile({ ...profile, automaticQuoteReminderEnabled: event.target.checked })} style={{ width: 18 }} /> Relancer automatiquement par e-mail les devis envoyés depuis un mois</span></label>
+            <p>Une seule relance avec le devis en pièce jointe. Les devis acceptés, refusés, archivés ou déjà facturés sont exclus.</p>
             <label>Texte par défaut<textarea value={profile.emailIntro} onChange={(event) => setProfile({ ...profile, emailIntro: event.target.value })} /></label>
             <label>Signature<textarea value={profile.emailSignature} onChange={(event) => setProfile({ ...profile, emailSignature: event.target.value })} /></label>
             <div className={`cps-status ${emailConfigured ? "ok" : "warn"}`}><span>{emailConfigured ? "Envoi réel connecté" : "Envoi réel à configurer"}</span><small>{emailConfigured ? "Resend est prêt côté serveur." : "Ajoutez RESEND_API_KEY et RESEND_FROM_EMAIL sur le déploiement avant le test de Philippe."}</small></div>

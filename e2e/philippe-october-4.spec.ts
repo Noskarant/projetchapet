@@ -303,3 +303,18 @@ test('dossier photo : import multiple, sélection, erreur/réessai et envoi auto
  expect(errors).toEqual([]);
  await page.screenshot({animations: 'disabled',path:'tmp/philippe-project-photo-report.png',fullPage:true});
 });
+
+test('nouveau client : Particulier par défaut et choix Professionnel conservé', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.route('https://backend.manufeo.test/**', route => route.fulfill({json:route.request().url().includes('ensure_personal_organization')?org:[]}));
+  await page.route('https://sources.manufeo.test/**',route=>route.fulfill({contentType:'text/html',body:html}));
+  await page.goto('https://sources.manufeo.test/');
+  await page.getByRole('button',{name:'Clients',exact:true}).click();
+  await page.getByRole('button',{name:'Créer',exact:true}).click();
+  const form=page.locator('.rm-v2-editor');
+  await expect(form.getByRole('button',{name:'Particulier',exact:true})).toHaveClass(/active/);
+  await expect(form.getByRole('button',{name:'Professionnel',exact:true})).not.toHaveClass(/active/);
+  await form.getByRole('button',{name:'Professionnel',exact:true}).click();
+  await expect(form.getByRole('button',{name:'Professionnel',exact:true})).toHaveClass(/active/);
+  await expect(form.getByText('Raison sociale',{exact:true})).toBeVisible();
+});

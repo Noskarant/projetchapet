@@ -300,7 +300,7 @@ export default function RappidosMobileShellV2() {
     }});
   }
   function newCustomer(prefill?: Partial<MobileCustomer>) {
-    setEditor({ kind: "customer", isNew: true, value: { id: makeId("customer"), kind: "Professionnel", companyName: "", civility: "M.", lastName: "", firstName: "", emails: ["", ""], phones: ["", ""], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "", ...prefill }});
+    setEditor({ kind: "customer", isNew: true, value: { id: makeId("customer"), kind: "Particulier", companyName: "", civility: "M.", lastName: "", firstName: "", emails: ["", ""], phones: ["", ""], address: "", postalCode: "", city: "", siret: "", vat: "", notes: "", ...prefill }});
   }
   function createCustomerForDocument() {
     if (editor?.kind !== "quote" && editor?.kind !== "invoice") return;
