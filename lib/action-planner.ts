@@ -114,10 +114,12 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const confirmedTax = unscopedRates.length === 1 ? unscopedRates[0] : null;
   // Source tables often put the TVA header and the row percentage in separate cells.
   const rowRates = taxEvidence ? [...taxEvidence.matchAll(/\b(0|5[,.]5|10|20)\s*%/gu)].map(match => Number(match[1].replace(',', '.'))) : [];
-  const sourceRowTax = transcript.includes('Informations issues des sources à vérifier :') && /\bTVA\b/iu.test(transcript)
+  const sourcesStart = transcript.indexOf('Informations issues des sources à vérifier :');
+  const sourceObservations = sourcesStart >= 0 ? transcript.slice(sourcesStart + 'Informations issues des sources à vérifier :'.length) : '';
+  const sourceRowTax = /\bTVA\s*(?:\(\s*%\s*\))?\s*(?:[|;\t\r\n]|$)/imu.test(sourceObservations)
+    && Boolean(groundedEvidence(sourceObservations, taxEvidence))
     && rowRates.length === 1 && numberOrNull(source.tax_rate) === rowRates[0] ? rowRates[0] : null;
   const instructionsStart = transcript.indexOf('Instructions de l’artisan :');
-  const sourcesStart = transcript.indexOf('Informations issues des sources à vérifier :');
   const artisanRates = [...new Set(taxesInTranscript.filter(match => !match.scoped
     && instructionsStart >= 0 && match.position >= instructionsStart
     && sourcesStart > instructionsStart && match.position < sourcesStart).map(match => match.rate))];
