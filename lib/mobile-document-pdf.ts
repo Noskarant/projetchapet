@@ -137,58 +137,29 @@ export async function buildBusinessDocumentPdf({
   };
 
   const drawPageHeader = (continuation = false) => {
-    const top = 15;
-    const hasLogo = Boolean(logoDataUrl);
-    const logoWidth = 27;
-    const logoHeight = 12;
-    if (hasLogo) {
+    const top = 20;
+    pdf.setTextColor(20, 42, 65);
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(20);
+    pdf.text(businessDocumentTypeLabel(document), margin, top);
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(10);
+    const numberBottom = drawWrapped(document.number, margin, top + 7, 130, 4.5);
+    let logoBottom = top;
+    if (logoDataUrl) {
       try {
-        const format = logoDataUrl.startsWith("data:image/png")
-          ? "PNG"
-          : logoDataUrl.startsWith("data:image/webp")
-            ? "WEBP"
-            : "JPEG";
+        const format = logoDataUrl.startsWith("data:image/png") ? "PNG" : logoDataUrl.startsWith("data:image/webp") ? "WEBP" : "JPEG";
         const dimensions = pdf.getImageProperties(logoDataUrl);
-        const ratio = Math.min(logoWidth / dimensions.width, logoHeight / dimensions.height);
-        pdf.addImage(logoDataUrl, format, margin, top - 4, dimensions.width * ratio, dimensions.height * ratio, undefined, "FAST");
-      } catch {
-        // Un logo incompatible ne doit jamais empêcher la génération du document.
-      }
+        const ratio = Math.min(24 / dimensions.width, 24 / dimensions.height);
+        const width = dimensions.width * ratio, height = dimensions.height * ratio;
+        pdf.addImage(logoDataUrl, format, right - width, 13, width, height, undefined, "FAST");
+        logoBottom = 13 + height;
+      } catch { /* An incompatible logo must not prevent document generation. */ }
     }
-
-    const identityX = hasLogo ? margin + logoWidth + 5 : margin;
-    const identityWidth = hasLogo ? 82 : 112;
-    let leftY = top;
-    pdf.setTextColor(17, 46, 72);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13.5);
-    leftY = drawWrapped(identityName, identityX, leftY, identityWidth, 5.2);
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7.8);
-    const companyLine = [address, postalCode, city].filter(Boolean).join(" · ");
-    if (companyLine) leftY = drawWrapped(companyLine, identityX, leftY + 0.8, identityWidth, 3.6);
-    const contactLine = [phone, email].filter(Boolean).join(" · ");
-    if (contactLine) leftY = drawWrapped(contactLine, identityX, leftY + 0.6, identityWidth, 3.6);
-
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(17);
-    pdf.text(businessDocumentTypeLabel(document), right, top, { align: "right" });
-    pdf.setFontSize(9.5);
-    const numberLines = lines(document.number, 55);
-    pdf.text(numberLines, right, top + 7, { align: "right" });
-    let rightBottom = top + 7 + Math.max(1, numberLines.length) * 4;
+    y = Math.max(numberBottom, logoBottom) + 8;
     if (continuation) {
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(7.5);
-      pdf.text("Suite", right, rightBottom + 1, { align: "right" });
-      rightBottom += 5;
+      pdf.setFontSize(8);
+      y = drawWrapped(`${identityName} - Suite`, margin, y, 180, 4) + 3;
     }
-
-    const logoBottom = hasLogo ? top - 4 + logoHeight : top;
-    y = Math.max(leftY, rightBottom, logoBottom) + 5;
-    pdf.setDrawColor(205, 218, 231);
-    pdf.line(margin, y, right, y);
+    pdf.setDrawColor(155, 165, 175); pdf.line(margin, y, right, y);
     y += 8;
   };
 
@@ -201,59 +172,35 @@ export async function buildBusinessDocumentPdf({
 
   const drawInformationBlocks = () => {
     const top = y;
-    const leftX = margin;
-    const leftWidth = 86;
-    const rightX = 112;
-    const rightWidth = right - rightX;
-
-    pdf.setTextColor(20, 42, 65);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.7);
-    pdf.text("CLIENT", leftX, top);
-    let leftY = top + 6;
-    pdf.setFontSize(9.6);
-    leftY = drawWrapped(document.customerName, leftX, leftY, leftWidth, 4.4);
-
-    const customerAddress = customer
-      ? [customer.address, customer.postalCode, customer.city].filter(Boolean).join(" · ")
-      : "";
-    if (customerAddress) {
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8.1);
-      leftY = drawWrapped(customerAddress, leftX, leftY + 1, leftWidth, 3.8);
+    const text = (value: string, x: number, at: number, width: number, bold = false) => {
+      pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(9);
+      return drawWrapped(value, x, at, width, 4.2);
+    };
+    let datesY = text("Date d’émission", margin, top, 48);
+    datesY = text(dateFr(document.issueDate), margin, datesY + 2, 48, true);
+    datesY = text(quote ? "Date d’expiration" : "Échéance", margin, datesY + 5, 48);
+    datesY = text(dateFr(quote ? document.expiryDate : document.dueDate), margin, datesY + 2, 48, true);
+    let clientY = text("Client", 75, top, 55);
+    clientY = text(document.customerName, 75, clientY + 2, 55, true);
+    for (const value of [customer?.address, [customer?.postalCode, customer?.city].filter(Boolean).join(" "), customer?.emails.find(Boolean), customer?.phones.find(Boolean)]) {
+      if (value) clientY = text(value, 75, clientY + 1, 55);
     }
-    const customerContact = customer
-      ? [customer.emails.find(Boolean), customer.phones.find(Boolean)].filter(Boolean).join(" · ")
-      : "";
-    if (customerContact) {
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(7.8);
-      leftY = drawWrapped(customerContact, leftX, leftY + 0.7, leftWidth, 3.6);
+    let companyY = text("De", 140, top, 55);
+    companyY = text(identityName, 140, companyY + 2, 55, true);
+    for (const value of [address, [postalCode, city].filter(Boolean).join(" "), email, phone, siret ? `SIRET : ${siret}` : "", vat ? `N° de TVA : ${vat}` : ""]) {
+      if (value) companyY = text(value, 140, companyY + 1, 55);
     }
-
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.7);
-    pdf.text("DOCUMENT", rightX, top);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8.1);
-    let rightY = top + 6;
-    rightY = drawWrapped(`Émis le : ${dateFr(document.issueDate)}`, rightX, rightY, rightWidth, 3.8);
-    rightY = drawWrapped(
-      quote
-        ? `Valable jusqu’au : ${dateFr(document.expiryDate)}`
-        : `Échéance : ${dateFr(document.dueDate)}`,
-      rightX,
-      rightY + 0.6,
-      rightWidth,
-      3.8,
-    );
-    rightY = drawWrapped(`Objet : ${document.title}`, rightX, rightY + 0.6, rightWidth, 3.8);
-    rightY = drawWrapped(`Statut : ${document.status}`, rightX, rightY + 0.6, rightWidth, 3.8);
-
+    const bottom = Math.max(datesY, clientY, companyY) + 5;
+    pdf.setDrawColor(155, 165, 175);
+    pdf.line(70, top - 8, 70, bottom); pdf.line(135, top - 8, 135, bottom);
+    pdf.line(margin, bottom, right, bottom);
+    y = bottom + 10;
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(9);
+    y = drawWrapped(document.title, margin, y, 180, 4.2) + 4;
     for (const reference of documentInsurance(document.notes).references) {
-      rightY = drawWrapped(reference, rightX, rightY + 0.6, rightWidth, 3.8);
+      y = drawWrapped(reference, margin, y, 180, 4.2) + 1;
     }
-    y = Math.max(leftY, rightY) + 7;
+    y += 5;
   };
 
   const drawTableHeader = () => {
@@ -428,7 +375,7 @@ export async function buildBusinessDocumentPdf({
   }
 
   if (quote) {
-    ensureSpace(45);
+    ensureSpace(37);
     pdf.setDrawColor(210, 220, 231);
     pdf.roundedRect(margin, y, 180, 37, 2, 2);
     pdf.setFont("helvetica", "bold");
@@ -437,7 +384,7 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.6);
     pdf.text("Date :", margin + 4, y + 15);
-    pdf.text("Nom et signature précédés de la mention « Bon pour accord » :", margin + 4, y + 22);
+    pdf.text("Nom et signature du client (manuscrite ou électronique) :", margin + 4, y + 22);
     y += 37;
   } else {
     const paymentText = company.paymentTerms || "Paiement selon les conditions convenues.";
@@ -466,11 +413,13 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(105, 118, 132);
     pdf.setFontSize(6.8);
-    const footerLines = footer ? lines(footer, 170) : [];
+    const footerLines = footer ? lines(footer, 160) : [];
+    pdf.setDrawColor(155, 165, 175); pdf.line(margin, 278, right, 278);
     const footerStart = 285 - Math.max(0, footerLines.length - 1) * 3.2;
-    if (footerLines.length) pdf.text(footerLines, 105, footerStart, { align: "center" });
+    if (footerLines.length) pdf.text(footerLines, margin, footerStart);
+    pdf.text(`${page}/${pageCount}`, right, 285, { align: "right" });
     pdf.setFontSize(6.5);
-    pdf.text("Généré via MANUFEO · les notes personnelles internes sont exclues.", 105, 291, {
+    pdf.text("Généré avec MANUFEO", 105, 291, {
       align: "center",
     });
   }

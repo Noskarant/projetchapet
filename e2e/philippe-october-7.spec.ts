@@ -65,3 +65,89 @@ test('SMS : PDF préparé, téléphone client et lien valant sept jours dans Mes
   await expect(dialog.getByLabel('Message SMS',{exact:true})).toHaveValue(/https:\/\/signed.manufeo.test\/document.pdf\?token=abc/);
   await expect(dialog.getByRole('link',{name:'Ouvrir Messages'})).toHaveAttribute('href',/^sms:0612345678[?&]body=Bonjour/);
 });
+
+
+test('impression : toutes les pages A4, sans aperçu ni zoom, et nettoyage après impression', async ({ page, browserName }, testInfo) => {
+  await page.goto('https://oct7.manufeo.test/pdf');
+  const viewer = page.locator('.manufeo-pdf-viewer');
+  await expect(viewer).toHaveAttribute('data-pdf-ready', 'true');
+  await viewer.getByRole('button', { name: 'Afficher la page entière' }).click();
+  await page.evaluate(() => { window.print = () => { window.dispatchEvent(new Event('beforeprint')); }; });
+  await page.getByRole('button', { name: 'Imprimer', exact: true }).click();
+  await expect(page.locator('#manufeo-print-document canvas')).toHaveCount(2);
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('#root')).toBeHidden();
+  const size = await page.locator('.manufeo-print-page').first().boundingBox();
+  expect(size!.width).toBeCloseTo(210 * 96 / 25.4, 0);
+  expect(size!.height).toBeCloseTo(297 * 96 / 25.4, 0);
+  if (browserName === 'chromium') {
+    const bytes = await page.pdf({ path: testInfo.outputPath('impression-a4.pdf'), preferCSSPageSize: true, displayHeaderFooter: false });
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({ data: new Uint8Array(bytes) });
+    try { expect((await task.promise).numPages).toBe(2); } finally { await task.destroy(); }
+  }
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await page.emulateMedia({ media: 'screen' });
+  await expect(page.locator('#manufeo-print-document')).toHaveCount(0);
+  await expect(viewer).toBeVisible();
+});
+
+test('SMS : le lien reste présent après réécriture, version sans prix et destinataire libre', async ({ page }) => {
+  let noPrices = false;
+  await page.route('https://oct7.manufeo.test/api/documents/share', async route => {
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({ data: new Uint8Array(Buffer.from(route.request().postDataJSON().content, 'base64')) });
+    try {
+      const pdf = await task.promise; let text = '';
+      for (let n = 1; n <= pdf.numPages; n++) text += (await (await pdf.getPage(n)).getTextContent()).items.flatMap(item => 'str' in item ? [item.str] : []).join(' ');
+      noPrices = text.includes('DOCUMENT CHANTIER SANS PRIX');
+    } finally { await task.destroy(); }
+    await route.fulfill({ json: { url: 'https://signed.manufeo.test/document.pdf?token=abc', phone: '0612345678' } });
+  });
+  await page.goto('https://oct7.manufeo.test/sms');
+  await page.getByRole('button', { name: 'Partager le devis', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Partager par SMS', exact: true });
+  await expect(dialog.getByLabel('Message SMS', { exact: true })).toHaveValue(/https:/);
+  await dialog.getByLabel('Version du PDF').selectOption('without');
+  await expect(dialog.getByLabel('Message SMS', { exact: true })).toHaveValue(/https:/);
+  expect(noPrices).toBe(true);
+  await dialog.getByLabel('Message SMS', { exact: true }).fill('Bonjour, voici votre devis.');
+  await dialog.getByRole('button', { name: 'Autre destinataire' }).click();
+  const href = await dialog.getByRole('link', { name: 'Ouvrir Messages' }).getAttribute('href');
+  expect(decodeURIComponent(href!)).toContain('Bonjour, voici votre devis.');
+  expect(decodeURIComponent(href!)).toContain('https://signed.manufeo.test/document.pdf?token=abc');
+  expect(href).toMatch(/^sms:[?&]body=/);
+});
+
+test('correction IA : ajout de fichiers et collage texte conservés dans la nouvelle analyse', async ({ page }) => {
+  let lastPlan: Record<string, unknown> = {}, sourceCount = 0;
+  await page.route('https://oct7.manufeo.test/api/ai/quote-sources', async route => {
+    sourceCount = route.request().postDataJSON().sources.length;
+    await route.fulfill({ json: { observations: 'Plafond 20 m2 à 30 euros HT. TVA 10 %.' } });
+  });
+  await page.route('https://oct7.manufeo.test/api/actions/plan', async route => {
+    lastPlan = route.request().postDataJSON();
+    await route.fulfill({ json: { proposals: [{ id: 'q1', organization_id: org, intent_type: 'prepare_quote', status: 'needs_review', missing_fields: ['customer_id'], warnings: [], risk_level: 'review', payload: { items: [] } }] } });
+  });
+  await page.goto('https://oct7.manufeo.test/sources');
+  await page.getByRole('button', { name: 'Créer avec IA', exact: true }).click();
+  await page.getByLabel('Texte copié', { exact: true }).fill('Plafond 20 m2 à 30 euros HT.');
+  await page.getByRole('button', { name: 'Préparer le devis avec mes sources', exact: true }).click();
+  await expect(page.getByText('Corriger la dictée', { exact: true })).toBeVisible();
+  await page.getByLabel('Documents du devis').setInputFiles({ name: 'complement.txt', mimeType: 'text/plain', buffer: Buffer.from('Client Dupont, TVA 10 %.') });
+  await expect(page.getByText('complement.txt', { exact: true })).toBeVisible();
+  await page.locator('#ava-correction').evaluate(node => {
+    const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKp8AAAAASUVORK5CYII='), c => c.charCodeAt(0));
+    const clipboard = new DataTransfer();
+    clipboard.items.add(new File([bytes], 'capture.png', { type: 'image/png' }));
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: clipboard });
+    node.dispatchEvent(event);
+  });
+  await expect(page.getByText('capture.png', { exact: true })).toBeVisible();
+  await page.getByLabel('Texte copié', { exact: true }).fill('Client Dupont, plafond 20 m2 à 30 euros HT.');
+  await page.getByRole('button', { name: 'Relancer l’analyse', exact: true }).click();
+  await expect.poll(() => sourceCount).toBe(2);
+  await expect.poll(() => lastPlan.transcript).toContain('Client Dupont');
+  expect(lastPlan.quoteSources).toBe(true);
+});

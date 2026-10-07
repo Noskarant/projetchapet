@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./pdf-pages.css";
+import { clearPdfPrint, preparePdfPrint, printPdfPages } from '@/lib/document-print';
 
 // Render every page ourselves: Safari's embedded PDF viewer can show only page one.
 export default function PdfPages({ url, title }: { url: string; title: string }) {
@@ -13,6 +14,18 @@ export default function PdfPages({ url, title }: { url: string; title: string })
   const [pageAspect, setPageAspect] = useState(Math.SQRT2);
   const [error, setError] = useState(false);
   const [count, setCount] = useState(0);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const beforePrint = () => { preparePdfPrint(); };
+    const afterPrint = () => { clearPdfPrint(); };
+    window.addEventListener('beforeprint', beforePrint);
+    window.addEventListener('afterprint', afterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', beforePrint);
+      window.removeEventListener('afterprint', afterPrint);
+      clearPdfPrint();
+    };
+  }, []);
   const zoom = useCallback((value: number, center?: { x: number; y: number }) => {
     const root = viewer.current;
     if (!root) return;
@@ -67,6 +80,7 @@ export default function PdfPages({ url, title }: { url: string; title: string })
     let destroy: (() => void) | undefined;
     setError(false);
     setCount(0);
+    setReady(false);
     scaleRef.current = 1;
     setScale(1);
     const root = container.current;
@@ -84,7 +98,7 @@ export default function PdfPages({ url, title }: { url: string; title: string })
         if (cancelled) return;
         const page = await document.getPage(number);
         if (cancelled) return;
-        const viewport = page.getViewport({ scale: 1.5 });
+        const viewport = page.getViewport({ scale: 2 });
         if (number === 1) setPageAspect(viewport.height / viewport.width);
         const canvas = window.document.createElement("canvas");
         canvas.width = Math.ceil(viewport.width);
@@ -95,15 +109,17 @@ export default function PdfPages({ url, title }: { url: string; title: string })
         await page.render({ canvas, viewport }).promise;
         page.cleanup();
       }
+      if (!cancelled) setReady(true);
     })().catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; destroy?.(); root?.replaceChildren(); };
   }, [url, title]);
-  return <section ref={viewer} className="manufeo-pdf-viewer" aria-label={title} data-pdf-scale={scale.toFixed(2)}>
+  return <section ref={viewer} className="manufeo-pdf-viewer" aria-label={title} data-pdf-scale={scale.toFixed(2)} data-pdf-ready={ready}>
     <div className="manufeo-pdf-tools" role="group" aria-label="Zoom du PDF">
       <button type="button" aria-label="Réduire le PDF" disabled={scale <= .25} onClick={() => zoom(scaleRef.current - .25)}>−</button>
       <button type="button" aria-label="Adapter le PDF à l’écran" onClick={() => zoom(1)}>{Math.round(scale * 100)} %</button>
       <button type="button" aria-label="Afficher la page entière" onClick={() => { const height = viewer.current?.clientHeight || 0; if (fitWidth) zoom(Math.min(1, Math.max(.25, (height - 110) / (fitWidth * pageAspect)))); }}>Page entière</button>
       <button type="button" aria-label="Agrandir le PDF" disabled={scale >= 3} onClick={() => zoom(scaleRef.current + .25)}>+</button>
+      <button type="button" disabled={!ready || error} onClick={() => void printPdfPages()}>Imprimer</button>
     </div>
     <p role="status">{error ? "L’aperçu n’a pas pu être affiché." : count ? `${count} page${count > 1 ? "s" : ""} — faites défiler pour tout consulter` : "Chargement du PDF…"}
       {error && <> <a href={url} target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a></>}

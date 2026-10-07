@@ -1,5 +1,5 @@
 .manufeo-pdf-viewer { flex: 1; min-height: 0; width: 100%; overflow: auto; background: #e9edf2; color: #18334c; overscroll-behavior: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; }
-.manufeo-pdf-tools { position: sticky; top: 0; left: 0; z-index: 1; display: flex; justify-content: center; gap: 8px; padding: 8px; background: #e9edf2; width: 100%; box-sizing: border-box; }
+.manufeo-pdf-tools { position: sticky; top: 0; left: 0; z-index: 1; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; padding: 8px; background: #e9edf2; width: 100%; box-sizing: border-box; }
 .manufeo-pdf-tools button { min-width: 44px; min-height: 36px; border: 1px solid #c3cedb; border-radius: 8px; background: white; color: #18334c; font-size: 17px; cursor: pointer; }
 .manufeo-pdf-tools button:disabled { opacity: .45; cursor: default; }
 .manufeo-pdf-viewer > p { margin: 0; padding: 10px 16px; font-size: 14px; text-align: center; }
@@ -7,3 +7,21 @@
 .manufeo-pdf-pages canvas { display: block; width: 100%; height: auto; background: white; box-shadow: 0 2px 8px #18334c22; }
 .rm-philippe-pdf-page > .manufeo-pdf-viewer { height: 100%; }
 .rm-document-fullscreen > header { color: #18334c; background: #eef2f6; }
+#manufeo-print-document { display: none; }
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  html:has(body.manufeo-printing-pdf), body.manufeo-printing-pdf {
+    margin: 0 !important; padding: 0 !important; width: 210mm !important;
+    height: auto !important; min-height: 0 !important; overflow: visible !important;
+    background: white !important; transform: none !important;
+  }
+  body.manufeo-printing-pdf > :not(#manufeo-print-document) { display: none !important; }
+  body.manufeo-printing-pdf > #manufeo-print-document { display: block !important; }
+  #manufeo-print-document .manufeo-print-page {
+    width: 210mm; height: 297mm; padding: 0; margin: 0; overflow: hidden;
+    break-inside: avoid; break-after: page; page-break-after: always;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  #manufeo-print-document .manufeo-print-page:last-child { break-after: auto; page-break-after: auto; }
+  #manufeo-print-document canvas { display: block; width: 210mm; height: 297mm; }
+}

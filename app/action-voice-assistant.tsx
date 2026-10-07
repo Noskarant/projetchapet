@@ -289,7 +289,7 @@ export default function ActionVoiceAssistant() {
       if (generation !== sourceGeneration.current) return;
       if (!value.trim()) throw new Error('Le presse-papiers ne contient pas de texte.');
       if (value.length > 10_000) throw new Error('Texte trop long. Copiez uniquement les passages utiles (10 000 caractères maximum).');
-      copiedSourceRef.current = value; setCopiedSource(value); sourceObservationsRef.current = ''; setMessage('');
+      copiedSourceRef.current = value; setCopiedSource(value); setSourcesChanged(true); sourceObservationsRef.current = ''; setMessage('');
     } catch (error) {
       if (generation !== sourceGeneration.current) return;
       setPasteHint(error instanceof Error && !['NotAllowedError', 'SecurityError', 'TypeError'].includes(error.name)
@@ -301,6 +301,7 @@ export default function ActionVoiceAssistant() {
   const sourcesRef = useRef<QuoteSource[]>([]);
   const sourceObservationsRef = useRef<string>('');
   const [sourcesBusy, setSourcesBusy] = useState(false);
+  const [sourcesChanged, setSourcesChanged] = useState(false);
   const cameraInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const sourceGeneration = useRef(0);
@@ -367,7 +368,7 @@ export default function ActionVoiceAssistant() {
     setSourcesBusy(false);
     customerImportRef.current = false; setCustomerImport(false);
     setPlannedTranscript("");
-    setEditing(false);
+    setEditing(false); setSourcesChanged(false);
     setMessage("");
     setProposals([]);
     setResults([]);
@@ -623,7 +624,7 @@ export default function ActionVoiceAssistant() {
       if (!planned.proposals.length) throw new Error("Aucune action exploitable n’a été reconnue.");
       setProposals(planned.proposals);
       setPlannedTranscript(withSources ? normalizeVoiceTranscript(text) : normalized);
-      setEditing(false);
+      setEditing(false); setSourcesChanged(false);
       if (!withSources && planned.proposals.every(canCreateDirectly)) {
         const ready = new Set(planned.proposals.filter(proposal => proposal.status === "ready" && !proposal.missing_fields.length).map(proposal => proposal.id));
         for (const proposal of planned.proposals) {
@@ -663,7 +664,7 @@ export default function ActionVoiceAssistant() {
       if (next.length > 6) throw new Error('Maximum 6 photos ou pages au total. Retirez une source avant d’en ajouter.');
       if (next.reduce((sum, source) => sum + (source.text?.length || 0), 0) > 10_000) throw new Error('Documents trop longs. Joignez uniquement les pages utiles.');
       sourcesRef.current = next; sourceObservationsRef.current = '';
-      setSources(next);
+      setSources(next); setSourcesChanged(true);
     } catch (error) { if (sourceGeneration.current === generation) setMessage(error instanceof Error && !['TypeError', 'ReferenceError'].includes(error.name) ? error.message : 'Ce fichier n’a pas pu être lu. Réessayez avec un PDF, une photo JPEG/PNG ou collez son texte dans le champ ci-dessous.'); }
     finally { if (sourceGeneration.current === generation) setSourcesBusy(false); }
   }
@@ -832,7 +833,7 @@ export default function ActionVoiceAssistant() {
 
   async function execute() {
     if (!proposals.length) return;
-    if (transcript !== plannedTranscript) {
+    if (transcript !== plannedTranscript || sourcesChanged || sourcesBusy) {
       setMessage("La demande a changé. Relancez l’analyse avant de valider.");
       return;
     }
@@ -862,7 +863,44 @@ export default function ActionVoiceAssistant() {
   const learnedPrices = proposals.filter(proposal => proposal.intent_type === 'prepare_quote').flatMap(proposal =>
     Array.isArray(proposal.payload?.items) ? (proposal.payload.items as Array<Record<string, unknown>>).filter(item => item.price_source === 'company_history') : []);
   const blocking = proposals.some((proposal) => proposal.status !== "ready" || (proposal.missing_fields ?? []).length > 0);
-  const changedSincePlan = transcript !== plannedTranscript;
+  const changedSincePlan = transcript !== plannedTranscript || sourcesChanged;
+
+  function pasteImages(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
+    if (files.length) { event.preventDefault(); void addSources(files); }
+  }
+  const sourceControls = (
+    (target === 'quote' || target === 'command' || target === 'customer') && <div className="ava-sources">
+                  <strong>{target === "customer" ? "Note ou photo → client" : "Photos et documents pour votre devis"}</strong>
+                  {target === "customer" && <small>Depuis Apple Notes, copiez la note puis collez-la ci-dessous, ou joignez une capture/photo.</small>}
+                  <div className="ava-source-buttons">
+                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => cameraInput.current?.click()}><Camera size={18} /> Prendre une photo</button>
+                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => fileInput.current?.click()}><Paperclip size={18} /> Joindre des fichiers</button>
+                  </div>
+                  <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden aria-label={target === "customer" ? "Photo du client" : "Photo du chantier"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
+                  <input ref={fileInput} type="file" accept="image/*,application/pdf,text/plain,.pdf,.txt" multiple hidden aria-label={target === "customer" ? "Documents du client" : "Documents du devis"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
+                  <small>Photos, PDF ou TXT · 6 photos/pages maximum. Dictée facultative.</small>
+                  {sourcesBusy && <span role="status">Lecture des fichiers…</span>}
+                  {sources.map((source, index) => <div className="ava-source" key={`${source.name}-${index}`}>
+                    {source.image && <img src={source.image} alt="" />}
+                    <span>{source.name}</span>
+                    <button type="button" disabled={busy} aria-label={`Retirer ${source.name}`} onClick={() => { const next = sourcesRef.current.filter((_, position) => position !== index); sourcesRef.current = next; sourceObservationsRef.current = ''; setSources(next); setSourcesChanged(true); }}><X size={16} /></button>
+                  </div>)}
+                  <div className="ava-supplier-source">
+                    <strong>Copier-coller un mail, une note ou un document</strong>
+                    <button type="button" className="ava-secondary" disabled={busy || pasting} onClick={() => void pasteSource()}>Coller le texte copié</button>
+                    <label>Texte copié<textarea ref={copiedSourceInput} onPaste={pasteImages} value={copiedSource} aria-label="Texte copié" placeholder="Collez ici le texte du mail, de la note ou du document…" maxLength={10_000} disabled={busy} onChange={event => { copiedSourceRef.current = event.target.value; setCopiedSource(event.target.value); setSourcesChanged(true); sourceObservationsRef.current = ''; setPasteHint(''); }} /></label>
+                    {pasteHint && <small role="status">{pasteHint}</small>}
+                    <small>Vos consignes se précisent dans votre demande ci-dessous.</small>
+                  </div>
+                  {target !== 'customer' && <>
+                    <label className="ava-supplier-markup">Majoration sur les prix HT (%)
+                      <input type="text" inputMode="decimal" aria-label="Majoration sur les prix HT (%)" placeholder="Ex. 30" value={markupInput} disabled={busy} onChange={event => { markupInputRef.current = event.target.value; setMarkupInput(event.target.value); setSourcesChanged(true); }} />
+                      <small>+30 % : 100 € HT devient 130 € HT. Vous pouvez aussi le dicter.</small>
+                    </label>
+                  </>}
+                </div>
+  );
 
   return (
     <>
@@ -913,41 +951,13 @@ export default function ActionVoiceAssistant() {
               <div className="ava-capture">
                 <span className="ava-target">{choices.find((choice) => choice.id === target)?.label ?? "Demande"}</span>
                 {!sourcesBusy && <VoicePreviewButton onStart={() => void startRecording()} />}
-                {(target === 'quote' || target === 'command' || target === 'customer') && <div className="ava-sources">
-                  <strong>{target === "customer" ? "Note ou photo → client" : "Photos et documents pour votre devis"}</strong>
-                  {target === "customer" && <small>Depuis Apple Notes, copiez la note puis collez-la ci-dessous, ou joignez une capture/photo.</small>}
-                  <div className="ava-source-buttons">
-                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => cameraInput.current?.click()}><Camera size={18} /> Prendre une photo</button>
-                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => fileInput.current?.click()}><Paperclip size={18} /> Joindre des fichiers</button>
-                  </div>
-                  <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden aria-label={target === "customer" ? "Photo du client" : "Photo du chantier"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
-                  <input ref={fileInput} type="file" accept="image/*,application/pdf,text/plain,.pdf,.txt" multiple hidden aria-label={target === "customer" ? "Documents du client" : "Documents du devis"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
-                  <small>Photos, PDF ou TXT · 6 photos/pages maximum. Dictée facultative.</small>
-                  {sourcesBusy && <span role="status">Lecture des fichiers…</span>}
-                  {sources.map((source, index) => <div className="ava-source" key={`${source.name}-${index}`}>
-                    {source.image && <img src={source.image} alt="" />}
-                    <span>{source.name}</span>
-                    <button type="button" disabled={busy} aria-label={`Retirer ${source.name}`} onClick={() => { const next = sourcesRef.current.filter((_, position) => position !== index); sourcesRef.current = next; sourceObservationsRef.current = ''; setSources(next); }}><X size={16} /></button>
-                  </div>)}
-                  <div className="ava-supplier-source">
-                    <strong>Copier-coller un mail, une note ou un document</strong>
-                    <button type="button" className="ava-secondary" disabled={busy || pasting} onClick={() => void pasteSource()}>Coller le texte copié</button>
-                    <label>Texte copié<textarea ref={copiedSourceInput} value={copiedSource} aria-label="Texte copié" placeholder="Collez ici le texte du mail, de la note ou du document…" maxLength={10_000} disabled={busy} onChange={event => { copiedSourceRef.current = event.target.value; setCopiedSource(event.target.value); setPasteHint(''); }} /></label>
-                    {pasteHint && <small role="status">{pasteHint}</small>}
-                    <small>Vos consignes se précisent dans votre demande ci-dessous.</small>
-                  </div>
-                  {target !== 'customer' && <>
-                    <label className="ava-supplier-markup">Majoration sur les prix HT (%)
-                      <input type="text" inputMode="decimal" aria-label="Majoration sur les prix HT (%)" placeholder="Ex. 30" value={markupInput} disabled={busy} onChange={event => { markupInputRef.current = event.target.value; setMarkupInput(event.target.value); }} />
-                      <small>+30 % : 100 € HT devient 130 € HT. Vous pouvez aussi le dicter.</small>
-                    </label>
-                  </>}
-                </div>}
+                {sourceControls}
                 <button type="button" className="ava-secondary" onClick={() => void showDrafts()}>Brouillons d’e-mails IA</button>
                 <p>MANUFEO crée vos fiches et brouillons. Vous pouvez ensuite les modifier.</p>
                 {target === "command" && <CommandPrecisionGuide />}
                 <textarea
                   value={transcript}
+                  onPaste={pasteImages}
                   onChange={(event) => updateTranscript(event.target.value)}
                   placeholder={customerImport ? "Collez ici votre note Apple Notes (nom, coordonnées, adresse…)" : placeholder(target)}
                   aria-label="Demande à MANUFEO"
@@ -1047,7 +1057,7 @@ export default function ActionVoiceAssistant() {
                     <span><strong>Je confirme les actions sensibles</strong><small>Paiement, facture, commande ou autre opération signalée. MANUFEO n’envoie jamais un document ou un e-mail sans étape dédiée.</small></span>
                   </label>
                 )}
-                {(blocking || editing) && <div className="ava-review-edit"><label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={busy} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={busy || !transcript.trim()} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
+                {(blocking || editing) && <div className="ava-review-edit">{sourceControls}<label htmlFor="ava-correction">Corriger la dictée</label><textarea id="ava-correction" onPaste={pasteImages} value={transcript} onChange={(event) => updateTranscript(event.target.value)} disabled={busy} />{changedSincePlan && <small>Demande modifiée : relancez l’analyse pour mettre à jour les actions.</small>}<button type="button" className="ava-secondary" disabled={busy || (!transcript.trim() && !sources.length && !copiedSource.trim())} onClick={() => void prepare(transcriptRef.current)}>Relancer l’analyse</button></div>}
                 <button type="button" className="ava-primary" disabled={!proposals.length || blocking || changedSincePlan || busy || (sensitive && !explicitConfirmed)} onClick={() => void execute()}>
                   {busy ? <><Loader2 size={17} className="ava-spin" /> Exécution sécurisée…</> : "Valider et exécuter"}
                 </button>

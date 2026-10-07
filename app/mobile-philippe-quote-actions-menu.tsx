@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { printPdfPages } from '@/lib/document-print';
 
 const OPEN_MENU_EVENT = "projetchapet:open-quote-actions";
 const RUN_ACTION_EVENT = "projetchapet:run-quote-action";
@@ -220,7 +221,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
           return;
         case "print":
           switchToPdf();
-          window.setTimeout(() => window.print(), 180);
+          void printPdfPages();
           return;
         case "invoice":
           runMoreAction(/^transformer en facture$/);
