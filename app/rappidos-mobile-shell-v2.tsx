@@ -96,6 +96,18 @@ export default function RappidosMobileShellV2() {
   const [utility, setUtility] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
   const customerReturnEditor = useRef<Extract<Editor, { kind: "quote" | "invoice" }> | null>(null);
+  const lineListRef = useRef<HTMLDivElement | null>(null);
+  const pendingLineFocus = useRef<string | null>(null);
+
+  useEffect(() => {
+    const id = pendingLineFocus.current;
+    if (!id) return;
+    const row = Array.from(lineListRef.current?.querySelectorAll<HTMLElement>('[data-line-id]') || []).find(item => item.dataset.lineId === id);
+    if (!row) return;
+    pendingLineFocus.current = null;
+    row.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    row.scrollIntoView({ block: 'nearest' });
+  }, [editor]);
 
   useEffect(() => {
     try { const stored = window.localStorage.getItem(STORAGE_KEY); if (stored) setWorkspace(JSON.parse(stored) as MobileWorkspace); } catch { /* seed conservé */ }
@@ -283,7 +295,7 @@ export default function RappidosMobileShellV2() {
     const customerId = prefill?.customerId
       ? workspace.customers.some((customer) => customer.id === prefill.customerId) ? prefill.customerId : ""
       : workspace.customers[0]?.id || "";
-    const items = prefill?.items?.length ? prefill.items : [emptyLine()];
+    const items = prefill?.items?.length ? prefill.items : [];
     const totals = calculateTotals(items);
     setEditor({ kind: "quote", isNew: true, value: {
       id: makeId("quote"), number: nextNumber(workspace.quotes, "D"), customerName: findCustomerName(customerId), title: "Travaux",
@@ -292,7 +304,7 @@ export default function RappidosMobileShellV2() {
   }
   function newInvoice(prefill?: Partial<MobileInvoice>) {
     const issueDate = todayIso(); const customerId = prefill?.customerId || workspace.customers[0]?.id || "";
-    const items = prefill?.items?.length ? prefill.items : [emptyLine()];
+    const items = prefill?.items?.length ? prefill.items : [];
     const totals = calculateTotals(items);
     setEditor({ kind: "invoice", isNew: true, value: {
       id: makeId("invoice"), number: nextNumber(workspace.invoices, "F"), customerId, customerName: findCustomerName(customerId), title: "Travaux réalisés",
@@ -399,9 +411,15 @@ export default function RappidosMobileShellV2() {
   function updateLine(index: number, key: keyof LineItem, raw: string) {
     updateEditorDocument((value) => ({ ...value, items: value.items.map((item, itemIndex) => {
       if (itemIndex !== index) return item;
-      const next = { ...item, [key]: ["quantity", "unitPrice", "taxRate"].includes(key) ? (raw.trim() === "" ? null : Number(raw)) : (raw.trim() === "" ? null : raw) };
+      const next = { ...item, [key]: ["quantity", "unitPrice", "taxRate"].includes(key) ? (raw.trim() === "" ? null : Number(raw)) : key === 'unit' ? (raw.trim() === "" ? null : raw) : raw };
       return { ...next, incomplete: next.quantity == null || next.unit == null || next.unitPrice == null };
     }) }));
+  }
+
+  function addProductLine() {
+    const line = emptyLine();
+    pendingLineFocus.current = line.id;
+    updateEditorDocument(value => ({ ...value, items: [...value.items, line] }));
   }
 
   async function openPreview(documentData: BusinessDocument, withoutPrices = false) {
@@ -543,8 +561,9 @@ export default function RappidosMobileShellV2() {
             <div className="rm-v2-two"><label>Date d’émission<input type="date" value={editor.value.issueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, issueDate: event.target.value, ...(!isQuote(value) && editor.isNew && event.target.value ? { dueDate: addDays(event.target.value, 30) } : {}) }))} /></label>{editor.kind === "quote" ? <label>Date d’expiration<input type="date" value={editor.value.expiryDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, expiryDate: event.target.value }))} /></label> : <label>Date d’échéance<input type="date" value={editor.value.dueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, dueDate: event.target.value }))} /></label>}</div>
             <label>Notes<textarea value={editor.value.notes} onChange={(event) => updateEditorDocument((value) => ({ ...value, notes: event.target.value }))} /></label>
           </div>
-          <div className="rm-products-title"><span>Produits et services</span><button onClick={() => updateEditorDocument((value) => ({ ...value, items: [...value.items, emptyLine()] }))}><Plus size={21} /></button></div>
-          <div className="rm-v2-lines">{editor.value.items.map((item, index) => <article key={item.id}><header><strong>Ligne {index + 1}</strong><button onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity ?? ""} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={item.unit ?? ""} onChange={(event) => updateLine(index, "unit", event.target.value)} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice ?? ""} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate ?? ""} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
+          <button type="button" className="rm-products-title" aria-label="Produits et services : ajouter une ligne" onClick={addProductLine}><span>Produits et services</span><span className="rm-products-add"><Plus size={21} aria-hidden="true" /> Ajouter une ligne</span></button>
+          {!editor.value.items.length && <p className="rm-products-empty">Ajoutez une ligne pour renseigner un produit ou un service.</p>}
+          <div className="rm-v2-lines" ref={lineListRef}>{editor.value.items.map((item, index) => <article key={item.id} data-line-id={item.id}><header><strong>Ligne {index + 1}</strong><button type="button" aria-label={`Supprimer la ligne ${index + 1}`} onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" aria-label={`Désignation de la ligne ${index + 1}`} value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity ?? ""} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={item.unit ?? ""} onChange={(event) => updateLine(index, "unit", event.target.value)} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice ?? ""} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate ?? ""} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
           <div className="rm-ai-create-row"><button className="rm-ai-create-text" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><span>Créer avec l’IA</span><small>Dicter et préremplir toutes les lignes</small></button><button className="rm-voice-button" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><Mic size={25} /><small>IA</small></button></div>
           {editor.kind === "quote" && <button type="button" className="rm-quote-sources rm-outline-button" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: "quote" } }))}><Camera size={19} /> Photos ou documents → devis</button>}
           <footer><div><small>Total HT</small><strong>{money(editor.value.subtotal)}</strong><small>TVA : {money(editor.value.taxTotal)} · TTC : {money(editor.value.total)}</small></div><div><button className="rm-outline-button" onClick={() => void openPreview(editor.value, false)} disabled={previewBusy}>{previewBusy ? "Génération…" : "Aperçu PDF"}</button><button className="rm-save-button" onClick={saveEditor}>Enregistrer</button></div></footer>

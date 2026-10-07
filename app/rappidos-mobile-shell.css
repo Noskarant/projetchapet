@@ -495,9 +495,11 @@
   .rm-form-card small { color: #9097a3; font-size: 11px; }
   .rm-form-card strong { margin-top: 3px; font-size: 15px; }
   .rm-form-card span { margin-top: 4px; color: #7d8490; font-size: 11px; }
-  .rm-products-title { display: flex; align-items: center; justify-content: space-between; margin: 22px 0 12px; }
-  .rm-products-title span { font-size: 16px; }
-  .rm-products-title button { width: 58px; height: 42px; display: grid; place-items: center; border: 1px solid #9457ff; border-radius: 13px; color: #fff; background: transparent; }
+  .rm-products-title { width: 100%; min-height: 54px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 22px 0 12px; padding: 12px; border: 1px solid #9457ff; border-radius: 13px; color: #fff; background: rgba(148,87,255,.08); text-align: left; cursor: pointer; }
+  .rm-products-title > span:first-child { font-size: 16px; font-weight: 750; }
+  .rm-products-title .rm-products-add { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+  .rm-products-title:focus-visible { outline: 2px solid #b18aff; outline-offset: 3px; }
+  .rm-products-empty { margin: 0 0 16px; color: #9da8b7; font-size: 13px; }
 
   .rm-ai-create-row { display: grid; grid-template-columns: minmax(0,1fr) 58px; gap: 9px; }
   .rm-ai-create-text { min-height: 58px; display: grid; place-content: center; border: 0; border-radius: 15px; color: #fff; background: var(--rm-gradient); text-align: left; }
