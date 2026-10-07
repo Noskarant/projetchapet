@@ -36,6 +36,8 @@ test('TVA sources : récapitulatif, taux distincts, TVA absente et priorité art
   assert.deepEqual(rates([item('Plafond', 10, 'Plafond | 100 euros HT | 10 %'), item('Porte', 20, 'Porte | 100 euros HT | 20 %')], table), [10, 20]);
   assert.deepEqual(rates([item('Plafond', 20)], 'Plafond : 100 euros HT. TVA non indiquée.'), [null]);
   assert.deepEqual(rates([item('Plafond', 20, 'TVA : 20 %')], 'Plafond : 100 euros HT. TVA : 20 %.', 'Applique TVA 10 %.'), [10]);
+  assert.deepEqual(rates([item('Plafond', 20, 'TVA : 20 %')], 'Plafond : 100 euros HT. TVA : 20 %.', 'Applique TVA 10 % uniquement pour cette ligne.'), [20]);
+  assert.deepEqual(rates([item('Plafond', 10, 'TVA : 10 %'), item('Porte', 20, 'TVA : 20 %')], 'Plafond : 100 euros HT. TVA : 10 %. Porte : 100 euros HT. TVA : 20 %.', 'Les taux sont TVA 10 % et TVA 20 %.'), [10, 20]);
   assert.deepEqual(rates([item('Plafond', 0, 'TVA : 0 %')], 'Plafond : 100 euros HT. TVA : 0 %.'), [0]);
 });
 

@@ -116,8 +116,12 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const rowRates = taxEvidence ? [...taxEvidence.matchAll(/\b(0|5[,.]5|10|20)\s*%/gu)].map(match => Number(match[1].replace(',', '.'))) : [];
   const sourceRowTax = transcript.includes('Informations issues des sources à vérifier :') && /\bTVA\b/iu.test(transcript)
     && rowRates.length === 1 && numberOrNull(source.tax_rate) === rowRates[0] ? rowRates[0] : null;
-  const artisanInstructions = transcript.split('Informations issues des sources à vérifier :')[0].split('Instructions de l’artisan :')[1];
-  const artisanTax = artisanInstructions ? explicitTax(artisanInstructions) : null;
+  const instructionsStart = transcript.indexOf('Instructions de l’artisan :');
+  const sourcesStart = transcript.indexOf('Informations issues des sources à vérifier :');
+  const artisanRates = [...new Set(taxesInTranscript.filter(match => !match.scoped
+    && instructionsStart >= 0 && match.position >= instructionsStart
+    && sourcesStart > instructionsStart && match.position < sourcesStart).map(match => match.rate))];
+  const artisanTax = artisanRates.length === 1 ? artisanRates[0] : null;
   const tax = artisanTax ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
   const priceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
