@@ -1,5 +1,6 @@
 import { readJsonBody, readBodyBytes } from "@/lib/api-guard";
 import { assertProjectAccess } from "@/lib/server-project-access";
+import { assertOrganizationStoragePath } from "@/lib/server-storage-scope";
 import { NextResponse } from "next/server";
 import {
   MAX_ACTIVITY_ATTACHMENTS,
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
       noteId,
       `${crypto.randomUUID()}-${safeFileName}`,
     ].join("/");
+    assertOrganizationStoragePath(context.organizationId, storagePath);
     const bytes = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadError } = await context.admin.storage
@@ -147,6 +149,7 @@ export async function DELETE(request: Request) {
     const canDelete = attachment.created_by === context.user.id
       || canManageActivityContent(context.role, context.user.id, String(note.created_by));
     if (!canDelete) throw new OrganizationAuthError("Vous ne pouvez pas supprimer ce fichier.", 403);
+    assertOrganizationStoragePath(context.organizationId, attachment.storage_path);
 
     const { error: storageError } = await context.admin.storage
       .from(PROJECT_ACTIVITY_BUCKET)

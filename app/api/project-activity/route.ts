@@ -1,5 +1,6 @@
 import { readJsonBody } from "@/lib/api-guard";
 import { assertProjectAccess, assignedProjectIds } from "@/lib/server-project-access";
+import { assertOrganizationStoragePath } from "@/lib/server-storage-scope";
 import { NextResponse } from "next/server";
 import {
   MAX_ACTIVITY_BODY_LENGTH,
@@ -118,6 +119,7 @@ export async function GET(request: Request) {
     if (attachmentError) throw new OrganizationAuthError("Impossible de charger les pièces jointes.", 503);
 
     const paths = (attachmentRows ?? []).map((row) => String(row.storage_path));
+    paths.forEach(path => assertOrganizationStoragePath(context.organizationId, path));
     const signedByPath = new Map<string, string>();
     if (paths.length) {
       const { data: signed, error: signedError } = await context.admin.storage
@@ -288,6 +290,7 @@ export async function DELETE(request: Request) {
     if (attachmentError) throw new OrganizationAuthError("Impossible de préparer la suppression.", 503);
 
     const paths = (attachments ?? []).map((row) => String(row.storage_path)).filter(Boolean);
+    paths.forEach(path => assertOrganizationStoragePath(context.organizationId, path));
     if (paths.length) {
       const { error: storageError } = await context.admin.storage.from(PROJECT_ACTIVITY_BUCKET).remove(paths);
       if (storageError) throw new OrganizationAuthError("Impossible de supprimer les fichiers liés.", 503);

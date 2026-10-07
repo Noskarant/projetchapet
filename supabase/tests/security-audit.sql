@@ -33,6 +33,13 @@ insert into public.commercial_project_members(organization_id,project_id,collabo
 insert into public.project_notes(organization_id,project_id,body,created_by) values ('c94b6c11-9bd5-4c00-8f7c-c0f000000001','assigned-audit-project','Assigned note','c94b6c11-9bd5-4c00-8f7c-a0f000000001'),('c94b6c11-9bd5-4c00-8f7c-c0f000000001','unassigned-audit-project','Unassigned note','c94b6c11-9bd5-4c00-8f7c-a0f000000001');
 insert into public.supplier_orders(organization_id,supplier_name,supplier_email,label,quantity,unit_price,created_by) values ('c94b6c11-9bd5-4c00-8f7c-c0f000000001','Audit supplier','supplier@audit.invalid','Audit order',1,50,'c94b6c11-9bd5-4c00-8f7c-a0f000000001');
 insert into storage.objects(bucket_id,name) values ('commercial-project-photos','c94b6c11-9bd5-4c00-8f7c-c0f000000001/unassigned-audit-project/audit.png');
+do $$declare p text;begin
+ foreach p in array array['c94b6c11-9bd5-4c00-8f7c-c0f000000001/../other/photo.jpg','c94b6c11-9bd5-4c00-8f7c-c0f000000001/%2e%2e/other/photo.jpg','c94b6c11-9bd5-4c00-8f7c-c0f000000001/%252e%252e%252fother/photo.jpg'] loop
+  begin insert into public.commercial_project_photos(organization_id,project_id,id,storage_path) values ('c94b6c11-9bd5-4c00-8f7c-c0f000000001','assigned-audit-project','bad-photo',p);raise exception 'FAIL: poisoned photo path';exception when check_violation then null;end;
+  begin insert into public.project_note_attachments(organization_id,note_id,project_id,file_name,storage_path,mime_type,size_bytes,created_by) select organization_id,id,project_id,'bad.pdf',p,'application/pdf',1,created_by from public.project_notes where project_id='assigned-audit-project';raise exception 'FAIL: poisoned attachment path';exception when check_violation then null;end;
+ end loop;
+end $$;
+insert into public.commercial_project_photos(organization_id,project_id,id,storage_path) values ('c94b6c11-9bd5-4c00-8f7c-c0f000000001','assigned-audit-project','good-photo','c94b6c11-9bd5-4c00-8f7c-c0f000000001/assigned-audit-project/photo.jpg');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"c94b6c11-9bd5-4c00-8f7c-a0f000000002","role":"authenticated","session_id":"c94b6c11-9bd5-4c00-8f7c-b0f000000002","email":"audit-admin@audit.invalid"}';
 do $$begin begin update public.organization_members set role='owner' where user_id='c94b6c11-9bd5-4c00-8f7c-a0f000000002' and organization_id='c94b6c11-9bd5-4c00-8f7c-c0f000000001'; raise exception 'FAIL: admin self promotion'; exception when insufficient_privilege then null; end; end $$;

@@ -15,6 +15,8 @@ import { organizationErrorResponse } from '../lib/server-organization';
 import { assertActiveSession } from '../lib/session-security';
 import { middleware } from '../middleware';
 import { contentSecurityPolicy } from '../lib/content-security-policy';
+import { assertOrganizationStoragePath } from '../lib/server-storage-scope';
+import { GET as workerWorkspace } from '../app/api/worker-workspace/route';
 
 const user = '22222222-2222-4222-8222-222222222222';
 const org = '11111111-1111-4111-8111-111111111111';
@@ -23,7 +25,7 @@ let sequence=0;
 function request(path='/api/ai/parse', auth=true) {
   return new Request(`https://manufeo.test${path}`, { method:'POST', headers:{'Content-Type':'application/json','x-forwarded-for':`security-${++sequence}`,...(auth?{Authorization:`Bearer ${token}`}:{})}, body:JSON.stringify({kind:'document',target:'quote',transcript:'Peinture 12 m² à 20 euros HT, TVA 10 %.'})});
 }
-async function authFixture(run: (calls:string[])=>Promise<void>, options:{role?:string;active?:boolean;quota?:boolean;valid?:boolean;targetRole?:string}={}) {
+async function authFixture(run: (calls:string[])=>Promise<void>, options:{role?:string;active?:boolean;quota?:boolean;valid?:boolean;targetRole?:string;photoPath?:string}={}) {
  const previous=globalThis.fetch,key=process.env.SUPABASE_SERVICE_ROLE_KEY;process.env.SUPABASE_SERVICE_ROLE_KEY='test-service-role';const calls:string[]=[];
  globalThis.fetch=async input=>{
   const url=String(input instanceof Request?input.url:input);calls.push(url);
@@ -34,6 +36,10 @@ async function authFixture(run: (calls:string[])=>Promise<void>, options:{role?:
   if(url.includes('/auth/v1/admin/users'))return Response.json({user:{email:'owner@audit.invalid'}});
   if(url.includes('/artisan_workflow_records'))return Response.json([{id:'worker-contact',payload:{email:'worker@audit.invalid'}}]);
   if(url.includes('/commercial_project_members'))return Response.json([{project_id:'assigned-project'}]);
+  if(url.includes('/commercial_projects'))return Response.json([{id:'assigned-project',quote_id:null,name:'Chantier de test'}]);
+  if(url.includes('/commercial_project_steps'))return Response.json([]);
+  if(url.includes('/commercial_project_photos'))return Response.json([{project_id:'assigned-project',id:'photo',storage_path:options.photoPath||null}]);
+  if(url.includes('/storage/v1/object/sign/'))return Response.json({signedURL:'/object/sign/test?token=fixture'});
   if(url.includes('/project_notes'))return Response.json([]);
   throw new Error(`Unexpected privileged/provider call: ${url}`);
  };
@@ -97,4 +103,19 @@ test('browser nonce is fresh and untrusted nonce headers are replaced',()=>{
 test('browser-facing Host handles Next proxy URL normalization without accepting foreign origins',()=>{
  const response=middleware(new NextRequest('http://localhost:3000/api/test',{method:'POST',headers:{Host:'127.0.0.1:3000',Origin:'http://127.0.0.1:3000','Sec-Fetch-Site':'same-origin'}}));assert.equal(response.status,200);
  const refused=middleware(new NextRequest('http://localhost:3000/api/test',{method:'POST',headers:{Host:'127.0.0.1:3000',Origin:'http://evil.test','Sec-Fetch-Site':'same-origin'}}));assert.equal(refused.status,403);
+});
+
+test('service storage paths cannot escape the company, including encoded traversal',()=>{
+ for(const path of ['other/project/photo.jpg',`${org}/../other/photo.jpg`,`${org}/%2e%2e/other/photo.jpg`,`${org}/%252e%252e%252fother/photo.jpg`,`${org}/..\\other/photo.jpg`])
+  assert.throws(()=>assertOrganizationStoragePath(org,path),{status:403});
+ for(const path of [`${org}/project/photo.jpg`,`${org}/project/été 100%.pdf`])assert.doesNotThrow(()=>assertOrganizationStoragePath(org,path));
+});
+test('worker API never signs a poisoned photo reference, while valid photos remain available',async()=>{
+ for(const photoPath of [`${org}/../other/photo.jpg`,`${org}/project/photo.jpg`])await authFixture(async calls=>{
+  const response=await workerWorkspace(new Request('https://manufeo.test/api/worker-workspace',{headers:{Authorization:`Bearer ${token}`}}));
+  const valid=photoPath===`${org}/project/photo.jpg`;
+  assert.equal(response.status,valid?200:403);
+  assert.equal(calls.some(url=>url.includes('/storage/v1/object/sign/')),valid);
+  if(valid)assert.equal((await response.json()).photos.length,1);
+ },{role:'worker',photoPath});
 });
