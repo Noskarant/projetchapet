@@ -22,6 +22,7 @@ type QuoteAction =
   | "print"
   | "invoice"
   | "photos"
+  | "client-portal"
   | "delete";
 
 function normalize(value: string) {
@@ -255,6 +256,9 @@ export default function MobilePhilippeQuoteActionsMenu() {
         }
         case "delete":
           runMoreAction(/^supprimer le devis$/);
+          return;
+        case "client-portal":
+          window.dispatchEvent(new CustomEvent('manufeo:open-client-portal', {detail:{kind:'quote',number:currentPreview() ? currentQuoteNumber(currentPreview()!) : ''}}));
           return;
       }
     };
@@ -495,6 +499,9 @@ export default function MobilePhilippeQuoteActionsMenu() {
               </button>
               <button onClick={() => run("photos")}>
                 <span aria-hidden="true">▧</span><span>Photos du devis</span>
+              </button>
+              <button onClick={() => run("client-portal")}>
+                <span aria-hidden="true">↗</span><span>Portail du client / Déposer le PDF</span>
               </button>
               <button onClick={() => run("download")}>
                 <span aria-hidden="true">↓</span><span>Télécharger le PDF</span>

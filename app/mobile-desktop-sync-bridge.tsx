@@ -28,6 +28,7 @@ import { MOBILE_WORKSPACE_FLUSH_EVENT, type WorkspaceFlushRequest } from '@/lib/
 import {
   applyWorkspaceAliases,
   preservePendingWorkspaceChanges,
+  workspaceForFlushScope,
   coreWorkspaceSignature,
   customerInputFromMobile,
   diffById,
@@ -233,9 +234,11 @@ export default function MobileDesktopSyncBridge() {
   useEffect(() => {
     let disposed = false;
     const flushRequests = new Set<WorkspaceFlushRequest>();
-    const finishFlush = (error?: Error) => {
-      for (const request of flushRequests) error ? request.reject(error) : request.resolve();
-      flushRequests.clear();
+    const finishFlush = (error?: Error, requests: Iterable<WorkspaceFlushRequest> = flushRequests) => {
+      for (const request of requests) {
+        error ? request.reject(error) : request.resolve();
+        flushRequests.delete(request);
+      }
     };
 
     const initialize = () => {
@@ -261,13 +264,17 @@ export default function MobileDesktopSyncBridge() {
     const synchronize = async () => {
       if (disposed || syncing.current || !baseline.current) return;
       const rawLocal = readWorkspace();
-      const local = applyWorkspaceAliases(rawLocal, aliases.current);
+      const pending = [...flushRequests];
+      const scope = pending.find(request => request.scope)?.scope;
+      const batch = scope ? pending.filter(request => request.scope?.entity === scope.entity && request.scope.id === scope.id) : pending;
+      const aliasedScope = scope ? {...scope, id: (scope.entity === 'quote' ? aliases.current.quotes : scope.entity === 'invoice' ? aliases.current.invoices : aliases.current.customers).get(scope.id) || scope.id} : undefined;
+      const local = workspaceForFlushScope(baseline.current, applyWorkspaceAliases(rawLocal, aliases.current), aliasedScope);
       const localSignature = coreWorkspaceSignature(local);
       const baselineSignature = coreWorkspaceSignature(baseline.current);
       const localChanged = localSignature !== baselineSignature;
       const pullDue = Date.now() - lastPull.current >= PULL_INTERVAL_MS;
 
-      if (!localChanged && !pullDue) { finishFlush(); return; }
+      if (!localChanged && (!pullDue || scope)) { finishFlush(undefined, batch); return; }
       if (
         localChanged &&
         localSignature === failedSignature.current &&
@@ -282,7 +289,7 @@ export default function MobileDesktopSyncBridge() {
           await synchronizeLocalChanges(baseline.current, local, aliases.current);
           const server = await fetchWorkspace();
           migrateQuoteMetaNumbers(rawLocal, server, aliases.current);
-          const aliasedLocal = applyWorkspaceAliases(rawLocal, aliases.current);
+          const aliasedLocal = applyWorkspaceAliases(local, aliases.current);
           const canonical = normalizedWorkspaceToMobile(server, aliasedLocal);
           const applied=preservePendingWorkspaceChanges(aliasedLocal,applyWorkspaceAliases(readWorkspace(),aliases.current),canonical);
           writeWorkspace(applied, aliases.current);
@@ -290,16 +297,16 @@ export default function MobileDesktopSyncBridge() {
           failedSignature.current = "";
           failedAt.current = 0;
           lastPull.current = Date.now();
-          finishFlush();
+          finishFlush(undefined, batch);
           return;
         }
 
         await pullServer(local);
         failedSignature.current = "";
         failedAt.current = 0;
-        finishFlush();
+        finishFlush(undefined, batch);
       } catch (error) {
-        finishFlush(error instanceof Error ? error : new Error('Sauvegarde impossible.'));
+        finishFlush(error instanceof Error ? error : new Error('Sauvegarde impossible.'), batch);
         console.error("[FORGEO] Synchronisation mobile ↔ desktop impossible", error);
         if (localChanged) {
           failedSignature.current = localSignature;

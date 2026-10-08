@@ -1,4 +1,5 @@
 import { recalculatePercentageLines } from "./percentage-adjustments";
+import type {WorkspaceFlushScope} from './mobile-workspace-flush';
 import type {
   Customer,
   CustomerInput,
@@ -379,6 +380,22 @@ export function coreWorkspaceSignature(workspace: MobileWorkspace) {
     quotes: workspace.quotes,
     invoices: syncableInvoices(workspace),
   });
+}
+
+/** A document save must not wait for unrelated, possibly invalid local edits. */
+export function workspaceForFlushScope(baseline: MobileWorkspace, local: MobileWorkspace, scope?: WorkspaceFlushScope): MobileWorkspace {
+  if (!scope) return local;
+  function selectedChanges<T extends {id: string}>(before: T[], current: T[]): T[] {
+    const selected = current.find(item => item.id === scope!.id);
+    if (!before.some(item => item.id === scope!.id)) return selected ? [...before, selected] : before;
+    return before.flatMap(item => item.id !== scope!.id ? [item] : selected ? [selected] : []);
+  }
+  return {
+    customers: scope.entity === 'customer' ? selectedChanges(baseline.customers, local.customers) : baseline.customers,
+    quotes: scope.entity === 'quote' ? selectedChanges(baseline.quotes, local.quotes) : baseline.quotes,
+    invoices: scope.entity === 'invoice' ? selectedChanges(baseline.invoices, local.invoices) : baseline.invoices,
+    agenda: local.agenda,
+  };
 }
 
 /** Keep edits made while a network request was in flight, without reverting

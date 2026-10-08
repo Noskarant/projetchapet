@@ -1,0 +1,9 @@
+.client-portal-backdrop{position:fixed;inset:0;z-index:12000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(9,22,41,.7)}
+.client-portal-panel{box-sizing:border-box;width:min(100%,520px);max-height:90dvh;overflow:auto;padding:22px;border-radius:22px;background:#fff;color:#142a41;box-shadow:0 24px 70px #0005;display:flex;flex-direction:column;gap:14px}
+.client-portal-panel header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.client-portal-panel h2{font-size:23px;margin:5px 0}.client-portal-panel p{font-size:15px;line-height:1.5;margin:0}.client-portal-panel small{font-size:13px;color:#526578}
+.client-portal-panel label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:650}
+.client-portal-panel input,.client-portal-panel select{box-sizing:border-box;width:100%;min-height:46px;padding:10px;border:1px solid #c5d3e4;border-radius:10px;color:#142a41;background:#fff;font-size:16px}
+.client-portal-panel button,.client-portal-panel a{min-height:46px;padding:12px;border:1px solid #c5d3e4;border-radius:12px;font-size:15px;font-weight:650;cursor:pointer;text-align:center;text-decoration:none;background:#eff5ff;color:#142a41}
+.client-portal-panel header button{width:42px;min-height:42px;font-size:25px;padding:3px}.client-portal-panel button:disabled{opacity:.55;cursor:wait}
+.client-portal-actions{display:flex;flex-direction:column;gap:10px}.client-portal-actions a{background:#0875f5;color:#fff;border-color:#0875f5}

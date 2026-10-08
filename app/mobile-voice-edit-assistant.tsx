@@ -521,7 +521,7 @@ export default function MobileVoiceEditAssistant() {
         writeQuoteInternalMeta(window.localStorage, quote.number, meta);
       }
       window.localStorage.setItem(MOBILE_WORKSPACE_STORAGE_KEY, JSON.stringify(updated));
-      if (cloud) await flushMobileWorkspace();
+      if (cloud && target.entity !== 'agenda') await flushMobileWorkspace({entity: target.entity, id: target.id});
       setStage("applied");
       setMessage("Modification enregistrée. Actualisation de l’écran…");
       window.setTimeout(() => window.location.reload(), 650);
