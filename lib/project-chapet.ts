@@ -1,3 +1,4 @@
+import { documentUnit } from "./document-units";
 import { supabase } from "./supabase";
 import { documentLinePrice } from "./document-deductible";
 
@@ -71,7 +72,7 @@ function normalizeItems(items: DocumentItem[]) {
     const taxRate = optionalNumber(item.tax_rate);
     return {
       position: index, label: item.label.trim(), description: item.description?.trim() || null,
-      quantity, unit: item.unit?.trim() || null, unit_price: unitPrice,
+      quantity, unit: documentUnit(item.unit), unit_price: unitPrice,
       tax_rate: taxRate,
       total: quantity === null || unitPrice === null ? 0 : Math.round(quantity * unitPrice * 100) / 100,
     };

@@ -1,3 +1,4 @@
+import { documentUnit } from "./document-units";
 import { insuranceDocumentNotes } from "./document-insurance";
 import { restoreSourcePhone } from './phone-display';
 import { spokenAmountPattern } from "./spoken-financial-number";
@@ -159,9 +160,9 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     label: polishFrenchTradeDesignation(text(source.label, 240)),
     description: text(source.description, 800).split('\n').map(polishFrenchTradeDesignation).join('\n'),
     quantity: quantity ?? (explicitSingleForfait ? 1 : null),
-    unit: /\b(?:une?|1)\s+unit[ée](?![\p{L}])/iu.test(unitEvidence) ? 'unité'
+    unit: /\b(?:une?|1)\s+unit[ée](?![\p{L}])/iu.test(unitEvidence) ? 'U'
       : /\b(?:une?|1)\s+forfait\b/iu.test(unitEvidence) ? 'forfait'
-      : text(source.unit, 40) || (/^rouleaux?\b/iu.test(text(source.label, 240)) && /\brouleaux?\b/iu.test(transcript) ? 'rouleaux' : null),
+      : documentUnit(source.unit) || (/^rouleaux?\b/iu.test(text(source.label, 240)) && /\brouleaux?\b/iu.test(transcript) ? 'rouleaux' : null),
     unit_price: unitPrice,
     tax_rate: normalizedTax,
     price_type: priceType,
@@ -247,7 +248,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     normalizedItems = [{ ...first,
       label: normalizedItems.map(item => item.label).join(' · ').slice(0, 240),
       description: normalizedItems.length === 1 ? first.description : normalizedItems.map(item => [item.label, item.description].filter(Boolean).join(' : ')).join('\n').slice(0, 800),
-      quantity: 1, unit: 'unité', unit_price: unitPrice,
+      quantity: 1, unit: first.unit === 'forfait' ? 'forfait' : 'U', unit_price: unitPrice,
       price_type: type || first.price_type,
       spoken_price_ttc: type === 'ttc' && first.tax_rate === null ? price : null,
     }];

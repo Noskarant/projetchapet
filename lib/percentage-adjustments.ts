@@ -16,12 +16,12 @@ export function recalculatePercentageLines(items: LineItem[]) {
   });
 }
 export function spokenDiscount(transcript: string) {
-  const matches = [...transcript.matchAll(new RegExp(`remise(?:\\s+(?:de|à|a))?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`, 'giu'))];
+  const matches = [...transcript.matchAll(new RegExp(`remise(?:\\s+(?:accordée|commerciale|globale))?\\s*[,;:=]?\\s*(?:(?:de|à|a)\\s*)?(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`, 'giu'))];
   const value = matches.length ? spokenFinancialNumber(matches.at(-1)![1]) : null;
   return value !== null && value >= 0 && value <= 100 ? value : null;
 }
 export function applySpokenPercentageLines(items: LineItem[], transcript: string): LineItem[] {
-  const pattern = new RegExp(`\\b(RSE(?:\\s+environnemental(?:e|es|s)?)?|éco[- ]?participation|frais\\s+(?:de\\s+)?(?:gestion|chantier|déplacement)|(?:poste|majoration)\\s+[\\p{L}][\\p{L} -]{0,45}?)\\s*(?:(?:à|a|de)\\s*)?(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`, 'giu');
+  const pattern = new RegExp(`\\b(RSE(?:\\s+environnemental(?:e|es|s)?)?|éco[- ]?participation|frais\\s+(?:de\\s+)?(?:gestion|chantier|déplacement)|(?:poste|majoration)\\s+[\\p{L}][\\p{L} -]{0,45}?)\\s*[,;:=]?\\s*(?:(?:à|a|de)\\s*)?(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`, 'giu');
   let result = [...items];
   for (const match of transcript.matchAll(pattern)) {
     const percent = spokenFinancialNumber(match[2]);
@@ -29,7 +29,7 @@ export function applySpokenPercentageLines(items: LineItem[], transcript: string
     const label = match[1].replace(/^poste\s+/iu, '').trim();
     const sameAdjustment = (value: string) => value
       .replace(/\s*\([^)]*%[^)]*\)\s*$/u, '')
-      .replace(new RegExp(`\\s*(?:(?:à|a|de)\\s+)?${spokenAmountPattern}\\s*(?:%|pour\\s*cent)\\s*$`, 'iu'), '')
+      .replace(new RegExp(`\\s*[,;:=]?\\s*(?:(?:à|a|de)\\s+)?${spokenAmountPattern}\\s*(?:%|pour\\s*cent)\\s*$`, 'iu'), '')
       .replace(/^(?:majoration|contribution|poste)\s+(?=RSE\b)/iu, '')
       .replace(/^RSE\b.*$/iu, 'RSE')
       .trim().toLocaleLowerCase('fr-FR');

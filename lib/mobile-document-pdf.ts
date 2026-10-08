@@ -1,3 +1,4 @@
+import { documentUnit } from "./document-units";
 import { documentInsurance } from "./document-insurance";
 import { phoneDisplay } from "./phone-display";
 import { documentDeductible, isDeductibleLine } from "./document-deductible";
@@ -245,7 +246,7 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(20, 42, 65);
     pdf.setFontSize(8.5);
-    drawFittedRight(item.quantity === null ? "À préciser" : `${quantity(item.quantity)} ${item.unit || ""}`.trim(), withoutPrices ? 192 : 120, numericY, withoutPrices ? 26 : 16);
+    drawFittedRight(item.quantity === null ? "À préciser" : `${quantity(item.quantity)} ${documentUnit(item.unit) || ""}`.trim(), withoutPrices ? 192 : 120, numericY, withoutPrices ? 26 : 16);
     if (!withoutPrices) {
       drawFittedRight(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, numericY, 24);
       drawFittedRight(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, numericY, 13);

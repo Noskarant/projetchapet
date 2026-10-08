@@ -1,3 +1,4 @@
+import { documentUnit } from "./document-units";
 import {
   calculateTotals,
   seedMobileWorkspace,
@@ -53,7 +54,7 @@ function stringArray(value: unknown, fallback: string[] = []) {
 function normalizeLine(value: unknown, index: number): LineItem | null {
   if (!isRecord(value)) return null;
   const quantity = nullableNumberValue(value.quantity);
-  const unit = nullableStringValue(value.unit);
+  const unit = documentUnit(value.unit);
   const unitPrice = nullableNumberValue(value.unitPrice);
   const taxRate = nullableNumberValue(value.taxRate);
   return {

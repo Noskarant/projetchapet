@@ -47,7 +47,8 @@ import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 import "./action-voice-replay.css";
 import { readQuoteSourceFiles } from '@/lib/quote-source-files';
-import { quoteSourceRequest, customerSourceRequest, type QuoteSource } from '@/lib/quote-sources';
+import { quoteSourceRequest, customerSourceRequest, sourceRequestTarget, type QuoteSource } from '@/lib/quote-sources';
+import { documentUnit } from '@/lib/document-units';
 import { supplierMarkupInput } from '@/lib/supplier-markup';
 
 type Stage = "choose" | "ready" | "requesting" | "recording" | "transcribing" | "analysing" | "review" | "executing" | "success" | "drafts" | "send" | "error";
@@ -174,7 +175,7 @@ function proposalSummary(proposal: ActionProposalView) {
     const lineDetails = items.slice(0, 6).map((entry) => {
       const row = entry && typeof entry === "object" && !Array.isArray(entry) ? entry as Record<string, unknown> : {};
       const label = clean(row.label) || "Prestation";
-      const quantity = row.quantity === null || row.quantity === undefined ? "qté ?" : `${quantityLabel(row.quantity)}${clean(row.unit) ? ` ${clean(row.unit)}` : ""}`;
+      const quantity = row.quantity === null || row.quantity === undefined ? "qté ?" : `${quantityLabel(row.quantity)}${documentUnit(row.unit) ? ` ${documentUnit(row.unit)}` : ""}`;
       const price = row.unit_price === null || row.unit_price === undefined
         ? row.spoken_price_ttc !== null && row.spoken_price_ttc !== undefined ? `${euro(row.spoken_price_ttc)} TTC · TVA à préciser`
           : row.spoken_price_ambiguous !== null && row.spoken_price_ambiguous !== undefined ? `${euro(row.spoken_price_ambiguous)} · HT/TTC à préciser`
@@ -184,7 +185,8 @@ function proposalSummary(proposal: ActionProposalView) {
       return `${label}: ${quantity} × ${price} (${tax})`;
     });
     const extra = items.length > 6 ? `+ ${items.length - 6} autre${items.length - 6 > 1 ? "s" : ""} ligne${items.length - 6 > 1 ? "s" : ""}` : "";
-    return [client, ...lineDetails, extra, clean(payload.notes)].filter(Boolean).join(" · ") || `${client} · aucune prestation`;
+    const discount = Number(payload.discount_percent || 0);
+    return [client, ...lineDetails, extra, discount > 0 ? `Remise : ${discount} %` : '', clean(payload.notes)].filter(Boolean).join(" · ") || `${client} · aucune prestation`;
   }
   if (proposal.intent_type === "schedule_task") {
     return [clean(payload.title), clean(payload.date), clean(payload.time), clean(payload.location)].filter(Boolean).join(" · ") || "Événement à compléter";
@@ -579,7 +581,7 @@ export default function ActionVoiceAssistant() {
     const selected = targetRef.current;
     const withFiles = sourcesRef.current.length > 0;
     const copied = selected === 'quote' || selected === 'command' || selected === 'customer' ? copiedSourceRef.current.trim() : '';
-    const clientSources = selected === "customer" && (withFiles || Boolean(copied) || customerImportRef.current);
+    const clientSources = Boolean(selected && sourceRequestTarget(selected, text) === "customer") && (withFiles || Boolean(copied) || customerImportRef.current);
     const withSources = withFiles || clientSources || Boolean(copied);
     if (!selected || (!text.trim() && !withFiles && !copied)) {
       setMessage("Dictez ou écrivez d’abord votre demande.");
@@ -892,9 +894,10 @@ export default function ActionVoiceAssistant() {
     const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
     if (files.length) { event.preventDefault(); void addSources(files); }
   }
+  const clientSourceMode = Boolean(target && sourceRequestTarget(target, transcript) === "customer");
   const sourceControls = (
     (target === 'quote' || target === 'command' || target === 'customer') && <div className="ava-sources">
-                  <strong>{target === "customer" ? "Note ou photo → client" : "Photos et documents pour votre devis"}</strong>
+                  <strong>{clientSourceMode ? "Note ou photo → client" : "Photos et documents pour votre devis"}</strong>
                   {target === "customer" && <small>Depuis Apple Notes, copiez la note puis collez-la ci-dessous, ou joignez une capture/photo.</small>}
                   <div className="ava-source-buttons">
                     <button type="button" className="ava-secondary" disabled={busy} onClick={() => cameraInput.current?.click()}><Camera size={18} /> Prendre une photo</button>
@@ -916,7 +919,7 @@ export default function ActionVoiceAssistant() {
                     {pasteHint && <small role="status">{pasteHint}</small>}
                     <small>Vos consignes se précisent dans votre demande ci-dessous.</small>
                   </div>
-                  {target !== 'customer' && <>
+                  {!clientSourceMode && <>
                     <label className="ava-supplier-markup">Majoration sur les prix HT (%)
                       <input type="text" inputMode="decimal" aria-label="Majoration sur les prix HT (%)" placeholder="Ex. 30" value={markupInput} disabled={busy} onChange={event => { markupInputRef.current = event.target.value; setMarkupInput(event.target.value); setSourcesChanged(true); }} />
                       <small>+30 % : 100 € HT devient 130 € HT. Vous pouvez aussi le dicter.</small>
@@ -990,7 +993,7 @@ export default function ActionVoiceAssistant() {
                 {recordingUrl && <audio className="ava-recording" controls src={recordingUrl} aria-label="Réécouter la dictée" />}
                 {message && <div className="ava-message" role="status">{message}</div>}
                 {(stage === "ready" || stage === "error") && (transcript.trim() || sources.length > 0 || copiedSource.trim()) && (
-                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{target === 'customer' && (sources.length > 0 || copiedSource.trim() || customerImport) ? 'Lire et préparer le client' : sources.length || copiedSource.trim() ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
+                  <button type="button" className="ava-primary" disabled={busy} onClick={() => void prepare(transcriptRef.current)}>{clientSourceMode && (sources.length > 0 || copiedSource.trim() || customerImport) ? 'Lire et préparer le client' : sources.length || copiedSource.trim() ? 'Préparer le devis avec mes sources' : 'Créer avec MANUFEO'}</button>
                 )}
                 {(stage === "ready" || stage === "error") && target !== "command" && (
                   <button type="button" className="ava-secondary" onClick={() => { targetRef.current = null; setTarget(null); setStage("choose"); setMessage(""); }}>Changer de type</button>

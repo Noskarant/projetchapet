@@ -55,7 +55,7 @@ test('prix unitaire 1 700 HT et même prix sur les deux autres lignes : valeurs 
   const items = action.payload.items as Array<{ quantity: number; unit: string; unit_price: number }>;
   assert.equal(items.length, 3);
   assert.deepEqual(items.map(item => item.unit_price), [1700, 1700, 1700]);
-  assert.equal(items[0].quantity, 1); assert.equal(items[0].unit, 'unité');
+  assert.equal(items[0].quantity, 1); assert.equal(items[0].unit, 'U');
   assert.equal(sharedVoiceUnitPrice('Une unité à 1700 euros HT.', 3), null);
   assert.equal(sharedVoiceUnitPrice('Même prix à 1700 euros HT pour les deux autres lignes.', 5), null);
   assert.equal(sharedVoiceUnitPrice('Même prix pour toutes les lignes, 1700 euros HT et 30 euros HT.', 3), null);

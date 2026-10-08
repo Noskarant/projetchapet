@@ -1,3 +1,4 @@
+import { documentUnit } from "./document-units";
 import { canCreateDirectly } from "./voice-direct-creation";
 import { documentLinePrice } from "./document-deductible";
 import { createSupplierFromVoice } from "./voice-supplier";
@@ -82,7 +83,7 @@ function normalizedItems(value: unknown) {
       label: string(line.label, 240) || "Prestation à compléter",
       description: string(line.description, 800) || null,
       quantity,
-      unit: string(line.unit, 40) || null,
+      unit: documentUnit(string(line.unit, 40)),
       unit_price: unitPrice,
       tax_rate: tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax : null,
       total: quantity === null || unitPrice === null ? 0 : Math.round(quantity * unitPrice * 100) / 100,

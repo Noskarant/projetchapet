@@ -1,4 +1,5 @@
 "use client";
+import { documentUnit } from "@/lib/document-units";
 import { documentInsurance } from "@/lib/document-insurance";
 import { documentDeductible, isDeductibleLine } from "@/lib/document-deductible";
 
@@ -562,7 +563,7 @@ export default function MobileAutoPdfPreview() {
                     <div className="rm-philippe-line-prices">
                       <div>
                         <small>Quantité</small>
-                        <strong>{item.quantity === null ? "À préciser" : `${item.quantity} ${item.unit || ""}`}</strong>
+                        <strong>{item.quantity === null ? "À préciser" : `${item.quantity} ${documentUnit(item.unit) || ""}`}</strong>
                       </div>
                       <div>
                         <small>Prix unitaire HT</small>

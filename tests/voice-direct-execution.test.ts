@@ -113,3 +113,12 @@ test('PERBET et Bazin : les données normalisées arrivent réellement dans la s
   assert.deepEqual((await executeProposalBatch(input)).results, result.results);
   assert.equal(rpcCalls.filter(call => call.name === 'save_invoice_document').length, 1);
 });
+
+test('unités abrégées et remise importée traversent la sauvegarde du devis', async () => {
+  const { rows, saved, rpcCalls, context } = fixture(['create_customer','prepare_quote']);
+  rows[1].payload = {customer_from_proposal_id:'p0',discount_percent:4,items:[{label:'Peinture',quantity:1.53,unit:'mètre carré',unit_price:22,tax_rate:10}]};
+  await executeProposalBatch({context,organizationId:'org',proposalIds:rows.map(row=>row.id),explicitConfirmation:false,directCreation:true});
+  const stored=rpcCalls.find(call=>call.name==='save_quote_document')!.args.p_items as Array<Record<string,unknown>>;
+  assert.equal(stored[0].unit,'m²');assert.equal(stored[0].quantity,1.53);assert.equal(stored[0].unit_price,22);
+  const meta=saved.find(row=>row.table==='quote_private_meta');assert.equal(meta?.discount_percent,4);assert.equal(meta?.organization_id,'org');
+});
