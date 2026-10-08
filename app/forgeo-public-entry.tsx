@@ -456,7 +456,7 @@ export default function ForgeoPublicEntry({ onLogin, onSignup }: Props) {
           <a className="fp-footer-lockup" href="#accueil" aria-label="MANUFEO, accueil">
             <ForgeoBrand />
           </a>
-          <p>L’assistant métier des artisans du bâtiment.</p>
+          <p>L’assistant métier des artisans de France.</p>
         </div>
         <div className="fp-footer-meta">
           <nav className="fp-footer-links" aria-label="Informations légales">

@@ -4,6 +4,7 @@ import { restoreSourcePhone } from './phone-display';
 import { spokenAmountPattern } from "./spoken-financial-number";
 import { applyDeductibleLine, deductibleLineNotes, isDeductibleLine, spokenDeductibleAdjustment, withoutPaymentAdjustments } from "./document-deductible";
 import { applySpokenPercentageLines, spokenDiscount } from "./percentage-adjustments";
+import { stripUngroundedDiscountNotes, worksiteDocumentNotes } from './document-parties';
 import { applySupplierMarkup, isSupplierMarkupLine, spokenSupplierMarkup, supplierMarkupNotes, withoutSupplierMarkup } from './supplier-markup';
 import {
   ACTION_INTENTS,
@@ -266,16 +267,16 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_id: text(source.quote_id, 80) || null,
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
-    notes: (spokenDeductibleAdjustment(transcript)
+    notes: worksiteDocumentNotes(stripUngroundedDiscountNotes((spokenDeductibleAdjustment(transcript)
       ? deductibleLineNotes(insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript))
-      : insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript)) || null,
+      : insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript)), transcript), source, transcript) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,
     due_date: text(source.due_date, 20) || null,
     items,
     ...(markupPercent !== null ? { supplier_markup_percent: markupPercent } : {}),
-    discount_percent: spokenDiscount(transcript) ?? numberOrNull(source.discount_percent) ?? 0,
+    discount_percent: spokenDiscount(transcript) ?? 0,
   };
 }
 

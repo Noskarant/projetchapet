@@ -184,6 +184,17 @@ export default function MobileCommercialDemo() {
     }
   }, []);
 
+  useEffect(()=>{
+    const reveal=(event:Event)=>{
+      const kind=(event as CustomEvent<string>).detail;
+      if(kind==='quote'||kind==='invoice')setCommercial(current=>({...current,filters:{...current.filters,[kind]:emptyFilters()}}));
+    };
+    window.addEventListener('manufeo:local-workspace-updated',refreshWorkspace);
+    window.addEventListener('storage',refreshWorkspace);
+    window.addEventListener('manufeo:reveal-document',reveal);
+    return()=>{window.removeEventListener('manufeo:local-workspace-updated',refreshWorkspace);window.removeEventListener('storage',refreshWorkspace);window.removeEventListener('manufeo:reveal-document',reveal);};
+  },[refreshWorkspace]);
+
   const logActivity = useCallback((event: Parameters<typeof appendActivity>[1]) => {
     setCommercial((current) => appendActivity(current, event));
   }, []);

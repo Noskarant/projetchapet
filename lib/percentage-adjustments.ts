@@ -17,6 +17,8 @@ export function recalculatePercentageLines(items: LineItem[]) {
 }
 export function spokenDiscount(transcript: string) {
   const matches = [...transcript.matchAll(new RegExp(`remise(?:\\s+(?:accordée|commerciale|globale))?\\s*[,;:=]?\\s*(?:(?:de|à|a)\\s*)?(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`, 'giu'))];
+  const last=matches.at(-1);
+  if(last && /(?:pas (?:de|une)|sans|aucune|annule(?:r)? (?:la|une))\s*$/iu.test(transcript.slice(Math.max(0,last.index!-30),last.index)))return 0;
   const value = matches.length ? spokenFinancialNumber(matches.at(-1)![1]) : null;
   return value !== null && value >= 0 && value <= 100 ? value : null;
 }

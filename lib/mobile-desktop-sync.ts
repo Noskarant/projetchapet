@@ -380,3 +380,23 @@ export function coreWorkspaceSignature(workspace: MobileWorkspace) {
     invoices: syncableInvoices(workspace),
   });
 }
+
+/** Keep edits made while a network request was in flight, without reverting
+ * server-assigned IDs/numbers or changes from another device. */
+export function preservePendingWorkspaceChanges(start: MobileWorkspace, current: MobileWorkspace, server: MobileWorkspace): MobileWorkspace {
+  function merge<T extends {id:string}>(before:T[],now:T[],remote:T[],document=false):T[]{
+    const changes=diffById(before,now),deleted=new Set(changes.deleted.map(item=>item.id));
+    const result=remote.filter(item=>!deleted.has(item.id));
+    for(const item of [...changes.created,...changes.updated]){
+      const index=result.findIndex(saved=>saved.id===item.id),base=before.find(saved=>saved.id===item.id);
+      let merged=item;
+      if(index>=0&&base){
+        merged=document?mergeDocumentChanges(base as unknown as MobileQuote,item as unknown as MobileQuote,result[index] as unknown as MobileQuote) as unknown as T
+          :Object.fromEntries(Object.keys({...result[index],...item}).map(field=>[field,JSON.stringify(base[field as keyof T])!==JSON.stringify(item[field as keyof T])?item[field as keyof T]:result[index][field as keyof T]])) as unknown as T;
+      }
+      if(index<0)result.push(merged);else result[index]=merged;
+    }
+    return result;
+  }
+  return {customers:merge(start.customers,current.customers,server.customers),quotes:merge(start.quotes,current.quotes,server.quotes,true),invoices:merge(start.invoices,current.invoices,server.invoices,true),agenda:current.agenda};
+}

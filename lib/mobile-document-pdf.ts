@@ -1,4 +1,5 @@
 import { documentUnit } from "./document-units";
+import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { documentInsurance } from "./document-insurance";
 import { phoneDisplay } from "./phone-display";
 import { documentDeductible, isDeductibleLine } from "./document-deductible";
@@ -423,9 +424,7 @@ export async function buildBusinessDocumentPdf({
     if (footerLines.length) pdf.text(footerLines, margin, footerStart);
     pdf.text(`${page}/${pageCount}`, right, 285, { align: "right" });
     pdf.setFontSize(6.5);
-    pdf.text("Généré avec MANUFEO", 105, 291, {
-      align: "center",
-    });
+    drawManufeoPdfFooter(pdf,291);
   }
 
   return pdf.output("blob");

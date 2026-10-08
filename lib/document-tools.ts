@@ -1,4 +1,5 @@
 import type { Invoice, Quote } from "./project-chapet";
+import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { customerName } from "./project-chapet";
 import { companyProfileDisplayName, readCompanyProfile } from "./company-profile";
 
@@ -181,7 +182,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
 
   pdf.setFontSize(7.5);
   pdf.setTextColor(100, 110, 124);
-  pdf.text("Document généré avec MANUFEO.", 105, 288, { align: "center" });
+  drawManufeoPdfFooter(pdf,288,'Document généré avec MANUFEO');
   return pdf.output("blob");
 }
 

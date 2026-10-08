@@ -12,7 +12,6 @@ type ApplyDetail = {
   data?: { items?: Array<{ label?: string; quantity?: number | null; unit?: string | null; unit_price?: number | null; tax_rate?: number | null }> };
 };
 
-type LookupCompany = { companyName: string; siret: string; vatNumber: string; address: string; postalCode: string; city: string };
 
 function requestUrl(input: RequestInfo | URL) {
   if (typeof input === "string") return input;
@@ -139,43 +138,6 @@ export default function RappidosExperienceBridge() {
       setSettingsCardValue(document, "SIRET", profile.siret || "À renseigner");
       setSettingsCardValue(document, "Copie automatique au comptable", profile.accountingEmail || "À renseigner");
       setSettingsCardValue(document, "Logo", profile.logoDataUrl ? "Logo entreprise configuré" : "Aucun logo configuré");
-
-      const customerEditor = Array.from(document.querySelectorAll<HTMLElement>(".rm-v2-editor"))
-        .find((node) => /client/i.test(node.querySelector("h2")?.textContent ?? ""));
-      if (customerEditor && !customerEditor.querySelector(".rap-siret-lookup")) {
-        const siret = fieldByLabel(customerEditor, "SIRET");
-        if (siret) {
-          const lookup = document.createElement("button");
-          lookup.type = "button";
-          lookup.className = "rap-siret-lookup";
-          lookup.innerHTML = "Rechercher l’entreprise";
-          lookup.addEventListener("click", async () => {
-            const digits = siret.value.replace(/\D/g, "");
-            if (digits.length !== 14) { lookup.textContent = "SIRET : 14 chiffres requis"; return; }
-            lookup.textContent = "Recherche…";
-            lookup.setAttribute("disabled", "true");
-            try {
-              const response = await fetch(`/api/company-lookup?siret=${encodeURIComponent(digits)}`, { cache: "no-store" });
-              const payload = await response.json() as { company?: LookupCompany; error?: string };
-              if (!response.ok || !payload.company) throw new Error(payload.error || "Entreprise introuvable");
-              const mappings: Array<[string, string]> = [
-                ["Raison sociale", payload.company.companyName], ["SIRET", payload.company.siret], ["TVA", payload.company.vatNumber],
-                ["Adresse", payload.company.address], ["Code postal", payload.company.postalCode], ["Ville", payload.company.city],
-              ];
-              for (const [label, value] of mappings) {
-                const field = fieldByLabel(customerEditor, label);
-                if (field && value) setReactInput(field, value);
-              }
-              lookup.textContent = "Informations récupérées ✓";
-            } catch (error) {
-              lookup.textContent = error instanceof Error ? error.message : "Recherche impossible";
-            } finally {
-              lookup.removeAttribute("disabled");
-            }
-          });
-          siret.closest("label")?.insertAdjacentElement("afterend", lookup);
-        }
-      }
 
       const emailSheet = document.querySelector<HTMLElement>(".rm-v2-email");
       const emailTextarea = emailSheet?.querySelector<HTMLTextAreaElement>("textarea") ?? null;

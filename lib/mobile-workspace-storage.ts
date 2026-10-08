@@ -11,6 +11,13 @@ import {
 } from "./mobile-prototype";
 
 export const MOBILE_WORKSPACE_STORAGE_KEY = "projetchapet-mobile-workspace-v3";
+export type MobileWorkspaceAliasesEvent = { customers?: Record<string,string>; quotes?: Record<string,string>; invoices?: Record<string,string> };
+
+export function persistMobileWorkspace(storage: Pick<Storage,'setItem'>, workspace: MobileWorkspace, events?: Pick<EventTarget,'dispatchEvent'>, aliases?: MobileWorkspaceAliasesEvent) {
+  storage.setItem(MOBILE_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
+  const target=events ?? (typeof window!=='undefined'?window:undefined);
+  if(target) target.dispatchEvent(new CustomEvent('manufeo:local-workspace-updated',{detail:aliases}));
+}
 const CORRUPT_BACKUP_PREFIX = "projetchapet-mobile-workspace-corrupt";
 
 export type WorkspacePreparationStatus = "unchanged" | "seeded" | "normalized" | "recovered";

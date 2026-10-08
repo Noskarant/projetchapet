@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "MANUFEO",
     short_name: "MANUFEO",
-    description: "Gestion de devis, factures, clients et chantiers pour les artisans du bâtiment.",
+    description: "Gestion de devis, factures, clients et chantiers pour les artisans de France.",
     id: "/",
     start_url: "/",
     scope: "/",

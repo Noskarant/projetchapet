@@ -17,6 +17,7 @@ import { EMPTY_MOBILE_WORKSPACE } from "@/lib/mobile-fresh-start";
 import {
   MOBILE_WORKSPACE_STORAGE_KEY,
   normalizeMobileWorkspace,
+  persistMobileWorkspace,
 } from "@/lib/mobile-workspace-storage";
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import { readQuoteInternalMeta, writeQuoteInternalMeta } from "@/lib/mobile-quote-preview";
@@ -26,6 +27,7 @@ import { remapQuotePhotoProjects } from "@/lib/quote-photo-dossier";
 import { MOBILE_WORKSPACE_FLUSH_EVENT, type WorkspaceFlushRequest } from '@/lib/mobile-workspace-flush';
 import {
   applyWorkspaceAliases,
+  preservePendingWorkspaceChanges,
   coreWorkspaceSignature,
   customerInputFromMobile,
   diffById,
@@ -55,8 +57,10 @@ function readWorkspace(): MobileWorkspace {
   }
 }
 
-function writeWorkspace(workspace: MobileWorkspace) {
-  window.localStorage.setItem(MOBILE_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
+function writeWorkspace(workspace: MobileWorkspace, aliases?: WorkspaceAliases) {
+  persistMobileWorkspace(window.localStorage, workspace, window, aliases ? {
+    customers:Object.fromEntries(aliases.customers),quotes:Object.fromEntries(aliases.quotes),invoices:Object.fromEntries(aliases.invoices),
+  }:undefined);
 }
 
 function migrateQuoteMetaNumbers(local: MobileWorkspace, server: Awaited<ReturnType<typeof fetchWorkspace>>, aliases: WorkspaceAliases) {
@@ -210,7 +214,7 @@ export async function hydrateMobileCoreFromDesktop() {
     const migrated = await fetchWorkspace();
     migrateQuoteMetaNumbers(merged, migrated, aliases);
     const canonical = normalizedWorkspaceToMobile(migrated, applyWorkspaceAliases(merged, aliases));
-    writeWorkspace(canonical);
+    writeWorkspace(canonical, aliases);
     return canonical;
   }
 
@@ -246,7 +250,9 @@ export default function MobileDesktopSyncBridge() {
     const pullServer = async (local: MobileWorkspace) => {
       const server = await fetchWorkspace();
       const canonical = normalizedWorkspaceToMobile(server, applyWorkspaceAliases(local, aliases.current));
-      if (coreWorkspaceSignature(canonical) !== coreWorkspaceSignature(local)) writeWorkspace(canonical);
+      const latest=applyWorkspaceAliases(readWorkspace(),aliases.current);
+      const applied=preservePendingWorkspaceChanges(local,latest,canonical);
+      if (JSON.stringify(applied) !== JSON.stringify(latest)) writeWorkspace(applied, aliases.current);
       baseline.current = canonical;
       lastPull.current = Date.now();
       return canonical;
@@ -278,7 +284,8 @@ export default function MobileDesktopSyncBridge() {
           migrateQuoteMetaNumbers(rawLocal, server, aliases.current);
           const aliasedLocal = applyWorkspaceAliases(rawLocal, aliases.current);
           const canonical = normalizedWorkspaceToMobile(server, aliasedLocal);
-          writeWorkspace(canonical);
+          const applied=preservePendingWorkspaceChanges(aliasedLocal,applyWorkspaceAliases(readWorkspace(),aliases.current),canonical);
+          writeWorkspace(applied, aliases.current);
           baseline.current = canonical;
           failedSignature.current = "";
           failedAt.current = 0;

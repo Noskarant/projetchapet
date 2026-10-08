@@ -37,7 +37,7 @@ import "./artisan-readability.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "MANUFEO — l’assistant métier des artisans du bâtiment",
+  title: "MANUFEO — l’assistant métier des artisans de France",
   description:
     "MANUFEO prépare vos devis, chantiers et actions administratives avec l’IA : vous parlez, il structure et prépare, vous gardez la validation.",
   applicationName: "MANUFEO",
