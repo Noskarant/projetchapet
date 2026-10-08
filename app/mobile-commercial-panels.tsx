@@ -37,6 +37,9 @@ export type EmailDraft = {
   message: string;
   withoutPrices: boolean;
   copyToSelf?: boolean;
+  requestSignature?: boolean;
+  notifyBySms?: boolean;
+  photoIds?: string[];
 };
 
 const timeFr = (value: string) =>
@@ -420,6 +423,9 @@ export function EmailPanel({
   onChange,
   onSend,
   onCancel,
+  photos = [],
+  onManagePhotos,
+  smsConfigured = false,
 }: {
   draft: EmailDraft;
   busy: boolean;
@@ -427,6 +433,9 @@ export function EmailPanel({
   onChange: (draft: EmailDraft) => void;
   onSend: () => void;
   onCancel: () => void;
+  photos?: Array<{id:string;name:string;dataUrl?:string}>;
+  onManagePhotos?: () => void;
+  smsConfigured?: boolean;
 }) {
   return (
     <div className="rm-commercial-body">
@@ -480,6 +489,21 @@ export function EmailPanel({
           />
           <span>Joindre la version chantier sans prix</span>
         </label>
+        {'expiryDate' in draft.document && <>
+          <label className="rm-commercial-check">
+            <input type="checkbox" checked={!draft.withoutPrices && Boolean(draft.requestSignature)} disabled={busy || draft.withoutPrices || draft.document.status !== 'En attente'} onChange={event=>onChange({...draft,requestSignature:event.target.checked})}/>
+            <span>Proposer la signature du devis<small>Le client reçoit un lien personnel pour lire le PDF et donner son bon pour accord.</small></span>
+          </label>
+          <label className="rm-commercial-check">
+            <input type="checkbox" checked={!draft.withoutPrices && Boolean(draft.notifyBySms)} disabled={busy || draft.withoutPrices} onChange={event=>onChange({...draft,notifyBySms:event.target.checked})}/>
+            <span>Prévenir le client par SMS après l’envoi<small>{smsConfigured?'Envoi automatique au numéro enregistré sur sa fiche.':'Un SMS sera prérempli dans Messages après l’envoi. Le service SMS automatique reste à activer.'}</small></span>
+          </label>
+          <div><strong>Dossier photos</strong><p>Les photos sélectionnées sont jointes dans un second PDF, avec le devis avec ou sans prix.</p>
+            {onManagePhotos&&<button type="button" disabled={busy} onClick={onManagePhotos}>Ajouter / gérer les photos du devis</button>}
+            {!photos.length&&<small>Aucune photo ajoutée à ce devis.</small>}
+            {photos.map(photo=><label key={photo.id} className="rm-commercial-check"><input type="checkbox" disabled={busy} checked={(draft.photoIds??photos.map(item=>item.id)).includes(photo.id)} onChange={event=>{const ids=draft.photoIds??photos.map(item=>item.id);onChange({...draft,photoIds:event.target.checked?[...ids,photo.id]:ids.filter(id=>id!==photo.id)})}}/>{photo.dataUrl&&<img src={photo.dataUrl} alt="" width={56} height={56} style={{objectFit:'cover'}}/>}<span>{photo.name}</span></label>)}
+          </div>
+        </>}
       </div>
 
       {message && <div className="rm-email-feedback" role="status">{message}</div>}

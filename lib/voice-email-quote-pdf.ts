@@ -135,12 +135,14 @@ export async function buildVoiceEmailQuoteAttachment({
   organization,
   companyProfile,
   recipient,
+  discountPercent = 0,
 }: {
   quote: VoiceQuoteRecord;
   customer: VoiceQuoteCustomerRecord;
   organization: VoiceQuoteOrganizationRecord;
   companyProfile?: unknown;
   recipient: string;
+  discountPercent?: number;
 }) {
   assertQuoteBelongsToRecipient(recipient, customer.emails);
 
@@ -211,6 +213,7 @@ export async function buildVoiceEmailQuoteAttachment({
       email: clean(organization.email),
     },
     profile,
+    quoteMeta: { internalNotes: '', discountPercent },
   });
 
   const bytes = Buffer.from(await blob.arrayBuffer());

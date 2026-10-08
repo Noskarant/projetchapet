@@ -158,7 +158,7 @@ export default function RappidosMobileShellV2() {
           setWorkspace(current => {
             // Merge cloud entities by UUID; never discard pending local edits.
             let merged = current;
-            for (const customer of server.customers) if (!current.customers.some(item => item.id === customer.id)) merged = upsertCustomer(merged, customerToMobile(customer));
+            for (const customer of server.customers) if (result.entityType === "customer" && customer.id === result.entityId || !current.customers.some(item => item.id === customer.id)) merged = upsertCustomer(merged, customerToMobile(customer));
             if (result.entityType === "quote") {
               const quote = server.quotes.find(item => item.id === result.entityId);
               if (!quote) return merged;

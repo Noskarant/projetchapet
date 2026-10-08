@@ -8,6 +8,8 @@ export type AuthenticatedEmailPayload = {
   to: string | string[];
   customRecipient?: boolean;
   copyToSelf?: boolean;
+  requestSignature?: boolean;
+  notifyBySms?: boolean;
   cc?: string[];
   bcc?: string[];
   subject?: string;
@@ -47,5 +49,12 @@ export async function sendAuthenticatedDocumentEmail(payload: AuthenticatedEmail
   });
 
   if (!response.ok) throw new Error(await documentEmailErrorMessage(response));
+  if (payload.notifyBySms && typeof window !== 'undefined') {
+    const result = await response.clone().json().catch(() => ({}));
+    const sms = result.sms;
+    if ((sms?.status === 'manual' || sms?.status === 'failed') && sms.phone && sms.message) {
+      window.dispatchEvent(new CustomEvent('manufeo:email-sms-ready', { detail: { phone: sms.phone, message: sms.message } }));
+    }
+  }
   return response;
 }

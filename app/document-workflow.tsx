@@ -63,6 +63,8 @@ export default function DocumentWorkflow() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [recipient, setRecipient] = useState("");
   const [cc, setCc] = useState("");
+  const [requestSignature,setRequestSignature]=useState(false);
+  const [notifyBySms,setNotifyBySms]=useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [settings, setSettings] = useState<MailSettings>(defaults);
@@ -126,6 +128,8 @@ export default function DocumentWorkflow() {
       setPreviewUrl(URL.createObjectURL(blob));
       setSelected(document);
       setRecipient(document.customer.emails?.[0] ?? "");
+      setRequestSignature(document.number.startsWith('DEV-') && ['draft','sent'].includes(document.status) && Boolean(document.customer.emails?.[0]));
+      setNotifyBySms(document.number.startsWith('DEV-') && Boolean(document.customer.phones?.length));
       const isInvoice = document.number.startsWith("FAC-");
       setCc(
         profile.accountingEmail && ((isInvoice && settings.copyInvoices) || (!isInvoice && settings.copyQuotes))
@@ -150,6 +154,8 @@ export default function DocumentWorkflow() {
         documentKind: selected.number.startsWith("DEV-") ? "quote" : "invoice",
         to: recipient.trim(),
         customRecipient: true,
+        requestSignature,
+        notifyBySms,
         cc: cc.split(/[;,]/).map((value) => value.trim()).filter(Boolean),
         subject: `${selected.number.startsWith("DEV-") ? "Votre devis" : "Votre facture"} ${selected.number}`,
         html: htmlMessage(profile, selected),
@@ -219,6 +225,7 @@ export default function DocumentWorkflow() {
                 <div className="pc-send-panel-title"><Mail size={18} /><div><strong>Envoyer ce PDF</strong><span>Le fichier affiché à gauche sera joint à l’e-mail.</span></div></div>
                 <label>E-mail du client<input type="email" value={recipient} onChange={(event) => setRecipient(event.target.value)} /></label>
                 <label>Copie à<input type="text" value={cc} onChange={(event) => setCc(event.target.value)} placeholder="comptable@cabinet.fr" /></label>
+                {selected.number.startsWith('DEV-')&&<><label><input type="checkbox" checked={requestSignature} disabled={busy||!['draft','sent'].includes(selected.status)} onChange={event=>setRequestSignature(event.target.checked)}/> Proposer la signature du devis par lien personnel</label><label><input type="checkbox" checked={notifyBySms} disabled={busy} onChange={event=>setNotifyBySms(event.target.checked)}/> Prévenir le client par SMS après l’envoi</label><small>Sans service SMS configuré, le message sera prérempli dans Messages.</small></>}
                 <p>Pour votre sécurité, l’envoi est limité au client lié à ce document et à l’adresse comptable de votre entreprise.</p>
                 <button className="pc-primary" onClick={() => void sendDocument()} disabled={busy || !recipient.trim()}>{busy ? <Loader2 size={16} className="pc-spin" /> : <Mail size={16} />} Envoyer le PDF</button>
                 <button className="pc-secondary" onClick={() => void downloadDocumentPdf(selected)}><Download size={16} /> Télécharger le PDF</button>

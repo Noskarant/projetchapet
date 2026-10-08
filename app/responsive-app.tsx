@@ -4,6 +4,7 @@
 import ActionVoiceAssistant from "./action-voice-assistant";
 import AppErrorBoundary from "./app-error-boundary";
 import AuthenticatedEmailFetchBridge from "./authenticated-email-fetch-bridge";
+import DocumentEmailSmsNotification from './document-email-sms-notification';
 import CompanyProfileSettings from "./company-profile-settings";
 import DesktopExerciseBridge from "./desktop-exercise-bridge";
 import FirstRunOnboarding from "./first-run-onboarding";
@@ -29,6 +30,7 @@ export default function ResponsiveApp() {
       <ManufeoBrandingBridge />
       <PilotAuthGate>
         <AuthenticatedEmailFetchBridge />
+        <DocumentEmailSmsNotification />
         <PilotReadinessUiBridge />
         <CompanyProfileSettings />
         <ImportCenter />

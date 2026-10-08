@@ -1,15 +1,21 @@
 import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-number';
 const spokenAt = /\b(?:ar{1,2}obase|a\s+robase|arobas)\b/giu;
-const emailAtom = "[a-z0-9_%+-]+";
+const spelledEmailAtom = "[a-z0-9](?:\\s+comme\\s+[\\p{L}]+)?(?:[\\s,]+[a-z0-9](?:\\s+comme\\s+[\\p{L}]+)?)+(?![a-z0-9])(?:[\\s,]+(?!point\\b|tiret\\b|underscore\\b)[a-z0-9_%+-]+)?";
+const emailAtom = `(?:${spelledEmailAtom}|[a-z0-9_%+-]+)`;
 const emailSeparator = "(?:\\s*\\.\\s*|\\s+(?:point|tiret(?:\\s+du\\s+bas)?|underscore)\\s+)";
 const emailPart = `${emailAtom}(?:${emailSeparator}${emailAtom})*`;
-const spokenAddress = new RegExp(`(${emailPart})\\s*@\\s*(${emailPart})`, "giu");
+const spokenAddress = new RegExp(`(?<![\\p{L}\\p{N}_])(${emailPart})\\s*@\\s*(${emailPart})`, "giu");
 
 function emailSeparators(value: string) {
   return value.replace(/\s+point\s+/giu, ".")
     .replace(/\s+(?:tiret\s+du\s+bas|underscore)\s+/giu, "_")
     .replace(/\s+tiret\s+/giu, "-")
     .replace(/\s*([@.])\s*/g, "$1");
+}
+
+function compactEmailCharacters(value: string) {
+  return emailSeparators(value.replace(/\b([a-z0-9])\s+comme\s+[\p{L}]+/giu, '$1'))
+    .replace(/[\s,]+/g, '');
 }
 
 // Only compact spoken punctuation inside an address with an explicit @.
@@ -21,7 +27,7 @@ function normalizeTranscriptEmails(input: string) {
       const domainStart = address.indexOf("@") + 1;
       const boundary = address.slice(domainStart).search(/(?<=\b(?:fr|com|net|org|eu|be|ch|io|info|biz))\.\s+/iu);
       const end = boundary < 0 ? address.length : domainStart + boundary;
-      return emailSeparators(address.slice(0, end)).toLocaleLowerCase("fr-FR") + address.slice(end);
+      return compactEmailCharacters(address.slice(0, end)).toLocaleLowerCase("fr-FR") + address.slice(end);
     });
 }
 
@@ -56,7 +62,7 @@ export function normalizeVoiceTranscript(input: string) {
 export function normalizeSpokenEmail(value: unknown, transcript = "") {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) return "";
-  let email = emailSeparators(raw.toLocaleLowerCase("fr-FR").replace(spokenAt, "@"))
+  let email = compactEmailCharacters(raw.toLocaleLowerCase("fr-FR").replace(spokenAt, "@"))
     .replace(/[\s.,;!]+$/g, "");
   if (!email.includes("@")) {
     const heard = spokenEmailsFromTranscript(transcript);

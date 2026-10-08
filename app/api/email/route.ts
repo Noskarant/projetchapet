@@ -21,6 +21,10 @@ import {
 import { resendProviderErrorMessage, resolveManufeoSender } from "@/lib/resend-email";
 import { supabasePublicConfig } from "@/lib/supabase-config";
 import { documentEmailRecipients } from '@/lib/document-email-recipients';
+import { authenticateRequest, requireOrganization } from '@/lib/server-auth';
+import { createServiceSupabase, publicSiteUrl } from '@/lib/server-organization';
+import { createQuoteSignatureRequest } from '@/lib/quote-signature';
+import { automaticSmsConfigured, notifyQuoteEmailBySms, quoteEmailSmsMessage, smsMobileNumber } from '@/lib/quote-email-sms';
 
 export const runtime = "nodejs";
 
@@ -36,6 +40,8 @@ type EmailBody = {
   attachments?: unknown;
   customRecipient?: unknown;
   copyToSelf?: unknown;
+  requestSignature?: unknown;
+  notifyBySms?: unknown;
 };
 
 function cleanEmails(value: unknown) {
@@ -196,13 +202,13 @@ async function authorizeRecipients(
   if (!recipientsAreAuthorized(requestedRecipients, [...allowed], customRecipient)) {
     throw new ApiInputError("Ce destinataire n’est pas rattaché à ce document ou à votre comptabilité.", 403);
   }
-  return { client, sentQuote, senderEmail: userData.user.email };
+  return { client, sentQuote, documentOrganizationId: documents?.length===1?String(documents[0].organization_id):null, senderEmail: userData.user.email };
 }
 
 export async function GET() {
   const from = resolveManufeoSender(process.env.RESEND_FROM_EMAIL);
   return NextResponse.json(
-    { configured: Boolean(process.env.RESEND_API_KEY && from) },
+    { configured: Boolean(process.env.RESEND_API_KEY && from), smsConfigured: automaticSmsConfigured() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -232,7 +238,6 @@ export async function POST(request: Request) {
 
     const subject = optionalString(body.subject, 998) || "Votre document";
     const incomingHtml = optionalString(body.html, 10_000_000) || "<p>Veuillez trouver votre document en pièce jointe.</p>";
-    const emailContent = buildClassicDocumentEmail(incomingHtml);
     const attachments = cleanAttachments(body.attachments);
 
     const apiKey = process.env.RESEND_API_KEY;
@@ -243,6 +248,22 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
+
+    let composedHtml=incomingHtml;
+    let signingUrl='';
+    const withoutPrices=attachments.some(attachment=>/sans[-_ ]prix/iu.test(attachment.filename));
+    if(body.requestSignature===true){
+      if(documentKind!=='quote'||withoutPrices||to.length!==1||!authorization.documentOrganizationId)throw new ApiInputError('La signature nécessite un devis avec prix et un seul client destinataire.');
+      const context=await authenticateRequest(request);
+      requireOrganization(context,authorization.documentOrganizationId,['owner','admin','office','manager']);
+      const signing=await createQuoteSignatureRequest(createServiceSupabase(),authorization.documentOrganizationId,documentNumber,to[0],publicSiteUrl(request));
+      // The email and public signing page use the same immutable PDF.
+      attachments[0]={filename:signing.pdf.filename,content:signing.pdf.content};
+      composedHtml+=`<p>Pour lire le devis et donner votre bon pour accord, ouvrez ce lien personnel :<br>${signing.url}</p>`;
+      signingUrl=signing.url;
+    }
+    const emailContent=buildClassicDocumentEmail(composedHtml);
+    if(signingUrl)emailContent.html=emailContent.html.replace('</div></body>',`<p><a href="${signingUrl.replaceAll('&','&amp;').replaceAll('"','&quot;')}">Lire et signer le devis</a></p></div></body>`);
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -276,7 +297,21 @@ export async function POST(request: Request) {
       quoteSentRecorded = !result.error && Boolean(result.data);
       if (result.error) console.error("[MANUFEO] Date d’envoi du devis non enregistrée", result.error.code);
     }
-    return NextResponse.json({ configured: true, id: data.id, quoteSentRecorded });
+    let sms:Awaited<ReturnType<typeof notifyQuoteEmailBySms>>|{status:'unavailable'}|undefined;
+    if(body.notifyBySms===true&&documentKind==='quote'&&!withoutPrices&&authorization.documentOrganizationId){
+      try{
+        const context=await authenticateRequest(request);
+        requireOrganization(context,authorization.documentOrganizationId,['owner','admin','office','manager']);
+        const loaded=await context.client.from('quotes').select('customer:customers(emails,phones),organization:organizations(name)').eq('organization_id',authorization.documentOrganizationId).eq('number',documentNumber).single();
+        if(loaded.error)throw loaded.error;
+        const customer=Array.isArray(loaded.data.customer)?loaded.data.customer[0]:loaded.data.customer;
+        const company=Array.isArray(loaded.data.organization)?loaded.data.organization[0]:loaded.data.organization;
+        const phone=(customer?.phones||[]).map(smsMobileNumber).find(Boolean);
+        const clientReceived=to.some(email=>uniqueValidEmails(customer?.emails).includes(email));
+        sms=phone&&clientReceived?await notifyQuoteEmailBySms(phone,quoteEmailSmsMessage(documentNumber,company?.name||'')):{status:'unavailable'};
+      }catch{sms={status:'unavailable'};}
+    }
+    return NextResponse.json({ configured: true, id: data.id, quoteSentRecorded, sms });
   } catch (error) {
     return errorResponse(error, "Envoi impossible.");
   }

@@ -1,4 +1,5 @@
 import { documentUnit } from "./document-units";
+import { customerContactPatch } from "./customer-contact-merge";
 import { canCreateDirectly } from "./voice-direct-creation";
 import { documentLinePrice } from "./document-deductible";
 import { createSupplierFromVoice } from "./voice-supplier";
@@ -224,9 +225,14 @@ async function executeProposal(
   if (proposal.intent_type === "create_customer") {
     const existingId = string(payload.existing_customer_id, 80);
     if (existingId) {
-      const { data, error } = await context.client.from("customers").select("id").eq("organization_id", proposal.organization_id).eq("id", existingId).maybeSingle();
+      const { data, error } = await context.client.from("customers").select("id,emails,phones,addresses,civility,notes").eq("organization_id", proposal.organization_id).eq("id", existingId).maybeSingle();
       if (error || !data) throw new ApiInputError("Le client existant ne peut pas être retrouvé.", 409);
-      return { proposalId: proposal.id, intentType: proposal.intent_type, entityType: "customer", entityId: String(data.id), message: "Client existant retrouvé." };
+      const patch = customerContactPatch(data, payload);
+      if (Object.keys(patch).length) {
+        const updated = await context.client.from("customers").update(patch).eq("organization_id", proposal.organization_id).eq("id", existingId).select("id").single();
+        if (updated.error || !updated.data) throw new ApiInputError("Les coordonnées du client n’ont pas pu être enregistrées.", 409);
+      }
+      return { proposalId: proposal.id, intentType: proposal.intent_type, entityType: "customer", entityId: String(data.id), message: Object.keys(patch).length ? "Client retrouvé et coordonnées complétées." : "Client existant retrouvé." };
     }
     const kind = payload.kind === "individual" ? "individual" : "business";
     const companyName = string(payload.company_name, 180) || null;

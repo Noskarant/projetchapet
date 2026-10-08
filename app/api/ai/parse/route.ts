@@ -230,6 +230,7 @@ Schéma exact :
   "warnings":[""]
 }
 Dans les e-mails, « arobase », « arrobase » ou « a robase » = @, « point » = ., « tiret » = - et « tiret du bas » = _. Par exemple « jean point dupont arobase atelier point fr » donne jean.dupont@atelier.fr. Ne signale pas une arobase absente lorsqu'elle a été dictée.
+Un e-mail peut être épelé lettre par lettre : « l o m b a r d point b e r n a r d arobase d b mail point com » = lombard.bernard@dbmail.com. « b comme Bernard » = b. Ne complète jamais une adresse mail absente avec le nom du client.
 Les nombres dictés chiffre par chiffre doivent être réunis sans inventer de chiffre. Réponds uniquement avec le JSON.`;
   }
 

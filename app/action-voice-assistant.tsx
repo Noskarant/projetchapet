@@ -245,8 +245,8 @@ function missingLabel(field: string) {
 
 function placeholder(target: VoiceActionTarget | null) {
   if (target === "command") return "Ex. Crée un chantier Peinture Dupont, affecte Lucas, prépare un devis pour 80 m² à 22 € HT et planifie une visite jeudi à 14 h.";
-  if (target === "supplier") return "Ex. Crée le fournisseur Tollens, contact Julie, e-mail julie arobase tollens point fr, téléphone 04…, adresse…";
-  if (target === "customer") return "Ex. Société Martin Peinture, SIRET…, téléphone…, adresse…";
+  if (target === "supplier") return "Ex. Crée le fournisseur Tollens, contact Julie, e-mail julie arobase tollens point fr, téléphone 04…, adresse… Vous pouvez épeler l’e-mail lettre par lettre.";
+  if (target === "customer") return "Ex. Société Martin Peinture, téléphone…, adresse… Pour l’e-mail, dites chaque lettre, puis « point » ou « arobase ».";
   if (target === "agenda") return "Ex. Mets une visite mardi prochain à 14 h chez Dupont.";
   return "Ex. Client Dupont, peinture 18 m² à 32 € HT, TVA 10 %.";
 }

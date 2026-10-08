@@ -21,6 +21,8 @@ import {
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import { readQuoteInternalMeta, writeQuoteInternalMeta } from "@/lib/mobile-quote-preview";
 import { savePrivateQuoteMeta } from "@/lib/quote-private-cloud";
+import { readCommercialDemoState, writeCommercialDemoState } from "@/lib/mobile-commercial-demo";
+import { remapQuotePhotoProjects } from "@/lib/quote-photo-dossier";
 import { MOBILE_WORKSPACE_FLUSH_EVENT, type WorkspaceFlushRequest } from '@/lib/mobile-workspace-flush';
 import {
   applyWorkspaceAliases,
@@ -58,6 +60,12 @@ function writeWorkspace(workspace: MobileWorkspace) {
 }
 
 function migrateQuoteMetaNumbers(local: MobileWorkspace, server: Awaited<ReturnType<typeof fetchWorkspace>>, aliases: WorkspaceAliases) {
+  const commercial = readCommercialDemoState(window.localStorage);
+  const mapped = remapQuotePhotoProjects(commercial, aliases);
+  if (JSON.stringify(mapped.projects) !== JSON.stringify(commercial.projects)) {
+    writeCommercialDemoState(window.localStorage, mapped);
+    window.dispatchEvent(new Event("manufeo:quote-photo-relations-updated"));
+  }
   for (const quote of local.quotes) {
     const storedId = aliases.quotes.get(quote.id) ?? quote.id;
     const canonical = server.quotes.find((item) => item.id === storedId);

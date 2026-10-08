@@ -51,6 +51,7 @@ import {
 import type { CommercialProject } from "@/lib/mobile-commercial-demo";
 import { buildProjectPhotoReport } from "@/lib/project-photo-report";
 import { sendProjectPhotoEmail } from "@/lib/project-photo-email";
+import { ensureQuotePhotoProject, projectsForQuote, quotePhotoDossier } from '@/lib/quote-photo-dossier';
 import type { MobileWorkspace } from "@/lib/mobile-prototype";
 import { MOBILE_WORKSPACE_STORAGE_KEY } from "@/lib/mobile-workspace-storage";
 import MobileCommercialProjects from "./mobile-commercial-projects";
@@ -131,6 +132,8 @@ export default function MobileCommercialDemo() {
   const [filterKind, setFilterKind] = useState<DemoDocumentKind>("quote");
   const [filterDraft, setFilterDraft] = useState<DocumentFilters>(() => emptyFilters());
   const [selectedProjectId, setSelectedProjectId] = useState("PROJECT-BELLEVUE");
+  const [projectInitialTab,setProjectInitialTab]=useState<'suivi'|'photos'>('suivi');
+  const [smsConfigured,setSmsConfigured]=useState(false);
   const [companyDraft, setCompanyDraft] = useState<CommercialCompanySettings>(() => seedCommercialDemoState().company);
   const [email, setEmail] = useState<EmailDraft | null>(null);
   const [emailBusy, setEmailBusy] = useState(false);
@@ -142,6 +145,9 @@ export default function MobileCommercialDemo() {
   const commercialFailedSignature = useRef("");
   const commercialFailedAt = useRef(0);
   const commercialLastPull = useRef(0);
+
+  useEffect(()=>{fetch('/api/email').then(r=>r.json()).then(result=>setSmsConfigured(result.smsConfigured===true)).catch(()=>{});},[]);
+
 
   useEffect(() => {
     const open = (event: Event) => {
@@ -158,6 +164,16 @@ export default function MobileCommercialDemo() {
     toastTimer.current = window.setTimeout(() => setToast(""), 2_700);
   }, []);
 
+  const openQuotePhotos=useCallback((number:string)=>{
+    const currentWorkspace=readWorkspace();const quote=currentWorkspace?.quotes.find(item=>item.number===number);
+    if(!quote||!currentWorkspace){notify('Devis introuvable.');return;}
+    setWorkspace(currentWorkspace);
+    const result=ensureQuotePhotoProject(readCommercialDemoState(window.localStorage),quote,findCustomer(currentWorkspace,quote.customerId));
+    writeCommercialDemoState(window.localStorage,result.state);setCommercial(result.state);
+    setSelectedProjectId(result.project.id);setProjectInitialTab('photos');setOverlay('projects');
+  },[notify]);
+  useEffect(()=>{const handler=(event:Event)=>openQuotePhotos((event as CustomEvent<string>).detail);window.addEventListener('manufeo:open-quote-photos',handler);return()=>window.removeEventListener('manufeo:open-quote-photos',handler);},[openQuotePhotos]);
+
   const refreshWorkspace = useCallback(() => {
     const raw = window.localStorage.getItem(MOBILE_WORKSPACE_STORAGE_KEY) || "";
     if (!raw || raw === workspaceSnapshot.current) return;
@@ -170,6 +186,12 @@ export default function MobileCommercialDemo() {
 
   const logActivity = useCallback((event: Parameters<typeof appendActivity>[1]) => {
     setCommercial((current) => appendActivity(current, event));
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => setCommercial(readCommercialDemoState(window.localStorage));
+    window.addEventListener("manufeo:quote-photo-relations-updated", refresh);
+    return () => window.removeEventListener("manufeo:quote-photo-relations-updated", refresh);
   }, []);
 
   useEffect(() => {
@@ -677,20 +699,27 @@ export default function MobileCommercialDemo() {
         quoteMeta,
         withoutPrices: email.withoutPrices,
       });
-      await sendAuthenticatedDocumentEmail({
+      const attachments=[{filename:documentFileName(email.document,email.withoutPrices),content:await blobToBase64(blob)}];
+      if(isMobileQuote(email.document)){
+        const dossier=quotePhotoDossier(commercial,email.document,email.photoIds);
+        if(dossier){const photoPdf=await buildProjectPhotoReport(dossier,dossier.photos.map(photo=>photo.id),commercial.company.displayName,email.document.customerName,crypto.randomUUID().replaceAll('-',''));
+          attachments.push({filename:`dossier-photos-${email.document.number}.pdf`,content:await blobToBase64(photoPdf)});}
+      }
+      const response=await sendAuthenticatedDocumentEmail({
         documentNumber: email.document.number,
         documentKind: isMobileQuote(email.document) ? 'quote' : 'invoice',
         to: email.recipient.trim(),
         customRecipient: true,
         copyToSelf: email.copyToSelf ?? true,
+        requestSignature: !email.withoutPrices && Boolean(email.requestSignature),
+        notifyBySms: !email.withoutPrices && Boolean(email.notifyBySms),
         subject: email.subject,
         html: plainDocumentEmailHtml(email.message),
-        attachments: [{
-          filename: documentFileName(email.document, email.withoutPrices),
-          content: await blobToBase64(blob),
-        }],
+        attachments,
       });
-      notify(`Document envoyé à ${email.recipient}.`);
+      const sent=await response.json().catch(()=>({}));
+      const sms=sent.sms;
+      notify(`Document envoyé à ${email.recipient}.${sms?.status==='queued'?' Notification SMS prise en charge.':sms?.status==='unavailable'?' SMS indisponible : vérifiez le téléphone et l’e-mail du client.':sms?.status==='uncertain'?' Envoi SMS non confirmé ; ne le renvoyez pas tout de suite.':''}`);
       logActivity({
         kind: "email",
         message: `${email.document.number} envoyé à ${email.recipient}.`,
@@ -719,7 +748,8 @@ export default function MobileCommercialDemo() {
       setEmail({ document: quote, recipient: customer?.emails.find(Boolean)?.trim() || '',
         subject: `Votre devis ${quote.number}`,
         message: `Bonjour,\n\nVeuillez trouver votre devis ${quote.number} en pièce jointe.\n\nCordialement,\n${commercial.company.displayName}`,
-        withoutPrices: Boolean(withoutPrices), copyToSelf: true });
+        withoutPrices: Boolean(withoutPrices), copyToSelf: true,
+        requestSignature: !withoutPrices && quote.status==='En attente' && Boolean(customer?.emails.find(Boolean)), notifyBySms: !withoutPrices && Boolean(customer?.phones.find(Boolean)) });
       setOverlay('email');
     };
     window.addEventListener("manufeo:send-quote", openQuoteEmail);
@@ -792,6 +822,7 @@ export default function MobileCommercialDemo() {
                 type="button"
                 disabled={overlay === 'email' && emailBusy}
                 onClick={() => {
+                  if(overlay==='projects'&&email){setOverlay('email');return;}
                   setOverlay(null);
                   setEmail(null);
                 }}
@@ -828,6 +859,7 @@ export default function MobileCommercialDemo() {
 
             {overlay === "projects" && (
               <MobileCommercialProjects
+                initialTab={projectInitialTab}
                 state={commercial}
                 selectedProjectId={selectedProjectId}
                 onSelectProject={setSelectedProjectId}
@@ -869,6 +901,9 @@ export default function MobileCommercialDemo() {
                 message={toast}
                 onChange={setEmail}
                 onSend={() => void sendEmail()}
+                photos={isMobileQuote(email.document)?projectsForQuote(commercial,email.document.id).flatMap(project=>project.photos):[]}
+                onManagePhotos={isMobileQuote(email.document)?()=>openQuotePhotos(email.document.number):undefined}
+                smsConfigured={smsConfigured}
                 onCancel={() => {
                   setEmail(null);
                   setOverlay(null);

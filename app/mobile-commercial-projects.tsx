@@ -78,6 +78,7 @@ export default function MobileCommercialProjects({
   onCreateQuote,
   customerEmail = "",
   onSendPhotoReport,
+  initialTab = 'suivi',
 }: {
   state: CommercialDemoState;
   selectedProjectId: string;
@@ -88,6 +89,7 @@ export default function MobileCommercialProjects({
   onCreateQuote: (customerId: string, title: string) => void;
   customerEmail?: string;
   onSendPhotoReport?: (project: CommercialProject, photoIds: string[], recipient: string) => Promise<void>;
+  initialTab?: ProjectTab;
 }) {
   const latestState = useRef(state); latestState.current = state;
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -97,7 +99,7 @@ export default function MobileCommercialProjects({
   const [autoSend, setAutoSend] = useState<Record<string, boolean>>({});
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const operationBusy = useRef(false);
-  const [tab, setTab] = useState<ProjectTab>("suivi");
+  const [tab, setTab] = useState<ProjectTab>(initialTab);
   const [workerMode, setWorkerMode] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [showIssueForm, setShowIssueForm] = useState(false);

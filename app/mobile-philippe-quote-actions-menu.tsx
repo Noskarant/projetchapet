@@ -21,6 +21,7 @@ type QuoteAction =
   | "download"
   | "print"
   | "invoice"
+  | "photos"
   | "delete";
 
 function normalize(value: string) {
@@ -244,6 +245,14 @@ export default function MobilePhilippeQuoteActionsMenu() {
         case "invoice":
           openQuoteInvoice();
           return;
+        case "photos": {
+          const preview=currentPreview();
+          if(!preview)return;
+          const number=currentQuoteNumber(preview);
+          preview.querySelector<HTMLButtonElement>(".rm-philippe-preview-header > button:last-child")?.click();
+          window.dispatchEvent(new CustomEvent('manufeo:open-quote-photos',{detail:number}));
+          return;
+        }
         case "delete":
           runMoreAction(/^supprimer le devis$/);
           return;
@@ -483,6 +492,9 @@ export default function MobilePhilippeQuoteActionsMenu() {
               <small style={{ color: '#9eabc1' }}>Sur iPhone ou iPad : Enregistrer dans Fichiers → iCloud Drive. Choisissez ou créez votre dossier dans Fichiers.</small>
               <button onClick={() => run("share-sms")}>
                 <span aria-hidden="true">✉</span><span>Partager par SMS</span>
+              </button>
+              <button onClick={() => run("photos")}>
+                <span aria-hidden="true">▧</span><span>Photos du devis</span>
               </button>
               <button onClick={() => run("download")}>
                 <span aria-hidden="true">↓</span><span>Télécharger le PDF</span>

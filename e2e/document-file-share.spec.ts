@@ -46,7 +46,7 @@ test('devis terminé : création de facture proposée même sans fiche sous-jace
  await page.goto('https://files.manufeo.test/menu?completed');
  await page.getByRole('button',{name:'Afficher le devis'}).click();
  await expect(page.getByRole('button',{name:'Créer la facture',exact:true})).toBeVisible();
- const number=await page.locator('.rm-philippe-preview').getAttribute('data-quote-number');
+ const number=await page.locator('.rm-philippe-preview-header h2').textContent();
  await page.getByRole('button',{name:'Créer la facture',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>(window as any).invoiceRequests)).toEqual([number]);
  await expect(page.locator('.rm-philippe-preview')).toHaveCount(0);
