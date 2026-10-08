@@ -349,7 +349,23 @@ export default function RappidosMobileShellV2() {
     return () => window.removeEventListener("projetchapet:ai-apply", handler);
   }, [workspace.customers, workspace.invoices, workspace.quotes]);
 
+  const openQuoteInvoice = useCallback((quote: MobileQuote) => {
+    const existing = workspace.invoices.some(invoice => invoice.sourceQuoteId === quote.id);
+    const result = convertQuoteToInvoice(workspace, quote, readQuoteInternalMeta(window.localStorage, quote.number).discountPercent);
+    setWorkspace(result.workspace);
+    setSelectedQuoteId(null);
+    setSelectedInvoiceId(result.invoice.id);
+    setTab("invoices");
+    notify(existing ? `Facture ${result.invoice.number} affichée.` : `Facture ${result.invoice.number} créée à la date du jour. PDF prêt.`);
+  }, [workspace, notify]);
+
   useEffect(() => {
+    const convert = (event: Event) => {
+      const number = (event as CustomEvent<string>).detail;
+      const quote = workspace.quotes.find(item => item.number === number);
+      if (quote) openQuoteInvoice(quote);
+      else notify("Devis introuvable. Rechargez la liste des devis.");
+    };
     const duplicate = (event: Event) => {
       const number = (event as CustomEvent<string>).detail;
       const source = workspace.quotes.find((quote) => quote.number === number);
@@ -369,14 +385,16 @@ export default function RappidosMobileShellV2() {
       newQuote({ customerId: detail.customerId || "", title: detail.title || "Travaux" });
     };
     window.addEventListener("manufeo:duplicate-quote", duplicate);
+    window.addEventListener("manufeo:convert-quote-to-invoice", convert);
     window.addEventListener("manufeo:open-linked-invoice", openLinkedInvoice);
     window.addEventListener("manufeo:create-project-quote", createProjectQuote);
     return () => {
       window.removeEventListener("manufeo:duplicate-quote", duplicate);
+      window.removeEventListener("manufeo:convert-quote-to-invoice", convert);
       window.removeEventListener("manufeo:open-linked-invoice", openLinkedInvoice);
       window.removeEventListener("manufeo:create-project-quote", createProjectQuote);
     };
-  }, [workspace.quotes, workspace.invoices, workspace.customers]);
+  }, [workspace.quotes, workspace.invoices, workspace.customers, openQuoteInvoice, notify]);
 
   async function removeSelectedQuote() {
     if (!selectedQuote || !window.confirm(`Supprimer ${selectedQuote.number} ?`)) return;
@@ -498,7 +516,7 @@ export default function RappidosMobileShellV2() {
 
   function convertSelectedQuote() {
     if (!selectedQuote) return;
-    const result = convertQuoteToInvoice(workspace, selectedQuote, readQuoteInternalMeta(window.localStorage, selectedQuote.number).discountPercent); setWorkspace(result.workspace); setSelectedQuoteId(null); setSelectedInvoiceId(result.invoice.id); setTab("invoices"); notify(`Facture ${result.invoice.number} créée et affichée.`);
+    openQuoteInvoice(selectedQuote);
   }
   function makeCreditNote() {
     if (!selectedInvoice) return;

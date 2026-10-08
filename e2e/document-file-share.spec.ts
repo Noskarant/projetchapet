@@ -9,10 +9,13 @@ import React from 'react'; import {createRoot} from 'react-dom/client';
 import AutoPreview from './app/mobile-auto-pdf-preview';
 import UnifiedSheet from './app/mobile-unified-quote-sheet';
 import ActionsMenu from './app/mobile-philippe-quote-actions-menu';
-import {seedMobileWorkspace} from './lib/mobile-prototype';
+import {seedMobileWorkspace,convertQuoteToInvoice} from './lib/mobile-prototype';
 import {buildBusinessDocumentPdf} from './lib/mobile-document-pdf';
 import {sharePreparedPdf} from './lib/document-file-share';
-const workspace=seedMobileWorkspace(); localStorage.setItem('projetchapet-mobile-workspace-v3',JSON.stringify(workspace));
+let workspace=seedMobileWorkspace();
+if(location.search.includes('completed')){workspace.quotes[0].status='Terminé';workspace.invoices=[];}
+if(location.search.includes('linked')) workspace=convertQuoteToInvoice(workspace,workspace.quotes[0]).workspace;
+localStorage.setItem('projetchapet-mobile-workspace-v3',JSON.stringify(workspace));
 const kind=location.search.includes('invoice')?'invoice':'quote';
 const withoutPrices=location.search.includes('without');
 const doc=(kind==='quote'?workspace.quotes:workspace.invoices)[0];
@@ -27,6 +30,8 @@ test.beforeEach(async({page})=>{
  await page.route('https://files.manufeo.test/**',r=>r.request().url().endsWith('/pdf.worker.min.mjs')?r.fulfill({contentType:'text/javascript',body:readFileSync(path.join(root,'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'))}):r.fulfill({contentType:'text/html',body:html}));
  await page.addInitScript(()=>{
   (window as any).shares=[]; (window as any).smsEvents=0;
+  (window as any).invoiceRequests=[];
+  window.addEventListener('manufeo:convert-quote-to-invoice',event=>{(window as any).invoiceRequests.push((event as CustomEvent).detail)});
   window.addEventListener('manufeo:share-document-sms',()=>{(window as any).smsEvents++});
   Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});
   Object.defineProperty(navigator,'share',{configurable:true,value:(data:ShareData)=>{
@@ -35,6 +40,25 @@ test.beforeEach(async({page})=>{
    return Promise.all(data.files!.map(async file=>({name:file.name,type:file.type,bytes:Array.from(new Uint8Array(await file.arrayBuffer()))}))).then(files=>{(window as any).shares.push({files,active,hasUrl:'url'in data,hasText:'text'in data,hasTitle:'title'in data})});
   }});
  });
+});
+
+test('devis terminé : création de facture proposée même sans fiche sous-jacente',async({page})=>{
+ await page.goto('https://files.manufeo.test/menu?completed');
+ await page.getByRole('button',{name:'Afficher le devis'}).click();
+ await expect(page.getByRole('button',{name:'Créer la facture',exact:true})).toBeVisible();
+ const number=await page.locator('.rm-philippe-preview').getAttribute('data-quote-number');
+ await page.getByRole('button',{name:'Créer la facture',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).invoiceRequests)).toEqual([number]);
+ await expect(page.locator('.rm-philippe-preview')).toHaveCount(0);
+});
+
+test('devis déjà facturé : le bouton propose de rouvrir la facture',async({page})=>{
+ await page.goto('https://files.manufeo.test/menu?completed&linked');
+ await page.getByRole('button',{name:'Afficher le devis'}).click();
+ await expect(page.getByRole('button',{name:'Ouvrir la facture',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Créer la facture',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Ouvrir la facture',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as any).invoiceRequests.length)).toBe(1);
 });
 
 for(const kind of ['quote','invoice']) for(const without of [false,true]) test(`${kind} ${without?'sans prix':'avec prix'} : fichier PDF nommé, aucune URL, clic conservé`,async({page})=>{

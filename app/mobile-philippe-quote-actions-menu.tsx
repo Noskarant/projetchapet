@@ -44,6 +44,15 @@ function currentQuoteNumber(preview: HTMLElement) {
   ).trim();
 }
 
+function openQuoteInvoice() {
+  const preview = currentPreview();
+  if (!preview) return;
+  const number = currentQuoteNumber(preview);
+  if (!number) return;
+  preview.querySelector<HTMLButtonElement>(".rm-philippe-preview-header > button:last-child")?.click();
+  window.dispatchEvent(new CustomEvent("manufeo:convert-quote-to-invoice", { detail: number }));
+}
+
 function findUnderlyingQuoteDetail(number: string) {
   return (
     Array.from(document.querySelectorAll<HTMLElement>(".rm-detail-sheet")).find((detail) => {
@@ -160,6 +169,8 @@ function syncPrimaryStatusButton(preview: HTMLElement, button: HTMLButtonElement
 
   if (status === "en-attente") label = "Indiquer comme validé";
   if (status === "valide") label = "Transformer en facture";
+  if (status === "termine") label = "Créer la facture";
+  if (preview.querySelector<HTMLElement>("[data-unified-status]")?.dataset.linkedInvoiceId) label = "Ouvrir la facture";
 
   if (button.textContent !== label) button.textContent = label;
   button.setAttribute("aria-label", label);
@@ -188,15 +199,18 @@ export default function MobilePhilippeQuoteActionsMenu() {
           window.dispatchEvent(new CustomEvent('manufeo:share-document-sms', { detail: { number: currentPreview() ? currentQuoteNumber(currentPreview()!) : '', kind: 'quote' } }));
           return;
         case "primary-status": {
-          const status = currentPreview()
-            ?.querySelector<HTMLButtonElement>("[data-unified-status]")
-            ?.dataset.status;
+          const statusButton = currentPreview()?.querySelector<HTMLButtonElement>("[data-unified-status]");
+          const status = statusButton?.dataset.status;
+          if (statusButton?.dataset.linkedInvoiceId) {
+            openQuoteInvoice();
+            return;
+          }
           if (status === "en-attente") {
             runUnderlyingStatusAction("Validé");
             return;
           }
-          if (status === "valide") {
-            runMoreAction(/^transformer en facture$/);
+          if (status === "valide" || status === "termine") {
+            openQuoteInvoice();
             return;
           }
           clickUnifiedAction("status");
@@ -228,7 +242,7 @@ export default function MobilePhilippeQuoteActionsMenu() {
           void printPdfPages();
           return;
         case "invoice":
-          runMoreAction(/^transformer en facture$/);
+          openQuoteInvoice();
           return;
         case "delete":
           runMoreAction(/^supprimer le devis$/);

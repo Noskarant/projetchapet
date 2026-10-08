@@ -379,6 +379,7 @@ export default function MobileUnifiedQuoteSheet() {
         if (status.textContent !== nextText) status.textContent = nextText;
         status.setAttribute("aria-label", `Changer le statut, actuellement ${quote.status}`);
         status.dataset.status = normalize(quote.status).replaceAll(" ", "-");
+        status.dataset.linkedInvoiceId = quote.linkedInvoice?.id || "";
       }
 
       const tabs = preview.querySelector<HTMLElement>(".rm-philippe-preview-tabs");
@@ -696,9 +697,10 @@ export default function MobileUnifiedQuoteSheet() {
               </button>
               <button onClick={() => {
                 setMoreOpen(false);
-                runUnderlyingAction(active.number, /transformer en facture/);
+                closePreviewOnly();
+                window.dispatchEvent(new CustomEvent("manufeo:convert-quote-to-invoice", { detail: active.number }));
               }}>
-                <span aria-hidden="true">↻</span><span>Transformer en facture</span>
+                <span aria-hidden="true">↻</span><span>{active.linkedInvoice ? "Ouvrir la facture" : "Transformer en facture"}</span>
               </button>
               <button className="danger" onClick={() => {
                 setMoreOpen(false);
