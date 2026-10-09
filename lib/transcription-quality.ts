@@ -1,5 +1,10 @@
 type Segment = { start?: number; end?: number; text?: string; avg_logprob?: number; no_speech_prob?: number };
 
+export function isTranscriptionArtifact(text: string) {
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return /^(?:sous titr(?:age|es|e) (?:societe )?radio canada|merci d avoir regarde cette video|abonnez vous a (?:la|ma) chaine)$/.test(normalized);
+}
+
 export function transcriptionQuality(data: Record<string, unknown>) {
   const segments: Segment[] = Array.isArray(data.segments) ? data.segments.slice(0, 500) : [];
   // Never silently replace numbers or delete an uncertain spoken sentence.

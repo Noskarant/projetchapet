@@ -10,10 +10,10 @@ export function artisanInstructions(transcript: string) {
 const clean = (value: string) => value.replace(/[*_]/g, '').replace(/\s+/g, ' ').trim();
 
 export function requestedBillTo(transcript: string) {
-  const instructions = artisanInstructions(transcript);
+  const instructions = artisanInstructions(transcript).replace(/\bM\.\s+/gu, 'Monsieur ').replace(/\bMme\.\s+/gu, 'Madame ');
   const explicit = instructions.match(/\b(?:client(?:\s+facturé)?|donneur d['’]ordre|commanditaire)\s*[,;:]?\s*(?:c['’]est|est|sera|=|:)\s+([^,.;\n]+)/iu)
     || instructions.match(/\b(?:devis|facture)\s+(?:pour|au nom de|à l['’]attention de)\s+([^,.;\n]+)/iu);
-  if (explicit) return clean(explicit[1].split(/\s+(?:pour (?:un|le) chantier|qui est déjà|avec (?:l['’]adresse|une TVA)|suite\b)/iu)[0]);
+  if (explicit) return clean(explicit[1].split(/\s+(?:pour (?:un|le) chantier|qui (?:est déjà|habite|demeure|réside)|déjà (?:dans|enregistré)|avec (?:l['’]adresse|une TVA)|suite\b)/iu)[0]);
   // Vision extraction distinguishes an agency's request from an insurance mission.
   const sources = (transcript.split(/Informations (?:issues des sources à vérifier|lues dans les fichiers)\s*:/iu)[1] || '').replace(/[*_]/g, '');
   const labelled = sources.match(/Client facturé\s*:\s*([^\n;]+)/iu);

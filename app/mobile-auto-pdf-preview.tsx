@@ -1,4 +1,5 @@
 "use client";
+import { interventionNotes, publicLineDescription } from "@/lib/document-intervention-notes";
 import { documentUnit } from "@/lib/document-units";
 import { documentInsurance } from "@/lib/document-insurance";
 import { documentDeductible, isDeductibleLine } from "@/lib/document-deductible";
@@ -153,7 +154,7 @@ function readQuoteFromEditor(editor: HTMLElement): {
       expiryDate: readControlValue(editor, "Date d’expiration"),
       status: quoteStatus(readControlValue(editor, "Statut", "select")),
       items,
-      notes: readControlValue(editor, "Notes visibles sur le devis", "textarea"),
+      notes: interventionNotes(readControlValue(editor, "Note d’intervention", "textarea") || readControlValue(editor, "Notes visibles sur le devis", "textarea")),
       subtotal: totals.grossSubtotal,
       taxTotal: totals.taxTotal,
       total: totals.total,
@@ -176,11 +177,11 @@ function enhanceQuoteEditor(editor: HTMLElement) {
 
   const stack = editor.querySelector<HTMLElement>(".rm-form-stack");
   const numberInput = findLabel(editor, "Numéro")?.querySelector<HTMLInputElement>("input");
-  const publicNotesLabel = findLabel(editor, "Notes");
+  const publicNotesLabel = findLabel(editor, "Note d’intervention") || findLabel(editor, "Notes");
   if (!stack || !numberInput || !publicNotesLabel) return;
 
   editor.dataset.philippeQuoteEditor = "true";
-  updateLabelText(publicNotesLabel, "Notes visibles sur le devis");
+  updateLabelText(publicNotesLabel, "Note d’intervention");
 
   const section = document.createElement("section");
   section.className = "rm-private-notes";
@@ -541,6 +542,7 @@ export default function MobileAutoPdfPreview() {
         <div className="rm-philippe-preview-scroll">
           {preview.tab === "detail" ? (
             <>
+              {interventionNotes(preview.quote.notes) && <div className="rm-philippe-line-card"><strong>Note d’intervention</strong><p style={{whiteSpace: "pre-wrap"}}>{interventionNotes(preview.quote.notes)}</p></div>}
               <div className="rm-philippe-section-title">
                 <div>
                   <small>PRODUITS ET SERVICES</small>
@@ -559,7 +561,7 @@ export default function MobileAutoPdfPreview() {
                       </div>
                       <button type="button" aria-label={`Supprimer ${item.label}`} onClick={() => setDeleteLineId(deleteLineId === item.id ? null : item.id)}><Trash2 size={18} /></button>
                     </div>
-                    {item.description && <p>{item.description}</p>}
+                    {publicLineDescription(item.description) && <p>{publicLineDescription(item.description)}</p>}
                     <div className="rm-philippe-line-prices">
                       <div>
                         <small>Quantité</small>

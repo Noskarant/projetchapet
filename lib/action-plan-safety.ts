@@ -90,6 +90,7 @@ export function hardenPlannedActions(actions: PlannedAction[]) {
         const line = record(rawLine);
         const position = index + 1;
         const details: string[] = [];
+        if (line.price_source === 'same_document') warnings.push(`Prestation ${position} : tarif repris du poste équivalent de ce devis, à vérifier.`);
         if (!text(line.label)) details.push("désignation");
         const quantity = finiteNumber(line.quantity);
         if (quantity === null || quantity <= 0) details.push("quantité");

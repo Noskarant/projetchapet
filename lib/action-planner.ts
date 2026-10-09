@@ -1,4 +1,6 @@
 import { documentUnit } from "./document-units";
+import { reuseSameDocumentPrices } from './same-document-prices';
+import { interventionNotes } from './document-intervention-notes';
 import { insuranceDocumentNotes } from "./document-insurance";
 import { restoreSourcePhone } from './phone-display';
 import { spokenAmountPattern } from "./spoken-financial-number";
@@ -131,7 +133,10 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     ? groundedEvidence(transcript.slice(instructionsStart, sourcesStart), taxEvidence) : null;
   const tax = (artisanEvidence ? explicitTax(artisanEvidence) : null) ?? artisanTax
     ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
-  const priceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
+  // The source wrapper mentions both HT and TTC as instructions. These are not
+  // conflicting price evidence; only the artisan's text and source data count.
+  const priceText = sourcesStart >= 0 ? `${instructionsStart >= 0 ? transcript.slice(instructionsStart + 'Instructions de l’artisan :'.length, sourcesStart) : ''}\n${sourceObservations}` : transcript;
+  const priceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(priceText));
   const roomPriceType = roomSegment ? spokenPriceType(withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment))) : null;
   const mixedPriceTypes = /(?:\bttc\b|toutes? taxes? comprises?)/iu.test(priceTranscript)
     && /(?:\bht\b|hors[- ]taxes?)/iu.test(priceTranscript);
@@ -228,6 +233,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
       || (line.quantity !== null && line.quantity > 0) || line.unit_price !== null,
   );
   if (markupPercent !== null) normalizedItems = normalizedItems.map(item=>({...item,description:supplierMarkupNotes(item.description)}));
+  normalizedItems = reuseSameDocumentPrices(normalizedItems, original.map(record), transcript);
   // Preparation and finishing steps covered by one explicitly priced unit are
   // one service. The model must not multiply that single spoken charge.
   const serviceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
@@ -267,9 +273,9 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     quote_id: text(source.quote_id, 80) || null,
     quote_number: text(source.quote_number, 100) || null,
     title: text(source.title, 260) || "Travaux",
-    notes: worksiteDocumentNotes(stripUngroundedDiscountNotes((spokenDeductibleAdjustment(transcript)
+    notes: interventionNotes(worksiteDocumentNotes(stripUngroundedDiscountNotes((spokenDeductibleAdjustment(transcript)
       ? deductibleLineNotes(insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript))
-      : insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript)), transcript), source, transcript) || null,
+      : insuranceDocumentNotes(markupPercent === null ? text(source.notes, 2400) : supplierMarkupNotes(text(source.notes, 2400)), source.insurance, transcript)), transcript), source, transcript)) || null,
     site_address: text(source.site_address, 320) || null,
     issue_date: text(source.issue_date, 20) || null,
     expiry_date: text(source.expiry_date, 20) || null,

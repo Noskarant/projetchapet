@@ -18,3 +18,15 @@ export function restrictSourcePlan(input: PlannedAction[], target: 'customer' | 
       payload: { ...action.payload, customer_from_position: customerFromPosition ?? null } };
   });
 }
+
+/** Ignore supplier/recipient fiches that are unrelated to the imported quote. */
+export function retainSourceQuoteCustomers(input: PlannedAction[]) {
+  const used = new Set(input.filter(action => action.intentType === 'prepare_quote').flatMap(action => action.customerFromPosition === undefined ? [] : [action.customerFromPosition]));
+  const positions = input.flatMap((action, index) => action.intentType !== 'create_customer' || used.has(index) ? [index] : []);
+  const remap = new Map(positions.map((old, next) => [old, next]));
+  return positions.map(old => {
+    const action = input[old];
+    const customerFromPosition = action.customerFromPosition === undefined ? undefined : remap.get(action.customerFromPosition);
+    return {...action, customerFromPosition, payload: {...action.payload, customer_from_position: customerFromPosition ?? null}};
+  });
+}

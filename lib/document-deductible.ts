@@ -13,7 +13,12 @@ export function spokenDeductibleAdjustment(transcript: string) {
   const instructions = transcript.split('Informations issues des sources à vérifier')[0];
   const matches = [...instructions.matchAll(franchisePattern)];
   const match = matches.at(-1) ?? [...transcript.matchAll(franchisePattern)]
-    .filter(candidate => /(?:à|a)\s+d[ée]duire/iu.test(candidate[0])).at(-1);
+    .filter(candidate => {
+      if (/(?:à|a)\s+d[ée]duire/iu.test(candidate[0])) return true;
+      const before = transcript.slice(Math.max(0, candidate.index! - 90), candidate.index).split(/[.!?\n]/u).at(-1) || '';
+      return !/\b(?:pas|jamais|sans|ne)\b/iu.test(before)
+        && /\b(?:d[ée]dui[st]|d[ée]duisez|d[ée]duire|retire[rz]?)\s+(?:(?:une|la|cette)\s+)?$/iu.test(before);
+    }).at(-1);
   if (!match) return null;
   const amount = spokenFinancialNumber(match[3]);
   if (amount === null || amount > 1_000_000) return null;

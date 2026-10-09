@@ -1,7 +1,7 @@
 import { authorizeAiRequest } from "@/lib/ai-authorization";
 import { NextResponse } from "next/server";
 import { ApiInputError, errorResponse, rateLimit, readBodyBytes } from "@/lib/api-guard";
-import { transcriptionQuality } from "@/lib/transcription-quality";
+import { transcriptionQuality, isTranscriptionArtifact } from "@/lib/transcription-quality";
 import { trimPcmWavSilence } from "@/lib/long-voice-audio";
 
 export const runtime = "nodejs";
@@ -139,6 +139,7 @@ export async function POST(request: Request) {
     if (!trimmed) throw new ApiInputError("Aucune voix audible. Rapprochez-vous du micro et recommencez la dictée.");
     const audio = new File([trimmed], file.name, { type: file.type });
     const data = await groqTranscription(audio, apiKey);
+    if (isTranscriptionArtifact(String(data.text ?? ''))) throw new ApiInputError('La dictée n’a pas été comprise. Rapprochez-vous du micro et recommencez, ou collez votre texte.', 422);
     const { segments, lowConfidenceSegments, needsReview } = transcriptionQuality(data);
 
     return NextResponse.json({

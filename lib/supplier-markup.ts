@@ -5,7 +5,7 @@ import { spokenAmountPattern, spokenFinancialNumber } from './spoken-financial-n
 
 const percentage = `(${spokenAmountPattern})\\s*(?:%|pour\\s*cent)`;
 const patterns = [
-  new RegExp(`\\b(?:marge(?:\\s+(?:commerciale|supplémentaire))?|majoration(?:\\s+(?:commerciale|fournisseur))?(?:\\s+des\\s+prix\\s+HT)?)\\s*(?:(?:de|à|a)\\s*)?[:：]?\\s*\\+?${percentage}`, 'giu'),
+  new RegExp(`\\b(?:marge(?:r|z)?(?:\\s+(?:commerciale|supplémentaire))?|majoration(?:\\s+(?:commerciale|fournisseur))?(?:\\s+des\\s+prix\\s+HT)?)\\s*(?:(?:de|à|a)\\s*)?[:：]?\\s*\\+?${percentage}`, 'giu'),
   new RegExp(`\\b(?:ajoute[rz]?|rajoute[rz]?|applique[rz]?)\\s*(?:une\\s+)?\\+?${percentage}\\s*(?:de\\s+)?(?:marge|majoration)\\b`, 'giu'),
   new RegExp(`\\b(?:augmente[rz]?|majore[rz]?)\\s+(?:les\\s+)?prix(?:\\s+HT)?\\s*(?:de\\s*)?\\+?${percentage}`, 'giu'),
 ];

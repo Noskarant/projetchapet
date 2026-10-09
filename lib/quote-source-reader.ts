@@ -16,7 +16,7 @@ export async function readQuoteSources(sources: QuoteSource[]) {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST', signal: AbortSignal.timeout(35_000),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b', max_completion_tokens: 2000,
+      body: JSON.stringify({ model: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b', max_completion_tokens: 6000,
         messages: [{ role: 'system', content: instruction }, { role: 'user', content: [
           { type: 'text', text: `Sources dans l’ordre : ${group.map(source => source.name).join(' ; ')}. ${group.map(source => source.text || '').join('\n')}` },
           ...group.map(source => ({ type: 'image_url', image_url: { url: source.image } })),

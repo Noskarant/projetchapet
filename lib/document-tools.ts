@@ -1,3 +1,4 @@
+import { interventionNotes, publicLineDescription } from "./document-intervention-notes";
 import type { Invoice, Quote } from "./project-chapet";
 import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { customerName } from "./project-chapet";
@@ -92,6 +93,18 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   if (isQuote(document)) pdf.text(`Objet : ${document.title}`, 120, y + 18, { maxWidth: 74 });
   y += 32;
 
+  const notes = interventionNotes(document.notes || '');
+  if (notes) {
+    pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold');
+    pdf.text('NOTE D’INTERVENTION', margin, y); y += 6;
+    pdf.setFont('helvetica', 'normal');
+    for (const line of pdf.splitTextToSize(notes, 175) as string[]) {
+      if (y > 252) { pdf.addPage(); y = 18; }
+      pdf.text(line, margin, y); y += 4;
+    }
+    y += 6;
+  }
+
   pdf.setFillColor(239, 245, 251);
   pdf.rect(margin, y, 178, 9, "F");
   pdf.setFont("helvetica", "bold");
@@ -112,10 +125,10 @@ export async function buildDocumentPdf(document: BusinessDocument) {
     }
     const lines = pdf.splitTextToSize(item.label || "Prestation", 88);
     pdf.text(lines, margin + 2, y);
-    if (item.description) {
+    if (publicLineDescription(item.description || "")) {
       pdf.setTextColor(95, 108, 124);
       pdf.setFontSize(7.5);
-      pdf.text(pdf.splitTextToSize(item.description, 88), margin + 2, y + 5);
+      pdf.text(pdf.splitTextToSize(publicLineDescription(item.description || ""), 88), margin + 2, y + 5);
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(8.5);
     }
@@ -162,13 +175,6 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   pdf.text("Total TTC", totalsX, y);
   pdf.text(money(document.total), 192, y, { align: "right" });
 
-  if (document.notes) {
-    y += 14;
-    pdf.setFontSize(9);
-    pdf.text("Notes", margin, y);
-    pdf.setFont("helvetica", "normal");
-    pdf.text(pdf.splitTextToSize(document.notes, 175), margin, y + 6);
-  }
 
   if (isQuote(document) && document.signature_data) {
     y = Math.max(y + 18, 235);

@@ -1,3 +1,4 @@
+import { interventionNotes, publicLineDescription } from "./document-intervention-notes";
 import { documentUnit } from "./document-units";
 import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { documentInsurance } from "./document-insurance";
@@ -225,6 +226,27 @@ export async function buildBusinessDocumentPdf({
 
   drawPageHeader();
   drawInformationBlocks();
+  const headerReferences = new Set(documentInsurance(document.notes).references.map(value => value.trim()));
+  const clientNotes = interventionNotes(document.notes).split('\n').filter(line => !headerReferences.has(line.trim())).join('\n').trim();
+  if (clientNotes) {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    const noteLines = lines(clientNotes, 174);
+    ensureSpace(16);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.text("NOTE D’INTERVENTION", margin, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    y += 6;
+    for (const line of noteLines) {
+      ensureSpace(5);
+      pdf.setFont("helvetica", "normal"); pdf.setFontSize(8);
+      pdf.text(line, margin, y); y += 4;
+    }
+    y += 8;
+  }
+
   drawTableHeader();
 
   recalculatePercentageLines(document.items).forEach((item, index) => {
@@ -234,7 +256,7 @@ export async function buildBusinessDocumentPdf({
     const labelLines = lines(item.label || `Prestation ${index + 1}`, withoutPrices ? 145 : 82);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.3);
-    const descriptionLines = item.description ? lines(item.description, withoutPrices ? 145 : 82) : [];
+    const descriptionLines = lines(publicLineDescription(item.description), withoutPrices ? 145 : 82);
     const rowHeight = Math.max(12, labelLines.length * 4.2 + descriptionLines.length * 3.6 + 3);
     if (y + 12 > safeBottom || (y + rowHeight > safeBottom && rowHeight <= safeBottom - 70)) {
       pdf.addPage();
@@ -358,26 +380,6 @@ export async function buildBusinessDocumentPdf({
     y += 8;
   }
 
-  const headerReferences = new Set(documentInsurance(document.notes).references.map(value => value.trim()));
-  const clientNotes = document.notes.split('\n').filter(line => !headerReferences.has(line.trim())).join('\n').trim();
-  if (clientNotes) {
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
-    const noteLines = lines(clientNotes, 174);
-    ensureSpace(16);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
-    pdf.text("NOTES CLIENT", margin, y);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
-    y += 6;
-    for (const line of noteLines) {
-      ensureSpace(5);
-      pdf.setFont("helvetica", "normal"); pdf.setFontSize(8);
-      pdf.text(line, margin, y); y += 4;
-    }
-    y += 8;
-  }
 
   if (quote) {
     ensureSpace(37);

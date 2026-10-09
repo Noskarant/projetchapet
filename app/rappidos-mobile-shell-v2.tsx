@@ -1,4 +1,5 @@
 "use client";
+import { interventionNotes } from "@/lib/document-intervention-notes";
 import { documentUnit } from "@/lib/document-units";
 import { readQuoteInternalMeta } from "@/lib/mobile-quote-preview";
 import PdfPages from "./pdf-pages";
@@ -603,7 +604,7 @@ export default function RappidosMobileShellV2() {
             <div className="rm-v2-two"><label>Numéro<input value={editor.value.number} onChange={(event) => updateEditorDocument((value) => ({ ...value, number: event.target.value }))} /></label><label>Statut<select value={editor.value.status} onChange={(event) => updateEditorDocument((value) => ({ ...value, status: event.target.value as never }))}>{(editor.kind === "quote" ? ["En attente", "Validé", "Terminé", "Refusé"] : ["Brouillon", "En cours", "Payée", "En retard", "Avoir"]).map((status) => <option key={status}>{status}</option>)}</select></label></div>
             <label>Objet / chantier<input value={editor.value.title} onChange={(event) => updateEditorDocument((value) => ({ ...value, title: event.target.value }))} /></label>
             <div className="rm-v2-two"><label>Date d’émission<input type="date" value={editor.value.issueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, issueDate: event.target.value, ...(!isQuote(value) && editor.isNew && event.target.value ? { dueDate: addDays(event.target.value, 30) } : {}) }))} /></label>{editor.kind === "quote" ? <label>Date d’expiration<input type="date" value={editor.value.expiryDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, expiryDate: event.target.value }))} /></label> : <label>Date d’échéance<input type="date" value={editor.value.dueDate} onChange={(event) => updateEditorDocument((value) => ({ ...value, dueDate: event.target.value }))} /></label>}</div>
-            <label>Notes<textarea value={editor.value.notes} onChange={(event) => updateEditorDocument((value) => ({ ...value, notes: event.target.value }))} /></label>
+            <label>{editor.kind === "quote" ? "Note d’intervention" : "Notes"}<textarea value={editor.kind === "quote" ? interventionNotes(editor.value.notes) : editor.value.notes} onChange={(event) => updateEditorDocument((value) => ({ ...value, notes: event.target.value }))} /></label>
           </div>
           <button type="button" className="rm-products-title" aria-label="Produits et services : ajouter une ligne" onClick={addProductLine}><span>Produits et services</span><span className="rm-products-add"><Plus size={21} aria-hidden="true" /> Ajouter une ligne</span></button>
           {!editor.value.items.length && <p className="rm-products-empty">Ajoutez une ligne pour renseigner un produit ou un service.</p>}
