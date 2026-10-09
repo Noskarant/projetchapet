@@ -1,3 +1,4 @@
+import { sourceWorkItems } from './source-work-scope';
 import { documentUnit } from "./document-units";
 import { reuseSameDocumentPrices } from './same-document-prices';
 import { interventionNotes } from './document-intervention-notes';
@@ -221,7 +222,7 @@ function normalizeCustomerPayload(source: RecordLike, transcript = "") {
 
 function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyConverted = false) {
   const markupPercent = spokenSupplierMarkup(transcript);
-  const original = Array.isArray(source.items) ? source.items.slice(0, 100).filter(item => !isDeductibleLine({ label: text(record(item).label, 240) }) && !(markupPercent !== null && isSupplierMarkupLine(text(record(item).label,240)))) : [];
+  const original = Array.isArray(source.items) ? sourceWorkItems(source.items.slice(0, 100), transcript).filter(item => !isDeductibleLine({ label: text(record(item).label, 240) }) && !(markupPercent !== null && isSupplierMarkupLine(text(record(item).label,240)))) : [];
   const labels = original.map((item) => text(record(item).label, 240));
   const sharedPrice = sharedVoiceUnitPrice(transcript, original.length);
   const scopedPrices = scopedVoiceUnitPrices(transcript, original.map(item => ({ label: text(record(item).label, 240), unit: text(record(item).unit, 40) })));

@@ -46,8 +46,9 @@ import { CommandPrecisionGuide, VoiceListeningVisualizer, VoicePreviewButton, Vo
 import { audioPeak, encodeMonoWav, mergeFloat32Buffers } from "./mobile-audio";
 import "./action-voice-assistant.css";
 import "./action-voice-replay.css";
+import { richNoteContent, insertCopiedText, readClipboardNote } from '@/lib/quote-source-clipboard';
 import { readQuoteSourceFiles } from '@/lib/quote-source-files';
-import { quoteSourceRequest, customerSourceRequest, sourceRequestTarget, type QuoteSource } from '@/lib/quote-sources';
+import { quoteSourceRequest, customerSourceRequest, sourceRequestTarget, MAX_QUOTE_SOURCES, type QuoteSource } from '@/lib/quote-sources';
 import { documentUnit } from '@/lib/document-units';
 import { supplierMarkupInput } from '@/lib/supplier-markup';
 
@@ -286,12 +287,15 @@ export default function ActionVoiceAssistant() {
     const generation = sourceGeneration.current;
     setPasting(true); setPasteHint('');
     try {
-      if (!navigator.clipboard?.readText) throw new DOMException('Collage manuel requis.', 'NotAllowedError');
-      const value = await navigator.clipboard.readText();
+      if (!navigator.clipboard) throw new DOMException('Collage manuel requis.', 'NotAllowedError');
+      const note = await readClipboardNote(navigator.clipboard);
+      const value = note.text;
       if (generation !== sourceGeneration.current) return;
-      if (!value.trim()) throw new Error('Le presse-papiers ne contient pas de texte.');
+      if (!value.trim() && !note.files.length) throw new Error('Le presse-papiers ne contient ni texte ni photo accessible.');
       if (value.length > 10_000) throw new Error('Texte trop long. Copiez uniquement les passages utiles (10 000 caractères maximum).');
       copiedSourceRef.current = value; setCopiedSource(value); setSourcesChanged(true); sourceObservationsRef.current = ''; setMessage('');
+      if (note.files.length) await addSources(note.files);
+      setPasteHint(note.missingImages && !note.files.length ? 'Certaines photos ne sont pas transmises : exportez la note complète en PDF ou joignez-les.' : note.files.length ? 'Texte et photos ajoutés au même dossier.' : 'Texte ajouté. Joignez les photos si elles ne figurent pas dans les sources.');
     } catch (error) {
       if (generation !== sourceGeneration.current) return;
       setPasteHint(error instanceof Error && !['NotAllowedError', 'SecurityError', 'TypeError'].includes(error.name)
@@ -611,7 +615,7 @@ export default function ActionVoiceAssistant() {
           if (controller.signal.aborted) return;
           sourceObservationsRef.current = extraction.observations;
         }
-        const observations = [copied ? `Texte copié du document :\n${copied}` : '', sourceObservationsRef.current].filter(Boolean).join('\n\n');
+        const observations = [copied ? `Début de la note artisan :\n${copied}\nFin de la note artisan` : '', sourceObservationsRef.current].filter(Boolean).join('\n\n');
         if (observations.length > 10_000) throw new Error('Sources trop longues. Collez ou joignez uniquement les passages utiles.');
         normalized = clientSources ? customerSourceRequest(text, observations) : quoteSourceRequest(text, observations, markup);
       } else if (markup !== null) {
@@ -668,7 +672,8 @@ export default function ActionVoiceAssistant() {
       const added = await readQuoteSourceFiles(files);
       if (sourceGeneration.current !== generation) return;
       const next = [...sourcesRef.current, ...added];
-      if (next.length > 6) throw new Error('Maximum 6 photos ou pages au total. Retirez une source avant d’en ajouter.');
+      if (next.length > MAX_QUOTE_SOURCES) throw new Error('Maximum 12 photos ou pages au total. Retirez une source avant d’en ajouter.');
+      if (next.reduce((sum, source) => sum + (source.image?.length || 0), 0) > 3_600_000) throw new Error('Dossier trop volumineux. Réduisez la taille des photos ou joignez-le en plusieurs parties.');
       if (next.reduce((sum, source) => sum + (source.text?.length || 0), 0) > 10_000) throw new Error('Documents trop longs. Joignez uniquement les pages utiles.');
       sourcesRef.current = next; sourceObservationsRef.current = '';
       setSources(next); setSourcesChanged(true);
@@ -883,7 +888,7 @@ export default function ActionVoiceAssistant() {
     }
   }
 
-  const busy = sourcesBusy || ["requesting", "transcribing", "analysing", "executing"].includes(stage);
+  const busy = pasting || sourcesBusy || ["requesting", "transcribing", "analysing", "executing"].includes(stage);
   const sensitive = proposals.some((proposal) => proposal.risk_level === "explicit_confirmation");
   const learnedPrices = proposals.filter(proposal => proposal.intent_type === 'prepare_quote').flatMap(proposal =>
     Array.isArray(proposal.payload?.items) ? (proposal.payload.items as Array<Record<string, unknown>>).filter(item => item.price_source === 'company_history') : []);
@@ -891,8 +896,20 @@ export default function ActionVoiceAssistant() {
   const changedSincePlan = transcript !== plannedTranscript || sourcesChanged;
 
   function pasteImages(event: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
-    if (files.length) { event.preventDefault(); void addSources(files); }
+    const files = Array.from(event.clipboardData.files);
+    const html = event.clipboardData.getData('text/html');
+    if (!files.length && !html) return; // Normal plain-text paste retains the browser's caret behavior.
+    event.preventDefault();
+    try {
+      const note = richNoteContent(html, event.clipboardData.getData('text/plain'), files);
+      const input = event.currentTarget;
+      const value = insertCopiedText(input.value, note.text, input.selectionStart, input.selectionEnd);
+      if (input === copiedSourceInput.current) {
+        copiedSourceRef.current = value; setCopiedSource(value); setSourcesChanged(true); sourceObservationsRef.current = '';
+      } else updateTranscript(value);
+      if (note.files.length) void addSources(note.files);
+      setPasteHint(note.missingImages && !files.length ? 'Le texte est collé. Certaines photos ne sont pas transmises par cette application : joignez-les ou exportez la note complète en PDF.' : note.files.length ? 'Texte et fichiers ajoutés au même dossier.' : 'Texte de la note ajouté.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Collage impossible. Exportez la note complète en PDF.'); }
   }
   const clientSourceMode = Boolean(target && sourceRequestTarget(target, transcript) === "customer");
   const sourceControls = (
@@ -901,11 +918,11 @@ export default function ActionVoiceAssistant() {
                   {target === "customer" && <small>Depuis Apple Notes, copiez la note puis collez-la ci-dessous, ou joignez une capture/photo.</small>}
                   <div className="ava-source-buttons">
                     <button type="button" className="ava-secondary" disabled={busy} onClick={() => cameraInput.current?.click()}><Camera size={18} /> Prendre une photo</button>
-                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => fileInput.current?.click()}><Paperclip size={18} /> Joindre des fichiers</button>
+                    <button type="button" className="ava-secondary" disabled={busy} onClick={() => fileInput.current?.click()}><Paperclip size={18} /> Importer un dossier</button>
                   </div>
                   <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden aria-label={target === "customer" ? "Photo du client" : "Photo du chantier"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
-                  <input ref={fileInput} type="file" accept="image/*,application/pdf,text/plain,.pdf,.txt" multiple hidden aria-label={target === "customer" ? "Documents du client" : "Documents du devis"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
-                  <small>Photos, PDF ou TXT · 6 photos/pages maximum. Dictée facultative.</small>
+                  <input ref={fileInput} type="file" accept="image/*,application/pdf,text/plain,text/html,.pdf,.txt,.html,.htm" multiple hidden aria-label={target === "customer" ? "Documents du client" : "Documents du devis"} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void addSources(files); }} />
+                  <small>Note complète en PDF, photos, TXT ou HTML · 12 photos/pages maximum. Vous pouvez sélectionner plusieurs fichiers.</small>
                   {sourcesBusy && <span role="status">Lecture des fichiers…</span>}
                   {sources.map((source, index) => <div className="ava-source" key={`${source.name}-${index}`}>
                     {source.image && <img src={source.image} alt="" />}
@@ -913,11 +930,11 @@ export default function ActionVoiceAssistant() {
                     <button type="button" disabled={busy} aria-label={`Retirer ${source.name}`} onClick={() => { const next = sourcesRef.current.filter((_, position) => position !== index); sourcesRef.current = next; sourceObservationsRef.current = ''; setSources(next); setSourcesChanged(true); }}><X size={16} /></button>
                   </div>)}
                   <div className="ava-supplier-source">
-                    <strong>Copier-coller un mail, une note ou un document</strong>
-                    <button type="button" className="ava-secondary" disabled={busy || pasting} onClick={() => void pasteSource()}>Coller le texte copié</button>
+                    <strong>Copier-coller une note avec son descriptif et ses photos</strong>
+                    <button type="button" className="ava-secondary" disabled={busy || pasting} onClick={() => void pasteSource()}>Coller la note copiée</button>
                     <label>Texte copié<textarea ref={copiedSourceInput} onPaste={pasteImages} value={copiedSource} aria-label="Texte copié" placeholder="Collez ici le texte du mail, de la note ou du document…" maxLength={10_000} disabled={busy} onChange={event => { copiedSourceRef.current = event.target.value; setCopiedSource(event.target.value); setSourcesChanged(true); sourceObservationsRef.current = ''; setPasteHint(''); }} /></label>
                     {pasteHint && <small role="status">{pasteHint}</small>}
-                    <small>Vos consignes se précisent dans votre demande ci-dessous.</small>
+                    <small>Depuis Notes, importez la note exportée en PDF et les photos. Pour un PDF ou scan de plusieurs pages joint à la note, joignez aussi le document d’origine. Vous pouvez également coller le texte et joindre les photos dans ce même dossier. Vos consignes se précisent dans votre demande ci-dessous.</small>
                   </div>
                   {!clientSourceMode && <>
                     <label className="ava-supplier-markup">Majoration sur les prix HT (%)

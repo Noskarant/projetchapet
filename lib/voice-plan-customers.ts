@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { plannedActionFromParsed, type PlannedAction } from './action-planner';
-import { artisanInstructions, hasDistinctWorksite, requestedBillTo } from './document-parties';
+import { artisanInstructions, hasDistinctWorksite, requestedBillTo, sourceInsuredName } from './document-parties';
 
 const key = (value: unknown) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const personKey = (value: unknown) => key(value).replace(/^(?:le |la )?(?:m|mme|monsieur|madame)\s+/u, '');
@@ -121,12 +121,29 @@ export async function resolveVoicePlanCustomers(actions: PlannedAction[], organi
     if (/\b(?:déjà (?:dans|enregistré|créé|existant)|client existant|reprenons|reprends? le client)\b/iu.test(artisanInstructions(action.rawText))) {
       action.missingFields.push('client_introuvable'); action.status = 'needs_input'; continue;
     }
+    // An imported model hint must be an identity actually present in the dossier.
+    // Never create a business called ‘les travaux décrits dans les sources’.
+    if (action.rawText.includes('Informations issues des sources à vérifier') && !key(action.rawText.split('Informations issues des sources à vérifier')[1]).includes(wanted) && !key(artisanInstructions(action.rawText)).includes(wanted)) {
+      action.missingFields.push('client_a_confirmer'); action.status = 'needs_input'; continue;
+    }
     const hint = String(action.payload.customer_hint).trim();
-    const individual = /^(?:M\.?|Mme|Monsieur|Madame)\s+/iu.test(hint);
+    const insured = personKey(sourceInsuredName(action.rawText)) === personKey(hint);
+    const individual = /^(?:M\.?|Mme|Monsieur|Madame)\s+/iu.test(hint) || insured;
     const created = plannedActionFromParsed('customer', individual
-      ? { kind: 'individual', civility: /^(?:Mme|Madame)\b/iu.test(hint) ? 'Mme' : 'M.', last_name: hint.replace(/^(?:M\.?|Mme|Monsieur|Madame)\s+/iu, '') }
+      ? { kind: 'individual', civility: /^(?:Mme|Madame)\b/iu.test(hint) ? 'Mme' : /^(?:M\.?|Monsieur)\s/iu.test(hint) ? 'M.' : null, ...(insured ? insuredContacts(action.rawText) : {}), last_name: hint.replace(/^(?:M\.?|Mme|Monsieur|Madame)\s+/iu, '') }
       : { kind: 'business', company_name: hint }, action.rawText);
     action.customerFromPosition = actions.length;
     actions.push(created);
   }
+}
+
+/** Only labelled contacts of a unique insured can fill a missing client proposal. */
+function insuredContacts(transcript: string) {
+  const source = (transcript.split('Informations issues des sources à vérifier')[1] || '').replace(/[*_]/g, '');
+  const phone = source.match(/(?:^|\n)\s*(?:Téléphone|Tél[.]?)\s+(?:de l['’])?assuré\s*:\s*([^\n;]+)/iu)?.[1]?.trim();
+  const email = source.match(/(?:^|\n)\s*(?:E-?mail|Courriel)\s+(?:de l['’])?assuré\s*:\s*([^\n;]+)/iu)?.[1]?.trim();
+  const address = source.match(/(?:^|\n)\s*Adresse (?:de l['’])?assuré\s*:\s*([^\n;]+)/iu)?.[1]?.trim()
+    || source.match(/(?:^|\n)\s*Adresse du sinistre\s*:\s*([^\n;]+)/iu)?.[1]?.trim();
+  const parts = address?.match(/^(.*?)[, ]+([0-9]{5})\s+(.+)$/u);
+  return {phones: phone ? [phone] : [], emails: email ? [email] : [], addresses: address ? [{line1: parts?.[1]?.trim() || address, postal_code: parts?.[2] || '', city: parts?.[3] || ''}] : []};
 }

@@ -87,7 +87,7 @@ test('lecture vision : traite les 6 images en groupes de 3 et préserve la dict�
     assert.equal(calls, 2);
     assert.match(result, /Source 1/); assert.match(result, /Source 2/);
     assert.match(quoteSourceRequest('Client Bazin. 100 m² à 23 euros HT.', result), /Client Bazin\. 100 m² à 23 euros HT/);
-    assert.throws(() => validateQuoteSources([...sources, sources[0]]), /1 à 6/);
+    assert.throws(() => validateQuoteSources(Array.from({length:13}, () => sources[0])), /1 à 12/);
     assert.throws(() => validateQuoteSources([{ name: 'long.txt', text: 'a'.repeat(10_001) }]), /volumineux/);
     globalThis.fetch = async () => Response.json({ choices: [{ message: { content: 'Texte tronqué' }, finish_reason: 'length' }] });
     await assert.rejects(readQuoteSources([sources[0]]), /trop longue/);

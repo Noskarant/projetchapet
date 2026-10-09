@@ -13,11 +13,12 @@ export function requestedBillTo(transcript: string) {
   const instructions = artisanInstructions(transcript).replace(/\bM\.\s+/gu, 'Monsieur ').replace(/\bMme\.\s+/gu, 'Madame ');
   const explicit = instructions.match(/\b(?:client(?:\s+facturé)?|donneur d['’]ordre|commanditaire)\s*[,;:]?\s*(?:c['’]est|est|sera|=|:)\s+([^,.;\n]+)/iu)
     || instructions.match(/\b(?:devis|facture)\s+(?:pour|au nom de|à l['’]attention de)\s+([^,.;\n]+)/iu);
-  if (explicit) return clean(explicit[1].split(/\s+(?:pour (?:un|le) chantier|qui (?:est déjà|habite|demeure|réside)|déjà (?:dans|enregistré)|avec (?:l['’]adresse|une TVA)|suite\b)/iu)[0]);
+  if (explicit && !/^(?:les? |des? |ces? |vos? )?(?:travaux|prestations|sources|documents|informations)\b/iu.test(clean(explicit[1]))) return clean(explicit[1].split(/\s+(?:pour (?:un|le) chantier|qui (?:est déjà|habite|demeure|réside)|déjà (?:dans|enregistré)|avec (?:l['’]adresse|une TVA)|suite\b)/iu)[0]);
   // Vision extraction distinguishes an agency's request from an insurance mission.
   const sources = (transcript.split(/Informations (?:issues des sources à vérifier|lues dans les fichiers)\s*:/iu)[1] || '').replace(/[*_]/g, '');
   const labelled = sources.match(/Client facturé\s*:\s*([^\n;]+)/iu);
-  return labelled ? clean(labelled[1].split(/\s+(?:Adresse(?: du client facturé)?|Téléphone(?: du client facturé)?|SIRET|SIREN|Occupant|Lieu d['’]intervention|Contact)\s*:/iu)[0]) : '';
+  if (labelled) return clean(labelled[1].split(/\s+(?:Adresse(?: du client facturé)?|Téléphone(?: du client facturé)?|SIRET|SIREN|Occupant|Lieu d['’]intervention|Contact)\s*:/iu)[0]);
+  return sourceInsuredName(transcript);
 }
 
 export function hasDistinctWorksite(transcript: string) {
@@ -44,4 +45,12 @@ export function stripUngroundedDiscountNotes(notes: string, transcript: string) 
   const discountRequested = (spokenDiscount(transcript) ?? 0)>0;
   if (discountRequested) return notes;
   return notes.replace(/\bremise(?:\s+(?:accordée|commerciale|globale))?\s*(?:de|à|:)?\s*\d+(?:[,.]\d+)?\s*%\s*(?:et\s*)?/giu, '').replace(/ {2,}/g, ' ').trim();
+}
+
+/** A unique explicitly labelled insured; never the insurer or contractor. */
+export function sourceInsuredName(transcript: string) {
+  const sources = (transcript.split(/Informations (?:issues des sources à vérifier|lues dans les fichiers)\s*:/iu)[1] || '').replace(/[*_]/g, '');
+  const insured = [...sources.matchAll(/(?:^|[\n;.])\s*(?:[-•]\s*)?(?:Coordonnées (?:de l['’])?assuré|Nom (?:de l['’])?assuré|Assuré(?:e)?)\s*:\s*([^\n;.]+)/giu)].map(match => clean(match[1].split(/\s+(?:Téléphone|Adresse|Email|E-mail|Numéro|Référence)\s*:/iu)[0]));
+  const names = [...new Map(insured.filter(Boolean).map(name => [name.toLocaleLowerCase('fr-FR'), name])).values()];
+  return names.length === 1 ? names[0] : '';
 }

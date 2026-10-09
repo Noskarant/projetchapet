@@ -1,4 +1,5 @@
 import { MAX_QUOTE_SOURCES, MAX_SOURCE_TEXT, type QuoteSource } from './quote-sources';
+import { richNoteContent } from './quote-source-clipboard';
 import { readPdfTextContent } from './pdf-text-content';
 
 function imageFromUrl(url: string) {
@@ -19,7 +20,7 @@ function jpeg(canvas: HTMLCanvasElement) {
 }
 
 export async function readQuoteSourceFiles(files: File[]): Promise<QuoteSource[]> {
-  if (!files.length || files.length > MAX_QUOTE_SOURCES) throw new Error('Maximum 6 photos ou pages de documents.');
+  if (!files.length || files.length > MAX_QUOTE_SOURCES) throw new Error('Maximum 12 photos ou pages de documents.');
   const sources: QuoteSource[] = [];
   for (const file of files) {
     if (file.size > 10_000_000) throw new Error(`${file.name} dépasse 10 Mo.`);
@@ -30,7 +31,7 @@ export async function readQuoteSourceFiles(files: File[]): Promise<QuoteSource[]
       const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), standardFontDataUrl: '/pdf-standard-fonts/' });
       try {
         const pdf = await task.promise;
-        if (sources.length + pdf.numPages > MAX_QUOTE_SOURCES) throw new Error('Maximum 6 pages au total. Exportez uniquement les pages utiles du PDF.');
+        if (sources.length + pdf.numPages > MAX_QUOTE_SOURCES) throw new Error('Maximum 12 pages au total. Le dossier dépasse 12 pages ; joignez-le en plusieurs parties.');
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
           const page = await pdf.getPage(pageNumber);
           const content = await readPdfTextContent(page);
@@ -58,12 +59,19 @@ export async function readQuoteSourceFiles(files: File[]): Promise<QuoteSource[]
         sources.push({ name, image: jpeg(canvas) });
         canvas.width = 0; canvas.height = 0;
       } finally { URL.revokeObjectURL(url); }
+    } else if (file.type === 'text/html' || /\.html?$/i.test(file.name)) {
+      const note = richNoteContent(await file.text());
+      if (note.missingImages) throw new Error('Cette note contient des photos non incluses dans le fichier. Exportez la note complète en PDF.');
+      if (note.text) sources.push({ name, text: note.text });
+      if (note.files.length) sources.push(...await readQuoteSourceFiles(note.files));
+      if (!note.text && !note.files.length) throw new Error(`${name} est vide.`);
     } else if (file.type === 'text/plain' || /\.txt$/i.test(file.name)) {
       const text = (await file.text()).trim();
       if (!text) throw new Error(`${name} est vide.`);
       sources.push({ name, text });
-    } else throw new Error('Formats acceptés : photos, PDF et fichiers TXT.');
-    if (sources.length > MAX_QUOTE_SOURCES) throw new Error('Maximum 6 photos ou pages au total.');
+    } else throw new Error('Formats acceptés : photos, PDF, TXT et notes HTML avec photos incluses.');
+    if (sources.reduce((sum, source) => sum + (source.image?.length || 0), 0) > 3_600_000) throw new Error('Le dossier dépasse la taille maximale. Réduisez la taille des photos ou joignez-le en plusieurs parties.');
+    if (sources.length > MAX_QUOTE_SOURCES) throw new Error('Maximum 12 photos ou pages au total.');
     if (sources.reduce((sum, source) => sum + (source.text?.length || 0), 0) > MAX_SOURCE_TEXT) throw new Error('Document trop long. Joignez uniquement les pages utiles.');
   }
   return sources;

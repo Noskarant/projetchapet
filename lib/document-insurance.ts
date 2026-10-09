@@ -11,7 +11,7 @@ function exactReference(value: string, evidence: string, field: 'mission_referen
     .map(match => match[1]).filter(token => /\d/u.test(token));
   const unique = [...new Set(identified)];
   // An explicit, unique source label repairs a truncated/model-misread reference.
-  return unique.length === 1 ? unique[0] : exact || '';
+  return unique.length === 1 ? unique[0] : unique.length > 1 ? '' : exact || '';
 }
 
 /** Preserve only references present in the source; no inferred identity or payment allocation. */
@@ -21,15 +21,17 @@ export function insuranceDocumentNotes(notes: string, raw: unknown, evidence: st
   for (const [field, label] of Object.entries(labels)) {
     const reference = field === 'case_reference' || field === 'mission_reference';
     const existing = notes.match(new RegExp(`^${label}\\s*:\\s*(.+)$`, 'imu'))?.[1];
-    const value = source[field as keyof InsuranceSource] ?? existing ?? (reference ? '' : undefined);
+    const labelled = evidence.match(new RegExp(`${label}\\s*[:：]\\s*([^\\n;.]+)`, 'iu'))?.[1]?.trim();
+    const value = labelled ?? source[field as keyof InsuranceSource] ?? existing ?? (reference ? '' : undefined);
     if (typeof value !== 'string' || (!reference && !value.trim())) continue;
     let clean = value.replace(/[\r\n]/g, ' ').trim().slice(0, field === 'claim_address' ? 320 : 120);
     if (reference) {
       clean = exactReference(clean, evidence, field as 'case_reference' | 'mission_reference');
-      notes = notes.replace(new RegExp(`^${label}\\s*:.*(?:\\n|$)`, 'gimu'), '').trim();
+      notes = notes.replace(new RegExp(`(?:${label}|${field === 'mission_reference' ? 'Numéro de mission' : 'Référence du dossier'})\\s*[:：]\\s*[A-Z0-9][A-Z0-9/-]{4,79}\\s*[.;]?`, 'giu'), '').trim();
     }
     if (flat(clean).length < 2 || !flat(evidence).includes(flat(clean))) continue;
-    if (!new RegExp(`^${label}\\s*:`, 'imu').test(notes)) additions.push(`${label} : ${clean}`);
+    notes = notes.replace(new RegExp(`${label}\\s*[:：]\\s*${clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[.;]?`, 'giu'), '').trim();
+    additions.push(`${label} : ${clean}`);
   }
   // "À récupérer" is the customer's share, not a discount on taxable work.
   const recovery = evidence.match(/franchise\s+(?:TTC\s+)?(?:à\s+récupérer|à\s+recouvrer|à\s+la\s+charge\s+(?:du\s+client|de\s+l['’]assuré))[^\d]{0,80}(\d[\d\s\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:€|euros?)/iu);

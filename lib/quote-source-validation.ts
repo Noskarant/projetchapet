@@ -3,7 +3,7 @@ import { MAX_QUOTE_SOURCES, MAX_SOURCE_TEXT, type QuoteSource } from './quote-so
 
 export function validateQuoteSources(value: unknown): QuoteSource[] {
   if (!Array.isArray(value) || !value.length || value.length > MAX_QUOTE_SOURCES) {
-    throw new ApiInputError('Joignez de 1 à 6 photos ou pages de documents.');
+    throw new ApiInputError('Joignez de 1 à 12 photos ou pages de documents.');
   }
   let textLength = 0;
   let imageLength = 0;
