@@ -183,6 +183,7 @@ function styleInjectedButton(button: HTMLButtonElement) {
 }
 
 function changeSummary(command: MobileVoiceCommand) {
+  if (command.display_only) return [command.summary];
   const labels: string[] = [];
   const changes = command.changes || {};
   const human: Record<string, string> = {
@@ -509,6 +510,12 @@ export default function MobileVoiceEditAssistant() {
     setStage('analysing');
     setMessage('Enregistrement de la modification…');
     try {
+      if (command.display_only) {
+        setStage("applied");
+        setMessage(command.summary);
+        applying.current = false;
+        return;
+      }
       const current = readWorkspace();
       const updated = applyMobileVoiceCommand(current, { ...command, entity: target.entity, id: target.id });
       const cloud = isDatabaseId(target.id);
@@ -574,7 +581,7 @@ export default function MobileVoiceEditAssistant() {
           </div>
         )}
 
-        {stage === "applied" && <div className="ava-confirmation"><strong>La modification a été enregistrée.</strong></div>}
+        {stage === "applied" && <div className="ava-confirmation"><strong>{command?.display_only ? "Les lignes sans prix s’affichent sans mention À préciser ni TVA." : "La modification a été enregistrée."}</strong></div>}
         {message && <div className="ava-message" role="status">{message}</div>}
         </div>
       </section>}

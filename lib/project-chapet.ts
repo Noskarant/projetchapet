@@ -1,6 +1,7 @@
 import { documentUnit } from "./document-units";
 import { supabase } from "./supabase";
 import { deleteCustomerRecord } from "./customer-deletion";
+import { readNextDocumentNumber } from "./document-number";
 import { documentLinePrice } from "./document-deductible";
 
 const E2E_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -110,6 +111,11 @@ export async function getActiveOrganizationId() {
   const { data, error } = await supabase.rpc("ensure_personal_organization");
   if (error) throw error;
   return data as string;
+}
+
+export async function fetchNextDocumentNumber(prefix: "D" | "F", pending: ReadonlyArray<{ number: string }> = []) {
+  const organizationId = await getActiveOrganizationId();
+  return readNextDocumentNumber(supabase, organizationId, prefix, pending);
 }
 
 export async function fetchWorkspace() {

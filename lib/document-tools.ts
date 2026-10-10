@@ -1,5 +1,6 @@
 import { interventionNotes } from "./document-intervention-notes";
 import { documentLinePresentation } from './document-line-presentation';
+import { documentLineValues } from './document-line-values';
 import type { Invoice, Quote } from "./project-chapet";
 import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { customerName } from "./project-chapet";
@@ -12,7 +13,7 @@ function isQuote(document: BusinessDocument): document is Quote {
 }
 
 function money(value: number | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "À préciser";
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "";
   const amount = Number(value);
   const [integerPart, decimalPart] = amount.toFixed(2).split(".");
   const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -20,12 +21,12 @@ function money(value: number | null | undefined) {
 }
 
 function numberWithUnit(value: number | null | undefined, unit: string | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "À préciser";
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "";
   return `${value} ${unit || ""}`.trim();
 }
 
 function percent(value: number | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "À préciser";
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "";
   return `${value} %`;
 }
 
@@ -120,6 +121,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   pdf.setFont("helvetica", "normal");
   pdf.setCharSpace(0);
   for (const item of document.items) {
+    const values = documentLineValues({ quantity: item.quantity, unitPrice: item.unit_price, taxRate: item.tax_rate });
     const presentation = documentLinePresentation(item);
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5);
     const labelLines = pdf.splitTextToSize(presentation.title, 88) as string[];
@@ -132,12 +134,10 @@ export async function buildDocumentPdf(document: BusinessDocument) {
     }
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5);
     pdf.setCharSpace(0);
-    pdf.text(numberWithUnit(item.quantity, item.unit), 118, y, { align: "right" });
-    pdf.text(money(item.unit_price), 145, y, { align: "right" });
-    pdf.text(percent(item.tax_rate), 162, y, { align: "right" });
-    const lineTotal = item.quantity === null || item.quantity === undefined || item.unit_price === null || item.unit_price === undefined
-      ? null
-      : item.total;
+    pdf.text(numberWithUnit(values.quantity, item.unit), 118, y, { align: "right" });
+    pdf.text(money(values.unitPrice), 145, y, { align: "right" });
+    pdf.text(percent(values.taxRate), 162, y, { align: "right" });
+    const lineTotal = values.total === null ? null : item.total;
     pdf.text(money(lineTotal), 192, y, { align: "right" });
     const startY = y;
     const textRows = [
@@ -157,7 +157,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
     pdf.line(margin, y - 4, 194, y - 4);
   }
 
-  const taxCount = new Set(document.items.filter(item => item.tax_rate !== null && item.tax_rate !== undefined).map(item => item.tax_rate)).size;
+  const taxCount = new Set(document.items.filter(item => item.quantity != null && item.unit_price != null && item.tax_rate != null).map(item => item.tax_rate)).size;
   if (y + 26 + Math.max(1, taxCount) * 7 > 270) { pdf.addPage(); y = 18; }
   y += 4;
   const totalsX = 132;
@@ -168,7 +168,7 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   y += 7;
   const taxGroups = new Map<number, number>();
   for (const item of document.items) {
-    if (item.tax_rate === null || item.tax_rate === undefined) continue;
+    if (item.quantity == null || item.unit_price == null || item.tax_rate == null) continue;
     const rate = Number(item.tax_rate);
     taxGroups.set(rate, (taxGroups.get(rate) || 0) + Number(item.quantity || 0) * Number(item.unit_price || 0) * rate / 100);
   }

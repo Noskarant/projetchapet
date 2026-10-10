@@ -137,6 +137,51 @@ test("les variantes devis, facture, avoir et chantier ont le bon libellé et nom
   assert.equal(documentFileName(quote, true), "DEV-2026-001-sans-prix.pdf");
 });
 
+test("les PDF conservent les postes sans prix avec des cases vides et aucune TVA sur ces lignes", async () => {
+  const mixedItems: LineItem[] = [
+    { id: "unpriced", label: "Châssis acier", description: "Sablage et peinture au four", quantity: null, unit: null, unitPrice: null, taxRate: 20 },
+    { id: "quantity-only", label: "Fixation sur site", description: "Chevillage dans le sol", quantity: 1, unit: "U", unitPrice: null, taxRate: 30 },
+    { id: "priced", label: "Tôles inox", description: "Fourniture et pose", quantity: 1, unit: "U", unitPrice: 5661, taxRate: 10 },
+    { id: "free", label: "Contrôle offert", description: "Vérification", quantity: 1, unit: "U", unitPrice: 0, taxRate: 0 },
+  ];
+  const mobile = { ...quote, title: "Travaux acier", items: mixedItems, notes: "", subtotal: 5661, taxTotal: 566.1, total: 6227.1 };
+  const desktop: Quote = {
+    id: "quote-1", organization_id: "org", customer_id: "customer-1", number: mobile.number,
+    title: mobile.title, status: "draft", issue_date: mobile.issueDate, expiry_date: mobile.expiryDate,
+    subtotal: mobile.subtotal, tax_total: mobile.taxTotal, total: mobile.total, notes: "", sent_at: null, accepted_at: null,
+    created_at: "", updated_at: "",
+    customer: { id: "customer-1", organization_id: "org", kind: "business", company_name: customer.companyName, civility: null, last_name: null, first_name: null, emails: [], phones: [], addresses: [], notes: null, siret: null, vat_number: null, created_at: "", updated_at: "" },
+    items: mixedItems.map((item, position) => ({ id: item.id, position, label: item.label, description: item.description, quantity: item.quantity as number, unit: item.unit, unit_price: item.unitPrice as number, tax_rate: item.taxRate as number, total: item.quantity === null || item.unitPrice === null ? null as unknown as number : item.quantity * item.unitPrice })),
+  };
+  const snapshot = JSON.stringify({ mobile, desktop });
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  for (const blob of [await buildBusinessDocumentPdf({ document: mobile, customer, company }), await buildDocumentPdf(desktop)]) {
+    const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+    try {
+      const pdf = await task.promise;
+      const content = await (await pdf.getPage(1)).getTextContent();
+      const chunks = content.items.filter(item => "str" in item);
+      const text = chunks.map(item => item.str).join(" ");
+      for (const label of ["Châssis acier", "Fixation sur site", "Tôles inox", "Contrôle offert"]) assert.match(text, new RegExp(label));
+      assert.doesNotMatch(text, /À préciser|20 %|30 %/);
+      assert.match(text, /5 661,00/); assert.match(text, /566,10/); assert.match(text, /6 227,10/); assert.match(text, /0,00/);
+      const unpriced = chunks.find(item => item.str === "Châssis acier")!;
+      assert.ok(unpriced);
+      assert.equal(chunks.filter(item => item.str.trim() && item.transform[4] > 300 && Math.abs(item.transform[5] - unpriced.transform[5]) < 1).length, 0, "Aucune valeur inventée ni TVA sur la ligne sans prix");
+    } finally { await task.destroy(); }
+  }
+  const withoutPrices = await buildBusinessDocumentPdf({ document: mobile, customer, company, withoutPrices: true });
+  const task = getDocument({ data: new Uint8Array(await withoutPrices.arrayBuffer()) });
+  try {
+    const pdf = await task.promise;
+    const content = await (await pdf.getPage(1)).getTextContent();
+    const text = content.items.filter(item => "str" in item).map(item => item.str).join(" ");
+    assert.doesNotMatch(text, /À préciser|5 661,00|20 %|30 %/);
+    assert.match(text, /Châssis acier/);
+  } finally { await task.destroy(); }
+  assert.equal(JSON.stringify({ mobile, desktop }), snapshot);
+});
+
 test("un devis long génère un PDF multi-pages sans erreur", async () => {
   const blob = await buildBusinessDocumentPdf({ document: quote, customer, company });
   assert.equal(blob.type, "application/pdf");

@@ -73,6 +73,7 @@ export type MobileVoiceCommand = {
   line_operations?: VoiceLineOperation[];
   line_order?: string[];
   line_order_only?: boolean;
+  display_only?: boolean;
   percentage_request?: string;
   deductible_request?: string;
 };
@@ -208,6 +209,7 @@ function agendaType(value: unknown): AgendaType | undefined {
 }
 
 export function applyMobileVoiceCommand(workspace: MobileWorkspace, command: MobileVoiceCommand): MobileWorkspace {
+  if (command.display_only) return workspace;
   const changes = command.changes || {};
   if (command.entity === "quote") {
     const current = workspace.quotes.find((item) => item.id === command.id);
@@ -380,6 +382,18 @@ export function fallbackMobileVoiceCommand(
   }
 
   const document = target.entity === 'quote' || target.entity === 'invoice' ? target.data as MobileQuote | MobileInvoice : null;
+  // Removing an automatic placeholder is a display request, never a line deletion
+  // or an instruction to invent zero quantities/prices/tax rates.
+  const blankDisplay = document && /\ba preciser\b/u.test(normalizedText)
+    && /\b(?:supprim\w*|retir\w*|enlev\w*|masqu\w*|cach\w*|sans)\b/u.test(normalizedText)
+    && !/\b(?:ne\s+\w+\s+pas|ne\s+pas|n\s+\w+\s+pas)\b/u.test(normalizedText)
+    && !/\d|\b(?:ajout\w*|remplac\w*|change\w*|modifi\w*|mets|mettez|passe\w*|dedui\w*|remise|client|date|statut)\b/u.test(normalizedText)
+    && !/\b(?:supprim\w*|retir\w*|enlev\w*)\s+(?:(?:le|la|les|une?|des)\s+)?(?:ligne|poste|prestation)s?\b/u.test(normalizedText);
+  if (blankDisplay) return {
+    entity: target.entity, id: target.id, display_only: true,
+    summary: 'Les cases sans valeur restent vides et la TVA des lignes sans prix est masquée. Les prestations et montants sont conservés.',
+    changes: {}, line_operations: [],
+  };
   const deductibleRequested = /\bdedui\w*\b/u.test(normalizedText)
     && !/\b(?:ne\s+dedui\w*\s+pas|ne\s+pas\s+dedui\w*|sans\s+dedui\w*)\b/u.test(normalizedText);
   const lineOrder = document ? groupedVoiceLineOrder(text, document.items) : undefined;
@@ -409,6 +423,7 @@ export function fallbackMobileVoiceCommand(
 }
 
 export function sanitizeMobileVoiceCommand(value: unknown, fallback: MobileVoiceCommand): MobileVoiceCommand {
+  if (fallback.display_only) return fallback;
   // Pure grouping requests cannot acquire financial edits from a model response.
   if (fallback.line_order_only) return { ...fallback, summary: 'Prestations regroupées par pièce. Prix, quantités et TVA conservés.' };
   if (!value || typeof value !== "object") return fallback;

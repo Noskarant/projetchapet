@@ -59,6 +59,7 @@ RÈGLES ABSOLUES
 - Regrouper les postes par pièce est un classement : renvoie line_order, liste complète des identifiants existants dans le nouvel ordre. Chaque id apparaît une fois. Ne supprime, ne fusionne et ne recrée aucune ligne pour un classement ; conserve toutes les valeurs métier.
 - Corrige les fautes d'orthographe des désignations dictées, sans changer leur sens ni les termes métier (piquage, purge, ratissage, enduissage des supports).
 - Une suppression de ligne exige une demande explicite.
+- « Supprime la mention À préciser » concerne l'affichage des cases vides, jamais une suppression de prestation ni une quantité, un prix ou une TVA à zéro. Les cases sans valeur sont automatiquement vides ; la TVA d'une ligne sans prix est masquée. Conserve les données métier.
 - La remise globale d'un devis est changes.discount_percent (0 à 100). Enlever la remise signifie discount_percent: 0, jamais supprimer une prestation.
 - Une franchise dictée est calculée par MANUFEO comme une déduction fixe séparée, après la remise et la RSE. Ne crée ni ne modifie sa ligne toi-même et ne la laisse pas seulement dans les notes. Conserve son montant et sa mention HT/TTC dans le résumé ; le serveur applique la déduction à partir de la dictée originale.
 - N'invente jamais un prix, une quantité, une TVA, une date, un statut ou un client.
@@ -137,6 +138,7 @@ export async function POST(request: Request) {
     const data = body.target?.data as TargetData;
     const target = { entity, id, data };
     const fallback = fallbackMobileVoiceCommand(transcript, target, workspace);
+    if (fallback.display_only) return NextResponse.json({ provider: "local-display-command", data: fallback });
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) return NextResponse.json({ provider: "local-voice-command", data: fallback });
 

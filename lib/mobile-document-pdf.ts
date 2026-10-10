@@ -1,5 +1,6 @@
 import { interventionNotes } from "./document-intervention-notes";
 import { documentLinePresentation } from './document-line-presentation';
+import { documentLineValues } from './document-line-values';
 import { documentUnit } from "./document-units";
 import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { documentInsurance } from "./document-insurance";
@@ -251,6 +252,7 @@ export async function buildBusinessDocumentPdf({
   drawTableHeader();
 
   recalculatePercentageLines(document.items).forEach((item, index) => {
+    const values = documentLineValues(item);
     const presentation = documentLinePresentation(item, `Prestation ${index + 1}`);
     // Measure with the exact font used to draw, leaving a gap before quantity.
     pdf.setFont("helvetica", "bold");
@@ -271,11 +273,11 @@ export async function buildBusinessDocumentPdf({
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(20, 42, 65);
     pdf.setFontSize(8.5);
-    drawFittedRight(item.quantity === null ? "À préciser" : `${quantity(item.quantity)} ${documentUnit(item.unit) || ""}`.trim(), withoutPrices ? 192 : 120, numericY, withoutPrices ? 26 : 16);
+    drawFittedRight(values.quantity === null ? "" : `${quantity(values.quantity)} ${documentUnit(item.unit) || ""}`.trim(), withoutPrices ? 192 : 120, numericY, withoutPrices ? 26 : 16);
     if (!withoutPrices) {
-      drawFittedRight(item.unitPrice === null ? "À préciser" : money(item.unitPrice), 148, numericY, 24);
-      drawFittedRight(item.taxRate === null ? "À préciser" : `${item.taxRate} %`, 165, numericY, 13);
-      drawFittedRight(item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice), 192, numericY, 24);
+      drawFittedRight(values.unitPrice === null ? "" : money(values.unitPrice), 148, numericY, 24);
+      drawFittedRight(values.taxRate === null ? "" : `${values.taxRate} %`, 165, numericY, 13);
+      drawFittedRight(values.total === null ? "" : money(values.total), 192, numericY, 24);
     }
     // Very long descriptions continue on following pages instead of entering
     // totals/footer space. Numeric cells are printed once for the whole item.

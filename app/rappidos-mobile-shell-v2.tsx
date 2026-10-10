@@ -23,6 +23,7 @@ import { buildBusinessDocumentPdf } from "@/lib/mobile-document-pdf";
 import { sharePreparedPdf } from "@/lib/document-file-share";
 import { archiveInvoice, deleteCustomer as deleteCloudCustomer, deleteInvoice as deleteCloudInvoice, deleteQuote as deleteCloudQuote, fetchArchivedInvoices, fetchWorkspace, markInvoicePaid, updateInvoiceStatus } from "@/lib/project-chapet";
 import { deleteSyncedMobileCustomer } from "@/lib/customer-deletion";
+import { fetchNextDocumentNumber } from "@/lib/project-chapet";
 import { mobileInvoiceStatusToDesktop } from '@/lib/mobile-desktop-sync';
 import { customerToMobile, quoteToMobile, invoiceToMobile } from "@/lib/mobile-desktop-sync";
 import { isDatabaseId } from "@/lib/mobile-desktop-sync";
@@ -106,6 +107,20 @@ export default function RappidosMobileShellV2() {
   const customerReturnEditor = useRef<Extract<Editor, { kind: "quote" | "invoice" }> | null>(null);
   const lineListRef = useRef<HTMLDivElement | null>(null);
   const pendingLineFocus = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!editor?.isNew || (editor.kind !== "quote" && editor.kind !== "invoice") || (editor.kind === "invoice" && editor.value.status === "Avoir")) return;
+    let active = true;
+    const draft = editor;
+    const prefix = draft.kind === "quote" ? "D" : "F";
+    const pending = draft.kind === "quote" ? workspace.quotes : workspace.invoices;
+    void fetchNextDocumentNumber(prefix, pending).then(number => {
+      if (!active) return;
+      setEditor(current => current?.kind === draft.kind && current.isNew && current.value.id === draft.value.id && current.value.number === draft.value.number
+        ? { ...current, value: { ...current.value, number } } as Editor : current);
+    }).catch(() => { /* Keep the local proposal; the server assigns the number on save. */ });
+    return () => { active = false; };
+  }, [editor?.kind, editor?.value.id, editor?.isNew]);
 
   useEffect(() => {
     const id = pendingLineFocus.current;
@@ -506,7 +521,7 @@ export default function RappidosMobileShellV2() {
   }
 
   async function openPreview(documentData: BusinessDocument, withoutPrices = false) {
-    if (!withoutPrices && incompleteLines(documentData).length) { notify("Complétez les lignes marquées À préciser avant de générer le PDF final."); return; }
+    if (!withoutPrices && !isQuote(documentData) && incompleteLines(documentData).length) { notify("Complétez les quantités, tarifs et taux de TVA avant de générer cette facture."); return; }
     setPreviewBusy(true);
     try {
       const blob = await buildPdf(documentData, withoutPrices); const url = URL.createObjectURL(blob);
@@ -515,7 +530,7 @@ export default function RappidosMobileShellV2() {
     finally { setPreviewBusy(false); }
   }
   function openEmail(documentData: BusinessDocument, withoutPrices: boolean) {
-    if (!withoutPrices && incompleteLines(documentData).length) { notify("Ce document est incomplet : complétez les quantités et tarifs avant l’envoi."); return; }
+    if (!withoutPrices && !isQuote(documentData) && incompleteLines(documentData).length) { notify("Cette facture est incomplète : complétez les quantités et tarifs avant l’envoi."); return; }
     const customer = workspace.customers.find((item) => item.id === documentData.customerId);
     setEmail({ document: documentData, withoutPrices, recipient: customer?.emails.find(Boolean) || "", subject: `${isQuote(documentData) ? "Votre devis" : "Votre facture"} ${documentData.number}`, message: `Bonjour,\n\nVeuillez trouver votre ${isQuote(documentData) ? "devis" : "facture"} ${documentData.number} en pièce jointe.\n\nCordialement,\nCHAPET SAS` });
   }
@@ -648,7 +663,7 @@ export default function RappidosMobileShellV2() {
           </div>
           <button type="button" className="rm-products-title" aria-label="Produits et services : ajouter une ligne" onClick={addProductLine}><span>Produits et services</span><span className="rm-products-add"><Plus size={21} aria-hidden="true" /> Ajouter une ligne</span></button>
           {!editor.value.items.length && <p className="rm-products-empty">Ajoutez une ligne pour renseigner un produit ou un service.</p>}
-          <div className="rm-v2-lines" ref={lineListRef}>{editor.value.items.map((item, index) => <article key={item.id} data-line-id={item.id}><header><strong>Ligne {index + 1}</strong><button type="button" aria-label={`Supprimer la ligne ${index + 1}`} onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" aria-label={`Désignation de la ligne ${index + 1}`} value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity ?? ""} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={documentUnit(item.unit) ?? ""} onChange={(event) => updateLine(index, "unit", event.target.value)} onBlur={(event) => updateLine(index, "unit", documentUnit(event.target.value) || "")} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice ?? ""} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate ?? ""} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{item.quantity === null || item.unitPrice === null ? "À préciser" : money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
+          <div className="rm-v2-lines" ref={lineListRef}>{editor.value.items.map((item, index) => <article key={item.id} data-line-id={item.id}><header><strong>Ligne {index + 1}</strong><button type="button" aria-label={`Supprimer la ligne ${index + 1}`} onClick={() => updateEditorDocument((value) => ({ ...value, items: value.items.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={17} /></button></header><input placeholder="Désignation" aria-label={`Désignation de la ligne ${index + 1}`} value={item.label} onChange={(event) => updateLine(index, "label", event.target.value)} /><textarea placeholder="Description" value={item.description} onChange={(event) => updateLine(index, "description", event.target.value)} /><div className="rm-v2-line-grid"><label>Quantité<input type="number" step="0.01" value={item.quantity ?? ""} onChange={(event) => updateLine(index, "quantity", event.target.value)} /></label><label>Unité<input value={documentUnit(item.unit) ?? ""} onChange={(event) => updateLine(index, "unit", event.target.value)} onBlur={(event) => updateLine(index, "unit", documentUnit(event.target.value) || "")} /></label><label>Prix HT<input type="number" step="0.01" value={item.unitPrice ?? ""} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} /></label><label>TVA %<input type="number" step="0.1" value={item.taxRate ?? ""} onChange={(event) => updateLine(index, "taxRate", event.target.value)} /></label></div><div className="rm-v2-line-total"><span>Total HT</span><strong>{item.quantity === null || item.unitPrice === null ? "" : money(item.quantity * item.unitPrice)}</strong></div></article>)}</div>
           <div className="rm-ai-create-row"><button className="rm-ai-create-text" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><span>Créer avec l’IA</span><small>Dicter et préremplir toutes les lignes</small></button><button className="rm-voice-button" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: editor.kind } }))}><Mic size={25} /><small>IA</small></button></div>
           {editor.kind === "quote" && <button type="button" className="rm-quote-sources rm-outline-button" onClick={() => window.dispatchEvent(new CustomEvent("projetchapet:open-ai", { detail: { target: "quote" } }))}><Camera size={19} /> Photos ou documents → devis</button>}
           <footer><div><small>Total HT</small><strong>{money(editor.value.subtotal)}</strong><small>TVA : {money(editor.value.taxTotal)} · TTC : {money(editor.value.total)}</small></div><div><button className="rm-outline-button" onClick={() => void openPreview(editor.value, false)} disabled={previewBusy}>{previewBusy ? "Génération…" : "Aperçu PDF"}</button><button className="rm-save-button" onClick={saveEditor}>Enregistrer</button></div></footer>

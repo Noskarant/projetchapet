@@ -1,4 +1,5 @@
 import { recalculatePercentageLines } from "./percentage-adjustments";
+import { nextDocumentNumber } from "./document-number";
 import { isDeductibleLine } from "./document-deductible";
 export type CustomerKind = "Professionnel" | "Particulier";
 export type QuoteStatus = "En attente" | "Validé" | "Terminé" | "Refusé";
@@ -123,13 +124,7 @@ export function sortedCustomers(customers: readonly MobileCustomer[]) {
 }
 
 export function nextNumber(existing: Array<{ number: string }>, prefix: "D" | "F" | "A") {
-  const year = new Date().getFullYear();
-  const max = existing.reduce((current, item) => {
-    if (!item.number.startsWith(`${prefix}-${year}-`)) return current;
-    const value = Number(item.number.split("-").at(-1) || 0);
-    return Math.max(current, Number.isFinite(value) ? value : 0);
-  }, 0);
-  return `${prefix}-${year}-${String(max + 1).padStart(3, "0")}`;
+  return nextDocumentNumber(existing, prefix);
 }
 
 export function normalizeQuote(quote: MobileQuote): MobileQuote {
