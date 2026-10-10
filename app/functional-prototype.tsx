@@ -457,8 +457,9 @@ export default function FunctionalPrototype() {
   }
 
   async function removeCustomer(customer: Customer) {
-    if (!window.confirm(`Supprimer ${customerName(customer)} ? Cette action échouera si des documents sont liés.`)) return;
-    try { await deleteCustomer(customer.id); await reload(); setModal(null); setToast("Client supprimé."); } catch { setToast("Ce client possède des devis ou factures : archivez-le plutôt que de le supprimer."); }
+    if (!window.confirm(`Supprimer définitivement ${customerName(customer)} ? Les clients liés à des devis ou factures ne peuvent pas être supprimés.`)) return;
+    try { await deleteCustomer(customer.id); await reload(); setModal(null); setToast("Client supprimé."); }
+    catch (error) { setToast(error instanceof Error ? error.message : "Suppression du client impossible."); }
   }
 
   async function removeQuote(quote: Quote) {

@@ -216,7 +216,12 @@ export function deleteInvoiceFromWorkspace(workspace: MobileWorkspace, id: strin
   return { ...workspace, invoices: workspace.invoices.filter((item) => item.id !== id) };
 }
 
+export const CUSTOMER_DOCUMENTS_DELETE_ERROR = "Ce client est lié à des devis ou factures, éventuellement archivés. Sa suppression est bloquée pour conserver ces documents.";
+
 export function deleteCustomerFromWorkspace(workspace: MobileWorkspace, id: string) {
+  if (workspace.quotes.some(item => item.customerId === id) || workspace.invoices.some(item => item.customerId === id)) {
+    throw new Error(CUSTOMER_DOCUMENTS_DELETE_ERROR);
+  }
   return { ...workspace, customers: workspace.customers.filter((item) => item.id !== id) };
 }
 

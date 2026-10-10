@@ -1,5 +1,6 @@
 import { documentUnit } from "./document-units";
 import { supabase } from "./supabase";
+import { deleteCustomerRecord } from "./customer-deletion";
 import { documentLinePrice } from "./document-deductible";
 
 const E2E_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -158,8 +159,7 @@ export async function saveCustomer(input: CustomerInput, id?: string) {
 
 export async function deleteCustomer(id: string) {
   const organizationId = await getActiveOrganizationId();
-  const { error } = await supabase.from("customers").delete().eq("id", id).eq("organization_id", organizationId);
-  if (error) throw error;
+  await deleteCustomerRecord(supabase, id, organizationId);
 }
 
 export async function saveQuote(input: DocumentInput, existingNumbers: string[], id?: string) {

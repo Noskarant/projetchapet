@@ -21,7 +21,8 @@ import { listExecutedVoiceActions } from "@/lib/action-client";
 import { blobToBase64 } from "@/lib/document-tools";
 import { buildBusinessDocumentPdf } from "@/lib/mobile-document-pdf";
 import { sharePreparedPdf } from "@/lib/document-file-share";
-import { archiveInvoice, deleteInvoice as deleteCloudInvoice, deleteQuote as deleteCloudQuote, fetchArchivedInvoices, fetchWorkspace, markInvoicePaid, updateInvoiceStatus } from "@/lib/project-chapet";
+import { archiveInvoice, deleteCustomer as deleteCloudCustomer, deleteInvoice as deleteCloudInvoice, deleteQuote as deleteCloudQuote, fetchArchivedInvoices, fetchWorkspace, markInvoicePaid, updateInvoiceStatus } from "@/lib/project-chapet";
+import { deleteSyncedMobileCustomer } from "@/lib/customer-deletion";
 import { mobileInvoiceStatusToDesktop } from '@/lib/mobile-desktop-sync';
 import { customerToMobile, quoteToMobile, invoiceToMobile } from "@/lib/mobile-desktop-sync";
 import { isDatabaseId } from "@/lib/mobile-desktop-sync";
@@ -31,7 +32,7 @@ import { getActiveOrganizationId } from "@/lib/project-chapet";
 import { voiceAgendaEntry, type ExecutedVoiceAction } from "@/lib/voice-action-history";
 import {
   calculateTotals, convertQuoteToInvoice, createCreditNote, customerDisplayName, sortedCustomers, deleteInvoiceFromWorkspace,
-  deleteQuoteFromWorkspace, filterAgenda, makeId, nextNumber, seedMobileWorkspace, upsertAgenda, upsertCustomer,
+  deleteCustomerFromWorkspace, deleteQuoteFromWorkspace, filterAgenda, makeId, nextNumber, seedMobileWorkspace, upsertAgenda, upsertCustomer,
   upsertInvoice, upsertQuote, type AgendaFilter, type AgendaType, type InvoiceStatus, type LineItem,
   type MobileAgendaEntry, type MobileCustomer, type MobileInvoice, type MobileQuote, type MobileWorkspace,
   type QuoteStatus,
@@ -90,6 +91,9 @@ export default function RappidosMobileShellV2() {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [deletingCustomer, setDeletingCustomer] = useState(false);
+  const customerDeletionPending = useRef(false);
+  const customerIdAliases = useRef<Record<string, string>>({});
   const [editor, setEditor] = useState<Editor>(null);
   const [preview, setPreview] = useState<PreviewState>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -211,6 +215,7 @@ export default function RappidosMobileShellV2() {
         setWorkspace(current=>JSON.stringify(current)===value?current:next);
         const aliases=(event as CustomEvent<MobileWorkspaceAliasesEvent>).detail;
         if(!aliases)return;
+        Object.assign(customerIdAliases.current, aliases.customers);
         setSelectedQuoteId(id=>id?aliases.quotes?.[id]||id:id);
         setSelectedInvoiceId(id=>id?aliases.invoices?.[id]||id:id);
         setSelectedCustomerId(id=>id?aliases.customers?.[id]||id:id);
@@ -420,6 +425,41 @@ export default function RappidosMobileShellV2() {
     };
   }, [workspace.quotes, workspace.invoices, workspace.customers, openQuoteInvoice, notify]);
 
+  async function removeSelectedCustomer() {
+    if (!selectedCustomer || customerDeletionPending.current) return;
+    if (!window.confirm(`Supprimer définitivement ${customerDisplayName(selectedCustomer)} ? Les clients liés à des devis ou factures ne peuvent pas être supprimés.`)) return;
+    customerDeletionPending.current = true;
+    setDeletingCustomer(true);
+    const readWorkspace = (): MobileWorkspace => {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) as MobileWorkspace : workspace;
+    };
+    try {
+      await deleteSyncedMobileCustomer({
+        id: selectedCustomer.id,
+        readWorkspace,
+        resolveId: id => {
+          const visited = new Set<string>();
+          while (customerIdAliases.current[id] && !visited.has(id)) {
+            visited.add(id);
+            id = customerIdAliases.current[id];
+          }
+          return id;
+        },
+        flush: flushMobileWorkspace,
+        removeCloud: deleteCloudCustomer,
+        commit: id => {
+          const next = deleteCustomerFromWorkspace(readWorkspace(), id);
+          persistMobileWorkspace(window.localStorage, next);
+          setWorkspace(next);
+          setSelectedCustomerId(null);
+        },
+      });
+      notify("Client supprimé et enregistré.");
+    } catch (error) { notify(error instanceof Error ? error.message : "Suppression du client impossible."); }
+    finally { customerDeletionPending.current = false; setDeletingCustomer(false); }
+  }
+
   async function removeSelectedQuote() {
     if (!selectedQuote || !window.confirm(`Supprimer ${selectedQuote.number} ?`)) return;
     try {
@@ -621,7 +661,7 @@ export default function RappidosMobileShellV2() {
 
       {selectedInvoice && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button onClick={() => setSelectedInvoiceId(null)}><ArrowLeft size={20} /></button><div><small>FACTURE</small><h2>{selectedInvoice.number}</h2></div><button onClick={() => setEditor({ kind: "invoice", value: { ...selectedInvoice, items: cloneLines(selectedInvoice.items) }, isNew: false })}><Pencil size={19} /></button></header><button className="rm-detail-client" onClick={() => setSelectedCustomerId(selectedInvoice.customerId)}><span><CircleUserRound size={23} /></span><div><small>Client</small><strong>{selectedInvoice.customerName}</strong></div><ChevronRight size={19} /></button><div className="rm-detail-amount"><small>Montant TTC</small><strong>{money(selectedInvoice.total)}</strong><StatusPill status={selectedInvoice.status} /></div><div className="rm-status-editor"><label>Statut de la facture<select aria-label="Statut de la facture" value={selectedInvoice.status} disabled={savingInvoiceStatus} onChange={event => void changeInvoiceStatus(event.target.value as InvoiceStatus)}>{(selectedInvoice.status === "Avoir" ? ["Avoir"] : [...(selectedInvoice.status === "Brouillon" ? ["Brouillon"] : []), "En cours", "Payée", "En retard"]).map(status => <option key={status} value={status}>{status}</option>)}</select></label></div><div className="rm-detail-dates"><div><span>Émise le</span><strong>{dateFr(selectedInvoice.issueDate)}</strong></div><div><span>Échéance</span><strong>{dateFr(selectedInvoice.dueDate)}</strong></div></div><div className="rm-accountant-state"><Mail size={19} /><div><strong>{selectedInvoice.accountantSent ? "Envoyée au comptable" : "Pas encore envoyée"}</strong><small>Copie automatique configurable</small></div></div><div className="rm-detail-actions"><button disabled={savingInvoiceStatus || selectedInvoice.status === "Payée" || selectedInvoice.status === "Avoir"} onClick={() => void changeInvoiceStatus("Payée")}><CheckCircle2 size={18} /> {selectedInvoice.status === "Payée" ? "Facture payée" : "Marquer payée"}</button><button onClick={() => void openPreview(selectedInvoice, false)}><FileDown size={18} /> Aperçu PDF</button><button onClick={() => setPdfChoice({ document: selectedInvoice, mode: "email" })}><Mail size={18} /> Envoyer PDF</button><button onClick={() => openEmail(selectedInvoice, false)}><Send size={18} /> Envoyer comptable</button><button onClick={() => window.dispatchEvent(new CustomEvent('manufeo:open-client-portal', {detail:{kind:'invoice',number:selectedInvoice.number}}))}><Share2 size={18} /> Portail du client / Déposer le PDF</button><button onClick={() => setEditor({ kind: "invoice", value: { ...selectedInvoice, items: cloneLines(selectedInvoice.items) }, isNew: false })}><Pencil size={18} /> Tout modifier</button><button onClick={makeCreditNote}><RefreshCw size={18} /> Créer un avoir</button><button className="danger" onClick={() => void removeSelectedInvoice()}><Trash2 size={18} /> {selectedInvoice.status === "Brouillon" ? "Supprimer le brouillon" : "Retirer de la liste"}</button></div></section></div>}
 
-      {selectedCustomer && !editor && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button onClick={() => setSelectedCustomerId(null)}><ArrowLeft size={20} /></button><div><small>CLIENT</small><h2>{customerDisplayName(selectedCustomer)}</h2></div><button onClick={() => setEditor({ kind: "customer", value: { ...selectedCustomer, emails: [...selectedCustomer.emails], phones: [...selectedCustomer.phones] }, isNew: false })}><Pencil size={19} /></button></header><div className="rm-client-detail-head"><span><CircleUserRound size={30} /></span><div><strong>{selectedCustomer.kind}</strong><small>{selectedCustomer.city}</small></div></div><div className="rm-client-fields"><div><span>Téléphones</span><strong>{selectedCustomer.phones.filter(Boolean).join(" · ") || "—"}</strong></div><div><span>E-mails</span><strong>{selectedCustomer.emails.filter(Boolean).join(" · ") || "—"}</strong></div><div><span>Adresse</span><strong>{[selectedCustomer.address, selectedCustomer.postalCode, selectedCustomer.city].filter(Boolean).join(", ")}</strong></div>{selectedCustomer.siret && <div><span>SIRET</span><strong>{selectedCustomer.siret}</strong><small>{selectedCustomer.vat}</small></div>}</div><div className="rm-detail-actions"><button onClick={() => window.dispatchEvent(new CustomEvent('manufeo:open-client-portal', {detail:{customerId:selectedCustomer.id}}))}><Share2 size={18} /> Portail du client</button><button onClick={() => { setSelectedCustomerId(null); switchTab("quotes"); setQuery(customerDisplayName(selectedCustomer)); }}><FileText size={18} /> Voir les devis</button><button onClick={() => { setSelectedCustomerId(null); switchTab("invoices"); setQuery(customerDisplayName(selectedCustomer)); }}><ReceiptText size={18} /> Voir les factures</button><button onClick={() => setEditor({ kind: "customer", value: { ...selectedCustomer, emails: [...selectedCustomer.emails], phones: [...selectedCustomer.phones] }, isNew: false })}><Pencil size={18} /> Modifier</button><button onClick={() => { setSelectedCustomerId(null); newQuote({ customerId: selectedCustomer.id, customerName: customerDisplayName(selectedCustomer) }); }}><Plus size={18} /> Nouveau devis</button></div></section></div>}
+      {selectedCustomer && !editor && <div className="rm-modal-backdrop"><section className="rm-detail-sheet"><header><button disabled={deletingCustomer} onClick={() => setSelectedCustomerId(null)}><ArrowLeft size={20} /></button><div><small>CLIENT</small><h2>{customerDisplayName(selectedCustomer)}</h2></div><button disabled={deletingCustomer} onClick={() => setEditor({ kind: "customer", value: { ...selectedCustomer, emails: [...selectedCustomer.emails], phones: [...selectedCustomer.phones] }, isNew: false })}><Pencil size={19} /></button></header><div className="rm-client-detail-head"><span><CircleUserRound size={30} /></span><div><strong>{selectedCustomer.kind}</strong><small>{selectedCustomer.city}</small></div></div><div className="rm-client-fields"><div><span>Téléphones</span><strong>{selectedCustomer.phones.filter(Boolean).join(" · ") || "—"}</strong></div><div><span>E-mails</span><strong>{selectedCustomer.emails.filter(Boolean).join(" · ") || "—"}</strong></div><div><span>Adresse</span><strong>{[selectedCustomer.address, selectedCustomer.postalCode, selectedCustomer.city].filter(Boolean).join(", ")}</strong></div>{selectedCustomer.siret && <div><span>SIRET</span><strong>{selectedCustomer.siret}</strong><small>{selectedCustomer.vat}</small></div>}</div><div className="rm-detail-actions"><button disabled={deletingCustomer} onClick={() => window.dispatchEvent(new CustomEvent('manufeo:open-client-portal', {detail:{customerId:selectedCustomer.id}}))}><Share2 size={18} /> Portail du client</button><button disabled={deletingCustomer} onClick={() => { setSelectedCustomerId(null); switchTab("quotes"); setQuery(customerDisplayName(selectedCustomer)); }}><FileText size={18} /> Voir les devis</button><button disabled={deletingCustomer} onClick={() => { setSelectedCustomerId(null); switchTab("invoices"); setQuery(customerDisplayName(selectedCustomer)); }}><ReceiptText size={18} /> Voir les factures</button><button disabled={deletingCustomer} onClick={() => setEditor({ kind: "customer", value: { ...selectedCustomer, emails: [...selectedCustomer.emails], phones: [...selectedCustomer.phones] }, isNew: false })}><Pencil size={18} /> Modifier</button><button disabled={deletingCustomer} onClick={() => { setSelectedCustomerId(null); newQuote({ customerId: selectedCustomer.id, customerName: customerDisplayName(selectedCustomer) }); }}><Plus size={18} /> Nouveau devis</button><button className="danger" disabled={deletingCustomer} onClick={() => void removeSelectedCustomer()}><Trash2 size={18} /> {deletingCustomer ? "Suppression…" : "Supprimer ce client"}</button></div></section></div>}
 
       {pdfChoice && <div className="rm-modal-backdrop"><section className="rm-v2-choice"><header><button onClick={() => setPdfChoice(null)}><X size={20} /></button><div><small>FORMAT DU PDF</small><h2>Avec ou sans prix ?</h2></div><span /></header><p>Choisissez la version à envoyer au client ou au collaborateur.</p><button onClick={() => { const choice = pdfChoice; setPdfChoice(null); choice.mode === "email" ? openEmail(choice.document, false) : void openPreview(choice.document, false); }}><ReceiptText size={22} /><div><strong>PDF avec prix</strong><small>Montants HT, TVA et TTC visibles</small></div><ChevronRight size={18} /></button><button onClick={() => { const choice = pdfChoice; setPdfChoice(null); choice.mode === "email" ? openEmail(choice.document, true) : void openPreview(choice.document, true); }}><FileText size={22} /><div><strong>PDF sans prix</strong><small>Version collaborateurs / chantier</small></div><ChevronRight size={18} /></button></section></div>}
 
