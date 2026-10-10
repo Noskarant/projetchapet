@@ -1,4 +1,5 @@
-import { interventionNotes, publicLineDescription } from "./document-intervention-notes";
+import { interventionNotes } from "./document-intervention-notes";
+import { documentLinePresentation } from './document-line-presentation';
 import { documentUnit } from "./document-units";
 import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { documentInsurance } from "./document-insurance";
@@ -250,13 +251,14 @@ export async function buildBusinessDocumentPdf({
   drawTableHeader();
 
   recalculatePercentageLines(document.items).forEach((item, index) => {
+    const presentation = documentLinePresentation(item, `Prestation ${index + 1}`);
     // Measure with the exact font used to draw, leaving a gap before quantity.
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);
-    const labelLines = lines(item.label || `Prestation ${index + 1}`, withoutPrices ? 145 : 82);
+    const labelLines = lines(presentation.title, withoutPrices ? 145 : 82);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.3);
-    const descriptionLines = lines(publicLineDescription(item.description), withoutPrices ? 145 : 82);
+    const descriptionLines = lines(presentation.description, withoutPrices ? 145 : 82);
     const rowHeight = Math.max(12, labelLines.length * 4.2 + descriptionLines.length * 3.6 + 3);
     if (y + 12 > safeBottom || (y + rowHeight > safeBottom && rowHeight <= safeBottom - 70)) {
       pdf.addPage();

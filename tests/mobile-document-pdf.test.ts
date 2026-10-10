@@ -8,6 +8,8 @@ import {
 } from "../lib/mobile-document-pdf";
 import type { LineItem, MobileCustomer, MobileInvoice, MobileQuote } from "../lib/mobile-prototype";
 import { normalizeCompanyProfile } from "../lib/company-profile";
+import { buildDocumentPdf } from '../lib/document-tools';
+import type { Quote } from '../lib/project-chapet';
 
 const customer: MobileCustomer = {
   id: "customer-1",
@@ -84,6 +86,48 @@ const invoice: MobileInvoice = {
   paidTotal: 0,
   accountantSent: false,
 };
+
+test('les PDF montrent la pièce en titre et les prestations en dessous sans altérer les montants', async () => {
+  const items: LineItem[] = [
+    { id: '1', label: 'Ouverture de chantier', description: 'Ouverture de chantier', quantity: 1, unit: 'forfait', unitPrice: 30, taxRate: 10 },
+    { id: '2', label: 'Chambre étage sud - Peinture plafond', description: 'Chambre étage sud - Plafond : Préparation et mise en peinture mat à deux couches', quantity: 42.08, unit: 'm²', unitPrice: 22.5, taxRate: 10 },
+    { id: '3', label: 'Petite chambre - Peinture plafond', description: 'Petite chambre - Plafond : Préparation et mise en peinture mat à deux couches', quantity: 1, unit: 'm²', unitPrice: 22.3, taxRate: 10 },
+  ];
+  const mobile = { ...quote, title: 'Peinture', items, notes: '', subtotal: 999.1, taxTotal: 99.91, total: 1099.01 };
+  const desktop: Quote = {
+    id: 'quote-1', organization_id: 'org', customer_id: 'customer-1', number: quote.number,
+    title: 'Peinture', status: 'draft', issue_date: '2026-10-10', expiry_date: '2026-11-10',
+    subtotal: 999.1, tax_total: 99.91, total: 1099.01, notes: '', sent_at: null, accepted_at: null,
+    created_at: '', updated_at: '',
+    customer: { id: 'customer-1', organization_id: 'org', kind: 'individual', company_name: null, civility: null, last_name: 'ROYER', first_name: 'Huguette', emails: [], phones: [], addresses: [], notes: null, siret: null, vat_number: null, created_at: '', updated_at: '' },
+    items: items.map((item, position) => ({ id: item.id, position, label: item.label, description: item.description, quantity: Number(item.quantity), unit: item.unit, unit_price: Number(item.unitPrice), tax_rate: Number(item.taxRate), total: Number(item.quantity) * Number(item.unitPrice) })),
+  };
+  const before = JSON.stringify({ mobile, desktop });
+  const blobs = [
+    await buildBusinessDocumentPdf({ document: mobile, customer, company }),
+    await buildDocumentPdf(desktop),
+  ];
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  for (const blob of blobs) {
+    const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+    try {
+      const pdf = await task.promise;
+      const content = await (await pdf.getPage(1)).getTextContent();
+      const chunks = content.items.filter(item => 'str' in item);
+      const text = chunks.map(item => item.str).join(' ');
+      assert.equal(chunks.filter(item => item.str === 'Chambre étage sud').length, 1);
+      assert.equal(chunks.filter(item => item.str === 'Petite chambre').length, 1);
+      assert.equal(chunks.filter(item => item.str === 'Ouverture de chantier').length, 1);
+      assert.doesNotMatch(text, /Chambre étage sud - Peinture plafond/);
+      const heading = chunks.find(item => item.str === 'Chambre étage sud')!;
+      const detail = chunks.find(item => item.str.startsWith('Plafond :'))!;
+      assert.ok(heading.transform[5] > detail.transform[5], 'La prestation apparaît sous la localisation');
+      assert.notEqual(heading.fontName, detail.fontName, 'Le titre est en gras, le détail en texte normal');
+      assert.match(text, /999,10/); assert.match(text, /99,91/); assert.match(text, /1 099,01/);
+    } finally { await task.destroy(); }
+  }
+  assert.equal(JSON.stringify({ mobile, desktop }), before);
+});
 
 test("les variantes devis, facture, avoir et chantier ont le bon libellé et nom de fichier", () => {
   assert.equal(businessDocumentTypeLabel(quote), "DEVIS");

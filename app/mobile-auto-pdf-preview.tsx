@@ -1,5 +1,6 @@
 "use client";
-import { interventionNotes, publicLineDescription } from "@/lib/document-intervention-notes";
+import { interventionNotes } from "@/lib/document-intervention-notes";
+import { documentLinePresentation } from '@/lib/document-line-presentation';
 import { documentUnit } from "@/lib/document-units";
 import { documentInsurance } from "@/lib/document-insurance";
 import { documentDeductible, isDeductibleLine } from "@/lib/document-deductible";
@@ -551,17 +552,19 @@ export default function MobileAutoPdfPreview() {
                 <span>Faites défiler pour tout consulter</span>
               </div>
               <div className="rm-philippe-lines">
-                {preview.quote.items.map((item, index) => (
+                {preview.quote.items.map((item, index) => {
+                  const presentation = documentLinePresentation(item);
+                  return (
                   <article key={item.id || index} className="rm-philippe-line-card" style={{ touchAction: "pan-y" }} onTouchStart={event => { const touch = event.touches[0]; swipeStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={event => { const start = swipeStart.current, touch = event.changedTouches[0]; if (start && Math.abs(touch.clientX - start.x) > 55 && Math.abs(touch.clientY - start.y) < 40) setDeleteLineId(item.id); swipeStart.current = null; }}>
                     {deleteLineId === item.id && <button type="button" className="rm-swipe-delete" onClick={() => void removeLine(item.id)}><Trash2 size={18} /> Supprimer ce poste</button>}
                     <div className="rm-philippe-line-head">
                       <div>
                         <small>POSTE {index + 1}</small>
-                        <strong>{item.label || "Prestation"}</strong>
+                        <strong>{presentation.title}</strong>
                       </div>
                       <button type="button" aria-label={`Supprimer ${item.label}`} onClick={() => setDeleteLineId(deleteLineId === item.id ? null : item.id)}><Trash2 size={18} /></button>
                     </div>
-                    {publicLineDescription(item.description) && <p>{publicLineDescription(item.description)}</p>}
+                    {presentation.description && <p style={{ whiteSpace: 'pre-wrap' }}>{presentation.description}</p>}
                     <div className="rm-philippe-line-prices">
                       <div>
                         <small>Quantité</small>
@@ -578,7 +581,8 @@ export default function MobileAutoPdfPreview() {
                     </div>
                     <div className="rm-philippe-line-tax">TVA {item.taxRate === null ? "À préciser" : `${item.taxRate} %`}</div>
                   </article>
-                ))}
+                  );
+                })}
               </div>
               {preview.meta.internalNotes.trim() && (
                 <section className="rm-philippe-internal-card">

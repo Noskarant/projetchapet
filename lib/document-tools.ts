@@ -1,4 +1,5 @@
-import { interventionNotes, publicLineDescription } from "./document-intervention-notes";
+import { interventionNotes } from "./document-intervention-notes";
+import { documentLinePresentation } from './document-line-presentation';
 import type { Invoice, Quote } from "./project-chapet";
 import { drawManufeoPdfFooter } from './manufeo-pdf-footer';
 import { customerName } from "./project-chapet";
@@ -119,19 +120,17 @@ export async function buildDocumentPdf(document: BusinessDocument) {
   pdf.setFont("helvetica", "normal");
   pdf.setCharSpace(0);
   for (const item of document.items) {
-    if (y > 252) {
+    const presentation = documentLinePresentation(item);
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5);
+    const labelLines = pdf.splitTextToSize(presentation.title, 88) as string[];
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5);
+    const descriptionLines = presentation.description ? pdf.splitTextToSize(presentation.description, 88) as string[] : [];
+    const rowHeight = labelLines.length * 4.5 + descriptionLines.length * 4 + (descriptionLines.length ? 1.5 : 0);
+    if (y > 252 || (y + rowHeight > 252 && rowHeight < 230)) {
       pdf.addPage();
       y = 18;
     }
-    const lines = pdf.splitTextToSize(item.label || "Prestation", 88);
-    pdf.text(lines, margin + 2, y);
-    if (publicLineDescription(item.description || "")) {
-      pdf.setTextColor(95, 108, 124);
-      pdf.setFontSize(7.5);
-      pdf.text(pdf.splitTextToSize(publicLineDescription(item.description || ""), 88), margin + 2, y + 5);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(8.5);
-    }
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5);
     pdf.setCharSpace(0);
     pdf.text(numberWithUnit(item.quantity, item.unit), 118, y, { align: "right" });
     pdf.text(money(item.unit_price), 145, y, { align: "right" });
@@ -140,11 +139,26 @@ export async function buildDocumentPdf(document: BusinessDocument) {
       ? null
       : item.total;
     pdf.text(money(lineTotal), 192, y, { align: "right" });
-    y += Math.max(11, lines.length * 4.5 + (item.description ? 5 : 0));
+    const startY = y;
+    const textRows = [
+      ...labelLines.map(text => ({ text, font: 'bold', size: 8.5, height: 4.5 })),
+      ...descriptionLines.map(text => ({ text, font: 'normal', size: 7.5, height: 4 })),
+    ];
+    textRows.forEach((row, index) => {
+      if (index === labelLines.length) y += 1.5;
+      if (y + row.height > 252) { pdf.addPage(); y = 18; }
+      pdf.setFont('helvetica', row.font); pdf.setFontSize(row.size);
+      pdf.setTextColor(...(row.font === 'bold' ? [0, 0, 0] : [95, 108, 124]) as [number, number, number]);
+      pdf.text(row.text, margin + 2, y); y += row.height;
+    });
+    y += Math.max(6, 11 - (y - startY));
+    pdf.setTextColor(0, 0, 0); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5);
     pdf.setDrawColor(235, 239, 244);
     pdf.line(margin, y - 4, 194, y - 4);
   }
 
+  const taxCount = new Set(document.items.filter(item => item.tax_rate !== null && item.tax_rate !== undefined).map(item => item.tax_rate)).size;
+  if (y + 26 + Math.max(1, taxCount) * 7 > 270) { pdf.addPage(); y = 18; }
   y += 4;
   const totalsX = 132;
   pdf.setFont("helvetica", "normal");
