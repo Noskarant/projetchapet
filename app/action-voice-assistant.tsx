@@ -48,7 +48,7 @@ import "./action-voice-assistant.css";
 import "./action-voice-replay.css";
 import { richNoteContent, insertCopiedText, readClipboardNote } from '@/lib/quote-source-clipboard';
 import { readQuoteSourceFiles } from '@/lib/quote-source-files';
-import { quoteSourceRequest, customerSourceRequest, sourceRequestTarget, MAX_QUOTE_SOURCES, type QuoteSource } from '@/lib/quote-sources';
+import { quoteSourceRequest, customerSourceRequest, sourceRequestTarget, MAX_QUOTE_SOURCES, MAX_SOURCE_OBSERVATIONS, type QuoteSource } from '@/lib/quote-sources';
 import { documentUnit } from '@/lib/document-units';
 import { supplierMarkupInput } from '@/lib/supplier-markup';
 
@@ -616,7 +616,7 @@ export default function ActionVoiceAssistant() {
           sourceObservationsRef.current = extraction.observations;
         }
         const observations = [copied ? `Début de la note artisan :\n${copied}\nFin de la note artisan` : '', sourceObservationsRef.current].filter(Boolean).join('\n\n');
-        if (observations.length > 10_000) throw new Error('Sources trop longues. Collez ou joignez uniquement les passages utiles.');
+        if (observations.length > MAX_SOURCE_OBSERVATIONS) throw new Error('Sources trop longues. Collez ou joignez uniquement les passages utiles.');
         normalized = clientSources ? customerSourceRequest(text, observations) : quoteSourceRequest(text, observations, markup);
       } else if (markup !== null) {
         normalized += `\nMajoration commerciale : ${markup} %.`;

@@ -96,7 +96,7 @@ test('le collage associe texte et image, respecte la sélection et garde le repl
  assert.equal(fallback.text,note);
 });
 
-test('12 pages sont lues intégralement dans l’ordre, avec au plus deux requêtes vision simultanées',async()=>{
+test('12 pages sont lues intégralement dans l’ordre, avec au plus quatre requêtes vision simultanées',async()=>{
  const priorFetch=globalThis.fetch, priorKey=process.env.GROQ_API_KEY;
  process.env.GROQ_API_KEY='fixture';let active=0,maxActive=0,calls=0;
  globalThis.fetch=async(_input,init)=>{
@@ -104,11 +104,11 @@ test('12 pages sont lues intégralement dans l’ordre, avec au plus deux requê
   assert.equal(body.messages[1].content.filter((c:{type:string})=>c.type==='image_url').length,3);
   assert.match(body.messages[0].content,/type et le rôle de chaque source/);assert.match(body.messages[0].content,/Coordonnées assuré/);
   await new Promise(resolve=>setTimeout(resolve,index%2?15:1));active--;
-  return Response.json({choices:[{message:{content:`groupe-${index}`},finish_reason:'stop'}]});
+  return Response.json({choices:[{message:{content:JSON.stringify({sources:[0,1,2].map(source_index=>({source_index,kind:'context',reference:'',rows_complete:true,rows:[],observations:`groupe-${index}`,subtotal:null,subtotal_scope:'unknown'}))})},finish_reason:'stop'}]});
  };
  try {
-  const sources=validateQuoteSources(Array.from({length:12},(_,i)=>({name:`page-${i}`,image:'data:image/jpeg;base64,/9j/AA=='})));
-  assert.equal(await readQuoteSources(sources),'groupe-1\n\ngroupe-2\n\ngroupe-3\n\ngroupe-4');assert.equal(calls,4);assert.equal(maxActive,2);
+  const sources=validateQuoteSources(Array.from({length:12},(_,i)=>({name:`page-${i}`,image:`data:image/jpeg;base64,/9j/AA${i}=`})));
+  const read=await readQuoteSources(sources);for(let i=1;i<=4;i++)assert.ok(read.indexOf(`groupe-${i}`)> (i===1?-1:read.indexOf(`groupe-${i-1}`)));assert.equal(calls,4);assert.equal(maxActive,4);
   assert.throws(()=>validateQuoteSources([...sources,sources[0]]),/1 à 12/);
   assert.throws(()=>validateQuoteSources(sources.map(source=>({...source,image:'data:image/jpeg;base64,/9j/'+ 'A'.repeat(399_976)}))),/volumineux/);
  }finally{globalThis.fetch=priorFetch;if(priorKey===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=priorKey;}

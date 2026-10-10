@@ -79,10 +79,11 @@ test('lecture vision : traite les 6 images en groupes de 3 et préserve la dict�
     assert.equal(body.model, process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b');
     assert.equal(body.messages[1].content.filter((item: { type: string }) => item.type === 'image_url').length, 3);
     assert.match(body.messages[0].content, /N'estime jamais une dimension/);
-    return Response.json({ choices: [{ message: { content: `Source ${++calls} : plafond à repeindre. Dimensions inconnues.` }, finish_reason: 'stop' }] });
+    calls++;
+    return Response.json({ choices: [{ message: { content: JSON.stringify({sources:[0,1,2].map(source_index=>({source_index,kind:'context',reference:'',rows_complete:true,rows:[],observations:`Source ${calls} : plafond à repeindre. Dimensions inconnues.`,subtotal:null,subtotal_scope:'unknown'}))}) }, finish_reason: 'stop' }] });
   };
   try {
-    const sources = validateQuoteSources(Array.from({ length: 6 }, (_, index) => ({ name: `photo${index}.jpg`, image: 'data:image/jpeg;base64,/9j/AA==' })));
+    const sources = validateQuoteSources(Array.from({ length: 6 }, (_, index) => ({ name: `photo${index}.jpg`, image: `data:image/jpeg;base64,/9j/AA${index}=` })));
     const result = await readQuoteSources(sources);
     assert.equal(calls, 2);
     assert.match(result, /Source 1/); assert.match(result, /Source 2/);

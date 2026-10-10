@@ -15,7 +15,7 @@ export async function proposeLearnedSellingPrices(actions: PlannedAction[], orga
   for (const action of quotes) {
     for (const [index, item] of (action.payload.items as Array<Record<string, unknown>>).entries()) {
       // Preserve explicit zero, TTC awaiting conversion and any dictated amount.
-      if (item.unit_price !== null && item.unit_price !== undefined || item.spoken_price_ttc != null || item.spoken_price_ambiguous != null) continue;
+      if (item.source_row_id || item.unit_price !== null && item.unit_price !== undefined || item.spoken_price_ttc != null || item.spoken_price_ambiguous != null) continue;
       const price = learnedSellingPrice(String(item.label || ''), typeof item.unit === 'string' ? item.unit : null, history);
       if (!price) continue;
       item.unit_price = price.unitPrice;

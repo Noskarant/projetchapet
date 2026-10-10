@@ -82,7 +82,7 @@ function normalizedItems(value: unknown) {
     return {
       position: index,
       label: string(line.label, 240) || "Prestation à compléter",
-      description: string(line.description, 800) || null,
+      description: string(line.description, 2000) || null,
       quantity,
       unit: documentUnit(string(line.unit, 40)),
       unit_price: unitPrice,

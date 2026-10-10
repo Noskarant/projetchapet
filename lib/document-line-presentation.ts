@@ -1,7 +1,7 @@
 import { publicLineDescription } from './document-intervention-notes';
 
 const key = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-const roomStart = /^(?:(?:petite|grande|principale|ancienne|nouvelle)\s+)?(?:chambre|cuisine|salle\s+(?:de\s+bains?|d\s+eau|a\s+manger)|salon|sejour|couloir|entree|bureau|garage|terrasse|placard|cellier|buanderie|wc|toilettes|piece)\b/u;
+const roomStart = /^(?:(?:petite|grande|principale|ancienne|nouvelle)\s+)?(?:chambre|cuisine|salle\s+(?:de\s+bains?|d\s+eau|a\s+manger)|salon|sejour|couloir|entree|hall|bureau|garage|terrasse|placard|cellier|buanderie|wc|toilettes|piece)\b/u;
 const workWords = /\b(?:peinture|peint|papier|plafond|murs?|sols?|preparation|remplacement|reparation|pose|depose|fourniture|carrelage|poncage|enduit|ratissage|nettoyage|protection|electricite|plomberie|travaux)\b/u;
 
 function isLocation(value: string) {

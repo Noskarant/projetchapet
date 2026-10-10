@@ -1,3 +1,5 @@
+import { canonicalSourceRows, sourceRowConsistent, type SourceRow } from './source-document-integrity';
+import { artisanInstructions } from './document-parties';
 import { sourceTableFacts } from './source-table-facts';
 import { sourceWorkItems } from './source-work-scope';
 import { documentUnit } from "./document-units";
@@ -229,7 +231,48 @@ function normalizeCustomerPayload(source: RecordLike, transcript = "") {
   };
 }
 
+function normalizeSourceRow(row: SourceRow, modelItems: unknown[], transcript: string) {
+  const instructions = artisanInstructions(transcript);
+  const explicitRates = [...instructions.matchAll(/\bTVA\s*(?:à|a|de|:)?\s*(0|5[,.]5|10|20)\s*%/giu)].map(match=>Number(match[1].replace(',','.')));
+  const artisanRate = new Set(explicitRates).size === 1 && !/\b(?:cette|ce|la)\s+(?:ligne|prestation)\b/iu.test(instructions) ? explicitRates[0] : null;
+  const uncertain = new Set(row.uncertain_fields);
+  if (sourceRowConsistent(row) === false) { uncertain.add('quantity'); uncertain.add('unit_price'); }
+  const defaultTax = artisanRate == null && row.tax_rate === null && !uncertain.has('tax_rate');
+  const tax = artisanRate ?? (uncertain.has('tax_rate') ? null : row.tax_rate ?? 10);
+  const price = uncertain.has('unit_price') || uncertain.has('price_type') ? null : row.unit_price;
+  const type = uncertain.has('price_type') ? 'unknown' : row.price_type;
+  const ttcWithoutTax = type === 'ttc' && (tax === null || defaultTax);
+  const label = [row.location,row.label].filter(Boolean).join(' - ');
+  let result: ReturnType<typeof normalizeLine> & {source_row_id:string;source_uncertain_fields:string[];source_tax_default:boolean;source_tax_code:string} = {
+    label,description:row.description,quantity:uncertain.has('quantity') ? null : row.quantity,
+    unit:uncertain.has('unit') ? null : row.unit,
+    unit_price:type === 'unknown' || ttcWithoutTax ? null : type === 'ttc' && price !== null && tax !== null ? Math.round(price/(1+tax/100)*100)/100 : price,
+    tax_rate:ttcWithoutTax ? null : tax,price_type:type,
+    spoken_price_ttc:ttcWithoutTax ? price : null,spoken_price_ambiguous:type === 'unknown' ? price : null,
+    source_row_id:row.id,source_uncertain_fields:[...uncertain],source_tax_default:defaultTax && !ttcWithoutTax,source_tax_code:row.tax_code,
+  };
+  // Only grounded artisan evidence can deliberately change a source amount.
+  const model = modelItems.map(record).find(item=>item.source_row_id===row.id)
+    || modelItems.map(record).find(item=>text(item.label,240)===label);
+  if (model) {
+    const priceEvidence = groundedEvidence(instructions,model.price_evidence);
+    const quantityEvidence = groundedEvidence(instructions,model.quantity_evidence);
+    const taxEvidence = groundedEvidence(instructions,model.tax_evidence);
+    if (priceEvidence || quantityEvidence || taxEvidence) {
+      const override = normalizeLine({...model,price_evidence:priceEvidence,quantity_evidence:quantityEvidence,tax_evidence:taxEvidence},instructions);
+      if (priceEvidence && explicitPrice(priceEvidence) !== null) {
+        result = {...result,unit_price:override.unit_price,price_type:override.price_type,spoken_price_ttc:override.spoken_price_ttc,spoken_price_ambiguous:override.spoken_price_ambiguous}; uncertain.delete('unit_price'); uncertain.delete('price_type');
+      }
+      if (quantityEvidence && explicitQuantity(quantityEvidence) !== null) { result = {...result,quantity:override.quantity,unit:override.unit ?? result.unit}; uncertain.delete('quantity'); uncertain.delete('unit'); }
+      if (taxEvidence && explicitTax(taxEvidence) !== null) { result = {...result,tax_rate:override.tax_rate,source_tax_default:false}; uncertain.delete('tax_rate'); }
+      result.source_uncertain_fields = [...uncertain];
+    }
+  }
+  return result;
+}
+
 function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyConverted = false) {
+  const sourceRows = canonicalSourceRows(transcript);
   const markupPercent = spokenSupplierMarkup(transcript);
   const original = Array.isArray(source.items) ? sourceWorkItems(source.items.slice(0, 100), transcript).filter(item => !isDeductibleLine({ label: text(record(item).label, 240) }) && !(markupPercent !== null && isSupplierMarkupLine(text(record(item).label,240)))) : [];
   const labels = original.map((item) => text(record(item).label, 240));
@@ -242,15 +285,27 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
     Boolean(line.label && !/^prestation(?:\s+à\s+compléter)?$/i.test(line.label))
       || (line.quantity !== null && line.quantity > 0) || line.unit_price !== null,
   );
+  if (sourceRows) {
+    normalizedItems = sourceRows.map(row=>normalizeSourceRow(row,Array.isArray(source.items) ? source.items : [],transcript));
+    // Explicit additions remain supported, but cannot come from photo context.
+    const instructions = artisanInstructions(transcript);
+    if (/\b(?:ajoute|rajoute|ajouter|inclus|inclure|complète)\b/iu.test(instructions)) {
+      const additions = original.filter(item=>{
+        const line = record(item), evidence = groundedEvidence(instructions,line.scope_evidence);
+        return Boolean(evidence) && !sourceRows.some(row=>line.source_row_id===row.id || text(line.label,240)===[row.location,row.label].filter(Boolean).join(' - '));
+      });
+      normalizedItems.push(...additions.map(item=>normalizeLine(item,instructions)));
+    }
+  }
   if (markupPercent !== null) normalizedItems = normalizedItems.map(item=>({...item,description:supplierMarkupNotes(item.description)}));
-  normalizedItems = reuseSameDocumentPrices(normalizedItems, original.map(record), transcript);
+  if (!sourceRows) normalizedItems = reuseSameDocumentPrices(normalizedItems, original.map(record), transcript);
   // Preparation and finishing steps covered by one explicitly priced unit are
   // one service. The model must not multiply that single spoken charge.
   const serviceTranscript = withoutPaymentAdjustments(withoutSupplierMarkup(transcript));
   const prices = [...serviceTranscript.matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))];
   const units = [...serviceTranscript.matchAll(/\b(?:une?|1)\s+(?:unit[ée]|forfait)(?![\p{L}])/giu)];
   const otherQuantities = [...serviceTranscript.matchAll(/\b\d+(?:[,.]\d+)?\s*(?:m²|m2|mètres?|rouleaux?|heures?|pièces?|unités?|forfaits?)(?![\p{L}])/giu)];
-  if (normalizedItems.length >= 1 && prices.length === 1 && units.length === 1
+  if (!sourceRows && normalizedItems.length >= 1 && prices.length === 1 && units.length === 1
     && otherQuantities.every(match => /^(?:1)\s+(?:unit[ée]|forfait)(?![\p{L}])/iu.test(match[0]))
     && !sharedPrice && !/\b(?:chacun|chacune|chaque|par\s+poste|prix\s+identiques?)\b/iu.test(serviceTranscript)
     && !roomSegments.some(Boolean)
@@ -272,7 +327,7 @@ function normalizeDocumentPayload(source: RecordLike, transcript = "", alreadyCo
   }
   const baseItems = normalizedItems.map((item, index) => ({ id: String(index), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unit_price, taxRate: item.tax_rate }));
   const items = applyDeductibleLine(applySpokenPercentageLines(applySupplierMarkup(baseItems, markupPercent), withoutSupplierMarkup(transcript)), transcript).map(item => ({
-    ...(normalizedItems.find(line => line.label === item.label) || {}), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: item.taxRate,
+    ...(/^\d+$/u.test(item.id) ? normalizedItems[Number(item.id)] : normalizedItems.find(line => line.label === item.label) || {}), label: item.label, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: item.taxRate,
   }));
   const customerFromPosition = numberOrNull(source.customer_from_position);
   return {
@@ -436,6 +491,15 @@ function payloadForIntent(intentType: ActionIntent, source: RecordLike, transcri
   };
 }
 
+function sourceImportWarnings(payload: Record<string,unknown>) {
+  const rows = Array.isArray(payload.items) ? payload.items.map(record).filter(row=>row.source_row_id) : [];
+  const warnings: string[] = [];
+  const ambiguous = rows.filter(row=>Array.isArray(row.source_uncertain_fields) && row.source_uncertain_fields.length);
+  if (ambiguous.length) warnings.push(`Lecture à confirmer : ${ambiguous.map(row=>text(row.label,120)).join(' ; ')}. Les valeurs incertaines restent vides, sans tarif suggéré automatiquement.`);
+  if (rows.some(row=>row.source_tax_default)) warnings.push(`TVA 10 % appliquée par défaut à l'import : aucun taux lisible pour certains postes${rows.some(row=>row.source_tax_code) ? ' ; un code TVA ne permet pas de déduire le taux' : ''}. Vérifiez ce taux avant l'envoi.`);
+  return warnings;
+}
+
 function finalizeAction({
   intentType,
   payload,
@@ -466,7 +530,7 @@ function finalizeAction({
     riskLevel: riskLevelForIntent(intentType),
     status: dedupedMissing.length ? "needs_input" : "ready",
     confidence: Math.max(0, Math.min(1, Number.isFinite(Number(confidence)) ? Number(confidence) : 0)),
-    warnings: [...new Set(warnings ?? [])].slice(0, 30),
+    warnings: [...new Set([...(warnings ?? []),...sourceImportWarnings(payload)])].slice(0, 30),
     missingFields: dedupedMissing,
     ...(typeof customerFromPosition === "number" ? { customerFromPosition } : {}),
     ...(typeof quoteFromPosition === "number" ? { quoteFromPosition } : {}),
