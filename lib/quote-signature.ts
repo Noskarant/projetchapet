@@ -1,3 +1,4 @@
+import { documentSendPolicy } from './document-send-policy';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ApiInputError, isEmail } from './api-guard';
@@ -20,7 +21,7 @@ export async function createQuoteSignatureRequest(admin: SupabaseClient, organiz
   if(refreshed.error||!refreshed.data)throw new ApiInputError('Devis introuvable.',404);
   const quote = refreshed.data;
   if (!['draft','sent'].includes(quote.status)) throw new ApiInputError('Ce devis ne peut plus être envoyé pour signature.',409);
-  if (!quote.items.length || quote.items.some((item: Record<string, unknown>)=>item.quantity===null||item.unit_price===null||item.tax_rate===null)) throw new ApiInputError('Complétez les prestations avant la signature.',409);
+  if (!documentSendPolicy('quote', quote.items.map((item: Record<string, unknown>) => ({ quantity: item.quantity as number | null, unitPrice: item.unit_price as number | null, taxRate: item.tax_rate as number | null }))).canSign) throw new ApiInputError('Complétez les prestations avant la signature.',409);
   const customer = Array.isArray(quote.customer)?quote.customer[0]:quote.customer;
   if (!customer?.emails?.some((email: string)=>email.toLowerCase()===recipient.toLowerCase())) throw new ApiInputError('La signature doit être envoyée à une adresse enregistrée sur la fiche client.',403);
   const [org,profile,meta] = await Promise.all([

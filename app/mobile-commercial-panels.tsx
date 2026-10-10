@@ -1,5 +1,6 @@
 "use client";
 
+import { documentSendPolicy } from "@/lib/document-send-policy";
 import {
   AlertTriangle,
   BellRing,
@@ -437,6 +438,7 @@ export function EmailPanel({
   onManagePhotos?: () => void;
   smsConfigured?: boolean;
 }) {
+  const policy = documentSendPolicy('expiryDate' in draft.document ? 'quote' : 'invoice', draft.document.items, draft.withoutPrices);
   return (
     <div className="rm-commercial-body">
       <div className="rm-commercial-intro">
@@ -491,8 +493,8 @@ export function EmailPanel({
         </label>
         {'expiryDate' in draft.document && <>
           <label className="rm-commercial-check">
-            <input type="checkbox" checked={!draft.withoutPrices && Boolean(draft.requestSignature)} disabled={busy || draft.withoutPrices || draft.document.status !== 'En attente'} onChange={event=>onChange({...draft,requestSignature:event.target.checked})}/>
-            <span>Proposer la signature du devis<small>Le client reçoit un lien personnel pour lire le PDF et donner son bon pour accord.</small></span>
+            <input type="checkbox" checked={policy.canSign && Boolean(draft.requestSignature)} disabled={busy || !policy.canSign || draft.document.status !== 'En attente'} onChange={event=>onChange({...draft,requestSignature:event.target.checked})}/>
+            <span>Proposer la signature du devis<small>{policy.canSign ? 'Le client reçoit un lien personnel pour lire le PDF et donner son bon pour accord.' : 'Le devis peut être envoyé. Pour proposer la signature, renseignez au moins un prix et complétez la quantité et la TVA des lignes chiffrées.'}</small></span>
           </label>
           <label className="rm-commercial-check">
             <input type="checkbox" checked={!draft.withoutPrices && Boolean(draft.notifyBySms)} disabled={busy || draft.withoutPrices} onChange={event=>onChange({...draft,notifyBySms:event.target.checked})}/>

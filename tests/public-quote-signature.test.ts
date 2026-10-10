@@ -28,3 +28,17 @@ test('la signature utilise uniquement le jeton haché et retourne le refus d’u
   assert.equal(payload!['p_token_hash'],signatureTokenHash(token));assert.notEqual(payload!['p_ip_hash'],'192.0.2.50');
  }finally{globalThis.fetch=prior;if(saved===undefined)delete process.env.SUPABASE_SERVICE_ROLE_KEY;else process.env.SUPABASE_SERVICE_ROLE_KEY=saved;}
 });
+test('signature : les lignes descriptives restent dans le PDF sans empêcher les postes chiffrés',async()=>{
+ const uploads:Array<{bytes:Uint8Array}>=[];
+ const quote={id:'quote-id',number:'DEV-2026-043',title:'Intégration plaque inox',status:'draft',issue_date:'2026-10-10',expiry_date:'2026-11-10',subtotal:5661,tax_total:566.1,total:6227.1,customer_id:'client-id',notes:'',customer:{id:'client-id',kind:'individual',last_name:'Client',emails:['client@example.fr'],phones:[],addresses:[]},items:[
+  {label:'Réalisation en atelier du châssis',quantity:null,unit_price:null,tax_rate:10},
+  {label:'Mise en place sur site',quantity:null,unit_price:null,tax_rate:10},
+  {label:'Fourniture et mise en place des tôles inox',quantity:1,unit:'U',unit_price:5661,tax_rate:10},
+ ]};
+ const snapshot={version:1};
+ const admin={from(table:string){const chain={select(){return this},eq(){return this},insert(){return this},async single(){return {data:table==='quotes'?quote:table==='organizations'?{id:'organization',name:'Entreprise Test'}:{id:'request-id'},error:null}},async maybeSingle(){return {data:null,error:null}}};return chain},async rpc(){return {data:snapshot,error:null}},storage:{from(){return {async upload(_path:string,bytes:Uint8Array){uploads.push({bytes});return {error:null}},async remove(){return {error:null}}}}}} as unknown as SupabaseClient;
+ const signing=await createQuoteSignatureRequest(admin,'organization',quote.number,'client@example.fr','https://manufeo.fr');
+ assert.match(signing.url,/^https:\/\/manufeo.fr\/signer\/[a-f0-9]{64}$/);assert.equal(uploads.length,1);
+ const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');const task=getDocument({data:new Uint8Array(Buffer.from(signing.pdf.content,'base64'))});
+ try{const pdf=await task.promise;const texts=[];for(let i=1;i<=pdf.numPages;i++){texts.push((await(await pdf.getPage(i)).getTextContent()).items.flatMap(item=>'str'in item?[item.str]:[]).join(' '))}const text=texts.join(' ');assert.match(text,/Réalisation en atelier du châssis/);assert.match(text,/Mise en place sur site/);assert.match(text,/6 227,10/);assert.doesNotMatch(text,/À préciser/);}finally{await task.destroy()}
+});

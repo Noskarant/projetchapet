@@ -1,5 +1,6 @@
 "use client";
 
+import { documentSendPolicy } from "@/lib/document-send-policy";
 import { CollaboratorPanel, SupplierPanel, InboundEmailPanel } from "./artisan-workflow-panels";
 import { FIELD_INTERFACE_QUERY } from "@/lib/responsive-interface";
 
@@ -693,7 +694,8 @@ export default function MobileCommercialDemo() {
     }
 
     const customer = findCustomer(currentWorkspace, email.document.customerId);
-    if (!email.withoutPrices && email.document.items.some(item => item.quantity === null || item.unitPrice === null || item.taxRate === null)) {
+    const policy = documentSendPolicy(isMobileQuote(email.document) ? 'quote' : 'invoice', email.document.items, email.withoutPrices);
+    if (!policy.canSend) {
       notify('Complétez les quantités et tarifs avant d’envoyer le document avec les prix.');
       return;
     }
@@ -722,7 +724,7 @@ export default function MobileCommercialDemo() {
         to: email.recipient.trim(),
         customRecipient: true,
         copyToSelf: email.copyToSelf ?? true,
-        requestSignature: !email.withoutPrices && Boolean(email.requestSignature),
+        requestSignature: policy.canSign && Boolean(email.requestSignature),
         notifyBySms: !email.withoutPrices && Boolean(email.notifyBySms),
         subject: email.subject,
         html: plainDocumentEmailHtml(email.message),

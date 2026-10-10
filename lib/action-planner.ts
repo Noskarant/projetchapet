@@ -1,3 +1,4 @@
+import { sourceTableFacts } from './source-table-facts';
 import { sourceWorkItems } from './source-work-scope';
 import { documentUnit } from "./document-units";
 import { reuseSameDocumentPrices } from './same-document-prices';
@@ -76,13 +77,21 @@ function intent(value: unknown): ActionIntent | null {
 }
 
 function normalizeLine(value: unknown, transcript: string, roomSegment?: string, roomQuantity?: number | null, alreadyConverted = false, sharedPrice?: ReturnType<typeof sharedVoiceUnitPrice>, scopedPrice?: ReturnType<typeof sharedVoiceUnitPrice>) {
-  const source = record(value);
+  const original = record(value);
+  const table = sourceTableFacts(transcript, text(original.label, 240));
+  const artisan = transcript.split('Informations issues des sources à vérifier :')[0].split('Instructions de l’artisan :')[1] || '';
+  const artisanOverride = Boolean(groundedEvidence(artisan, original.price_evidence));
+  const artisanQuantityOverride = Boolean(groundedEvidence(artisan, original.quantity_evidence));
+  const source = table ? { ...original, ...table,
+    ...(artisanOverride ? { unit_price: original.unit_price } : {}),
+    ...(artisanQuantityOverride ? { quantity: original.quantity, unit: original.unit } : {}),
+  } : original;
   const quantityEvidence = groundedEvidence(transcript, source.quantity_evidence);
   const priceEvidence = groundedEvidence(transcript, source.price_evidence);
   const taxEvidence = groundedEvidence(transcript, source.tax_evidence);
   const unitEvidence = quantityEvidence || priceEvidence;
   const quantityFromEvidence = unitEvidence ? explicitQuantity(unitEvidence) : null;
-  const quantity = quantityFromEvidence !== null ? quantityFromEvidence
+  const quantity = table && !artisanQuantityOverride ? table.quantity : quantityFromEvidence !== null ? quantityFromEvidence
     : roomQuantity !== undefined ? roomQuantity : numberOrNull(source.quantity);
   const pricesInRoom = roomSegment ? [...withoutPaymentAdjustments(withoutSupplierMarkup(roomSegment)).matchAll(new RegExp(`${spokenAmountPattern}\\s*(?:€|euros?)`, 'giu'))] : [];
   const priceInRoom = pricesInRoom.length === 1 ? explicitPrice(pricesInRoom[0][0]) : null;
@@ -91,7 +100,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     && sourcePrice !== null
     && [...transcript.matchAll(/\b(?:un|une|1)\s+forfait\b[^.!?]{0,45}?\b(\d+(?:[,.]\d+)?)\s*(?:€|euros?)/giu)]
       .some((match) => explicitPrice(match[0]) === sourcePrice);
-  const spokenPrice = alreadyConverted && sourcePrice !== null && !scopedPrice
+  const spokenPrice = table && !artisanOverride ? table.unit_price : alreadyConverted && sourcePrice !== null && !scopedPrice
     ? sourcePrice : scopedPrice?.amount ?? sharedPrice?.amount ?? (priceEvidence ? explicitPrice(priceEvidence) : null) ?? priceInRoom ?? sourcePrice;
   const taxesInTranscript = [...withoutPaymentAdjustments(withoutSupplierMarkup(transcript)).matchAll(new RegExp(`(?:tva|taxe\\s+sur\\s+la\\s+valeur\\s+ajoutée)\\s*(?:à|a|de|au\\s+taux\\s+de)?\\s*[:=]?\\s*(${spokenAmountPattern})\\s*(?:%|pour\\s+cent)?`, 'giu'))]
     .map((match) => {
@@ -133,7 +142,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
   const artisanEvidence = instructionsStart >= 0 && sourcesStart > instructionsStart
     ? groundedEvidence(transcript.slice(instructionsStart, sourcesStart), taxEvidence) : null;
   const tax = (artisanEvidence ? explicitTax(artisanEvidence) : null) ?? artisanTax
-    ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
+    ?? table?.tax_rate ?? (taxEvidence ? explicitTax(taxEvidence) : null) ?? sourceRowTax ?? priorTax ?? initialTax ?? confirmedTax;
   // The source wrapper mentions both HT and TTC as instructions. These are not
   // conflicting price evidence; only the artisan's text and source data count.
   const priceText = sourcesStart >= 0 ? `${instructionsStart >= 0 ? transcript.slice(instructionsStart + 'Instructions de l’artisan :'.length, sourcesStart) : ''}\n${sourceObservations}` : transcript;
@@ -150,7 +159,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
         && explicitPrice(priceEvidence) === sourcePrice ? [match[1].toLowerCase()] : [];
     });
   const columnType = [...new Set(columnTypes)].length === 1 ? columnTypes[0] : null;
-  const priceType = scopedPrice?.type ?? sharedPrice?.type ?? spokenPriceType(priceEvidence) ?? columnType ?? roomPriceType
+  const priceType = (table && !artisanOverride ? table.price_type : null) ?? scopedPrice?.type ?? sharedPrice?.type ?? spokenPriceType(priceEvidence) ?? columnType ?? roomPriceType
     ?? (mixedPriceTypes ? "ambiguous" : spokenPriceType(priceTranscript) ?? "unknown");
   const importDefault = transcript.startsWith('Prépare un brouillon de devis à partir des éléments suivants.')
     && transcript.slice(0, instructionsStart).includes('TVA par défaut à l’import : 10 %');
@@ -158,7 +167,7 @@ function normalizeLine(value: unknown, transcript: string, roomSegment?: string,
     && /\d+(?:[,.]\d+)?\s*%/u.test(sourceObservations);
   const normalizedTax = tax !== null && [0, 5.5, 10, 20].includes(tax) ? tax
     : tax === null && importDefault && !taxesInTranscript.length && !sourceTableHasRates ? 10 : null;
-  const needsTtcConversion = priceType === "ttc" && (!alreadyConverted || sourcePrice === null || scopedPrice?.type === 'ttc');
+  const needsTtcConversion = priceType === "ttc" && ((table && !artisanOverride) || !alreadyConverted || sourcePrice === null || scopedPrice?.type === 'ttc');
   const ttcWithoutTax = priceType === "ttc" && normalizedTax === null;
   const unitPrice = ttcWithoutTax || priceType === "ambiguous" ? null : needsTtcConversion
     ? normalizedTax === null || spokenPrice === null ? null : Math.round(spokenPrice / (1 + normalizedTax / 100) * 100) / 100

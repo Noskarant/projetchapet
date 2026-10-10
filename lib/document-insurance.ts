@@ -4,11 +4,13 @@ const labels = { insurer: 'Assureur', mission_reference: 'Référence mission', 
 const flat = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
 
 function exactReference(value: string, evidence: string, field: 'mission_reference' | 'case_reference') {
+  // Dates printed on old quotes are never insurance identifiers.
+  const isDate = (token: string) => /^(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})$/.test(token);
   const tokens = evidence.match(/[\p{L}\p{N}]+(?:[-/][\p{L}\p{N}]+)*/gu) || [];
-  const exact = tokens.find(token => flat(token) === flat(value));
+  const exact = tokens.find(token => !isDate(token) && flat(token) === flat(value));
   const label = field === 'case_reference' ? '(?:numéro|numero|n[°o])?\\s*(?:de\\s+)?dossier|référence\\s+(?:du\\s+)?(?:dossier|sinistre)' : '(?:numéro|numero|n[°o]|référence)?\\s*(?:de\\s+)?mission';
   const identified = [...evidence.matchAll(new RegExp(`(?:${label})\\s*[:：#-]?\\s*([A-Z0-9][A-Z0-9/-]{4,79})(?![\\p{L}\\p{N}])`, 'giu'))]
-    .map(match => match[1]).filter(token => /\d/u.test(token));
+    .map(match => match[1]).filter(token => /\d/u.test(token) && !isDate(token));
   const unique = [...new Set(identified)];
   // An explicit, unique source label repairs a truncated/model-misread reference.
   return unique.length === 1 ? unique[0] : unique.length > 1 ? '' : exact || '';
